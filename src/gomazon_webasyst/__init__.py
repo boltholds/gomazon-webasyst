@@ -1,0 +1,1 @@
+"""Gomazon Webasyst Python rewrite."""
