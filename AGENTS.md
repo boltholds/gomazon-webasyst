@@ -12,14 +12,17 @@ Do not leave important architectural decisions only in chat, PR descriptions, is
 
 Authoritative companion artifacts:
 
-- Design: `docs/superpowers/specs/2026-09-14-webasyst-python-rewrite-design.md`
-- First implementation plan: `docs/superpowers/plans/2026-09-14-contacts-foundation.md`
+- Foundation design: `docs/superpowers/specs/2026-09-14-webasyst-python-rewrite-design.md`
+- Contacts implementation plan: `docs/superpowers/plans/2026-09-14-contacts-foundation.md`
+- Routing/dispatch design: `docs/superpowers/specs/2026-09-14-routing-dispatch-design.md`
+
+Official legacy documentation reference: `https://developers.webasyst.com/docs`.
 
 ---
 
 ## Legacy source inventory
 
-The supplied Webasyst 4.2.0 archive contains 7,569 files, including 2,468 PHP files.
+The supplied Webasyst 4.2.0 archive contains the framework runtime and bundled applications.
 
 Important areas:
 
@@ -32,7 +35,7 @@ Important areas:
 - `wa-config/` — framework configuration.
 - entry points: `index.php`, `api.php`, `cli.php`, `wa.php`, `install.php`.
 
-Important legacy framework surfaces:
+Important framework surfaces:
 
 - `waSystem` — runtime/service locator, factories, dispatch, configuration, user state, plugins/events.
 - `waRouting` — domain/path routing and URL generation.
@@ -73,17 +76,9 @@ Date: 2026-09-14
 
 Pydantic v2 models are the canonical typed data contracts crossing architectural boundaries.
 
-Use separate models by semantics, e.g. `ContactCreate`, `ContactUpdate`, `ContactRead`, `ContactFilter`.
+Use separate models by semantics. Contracts contain no persistence operations, SQLAlchemy dependencies, or hidden I/O.
 
-Rules:
-
-- no persistence operations in Pydantic models,
-- no SQLAlchemy dependency in contracts,
-- no hidden I/O in validators,
-- explicit aliases for legacy field names when needed,
-- strict validation where silent legacy coercion would hide errors,
-- public API contract changes require compatibility tests,
-- ORM instances MUST NOT cross the persistence boundary.
+ORM instances MUST NOT cross the persistence boundary.
 
 ### ADR-004 — DI uses explicit interfaces, not globals
 Status: accepted
@@ -104,44 +99,15 @@ Forbidden:
 Status: accepted
 Date: 2026-09-14
 
-Application code owns repository and Unit of Work protocols.
-
-Representative shape:
-
-```python
-from typing import Protocol
-
-class ContactRepository(Protocol):
-    async def get(self, contact_id: int) -> "ContactRead | None": ...
-    async def create(self, data: "ContactCreate") -> "ContactRead": ...
-    async def update(self, contact_id: int, data: "ContactUpdate") -> "ContactRead | None": ...
-
-class UnitOfWork(Protocol):
-    contacts: ContactRepository
-    async def commit(self) -> None: ...
-    async def rollback(self) -> None: ...
-
-class UnitOfWorkFactory(Protocol):
-    def __call__(self) -> UnitOfWork: ...
-```
-
-Exact repository methods evolve from use-case needs. Do not expose generic query builders as repository APIs. Never pass SQLAlchemy `Session`/`AsyncSession` into application use cases.
+Application code owns repository and Unit of Work protocols. Repositories expose intent-oriented operations, not generic query builders. Use cases never receive SQLAlchemy sessions or engines.
 
 ### ADR-006 — SQLAlchemy is infrastructure-private
 Status: accepted
 Date: 2026-09-14
 
-SQLAlchemy models and primitives live under the SQLAlchemy persistence adapter. SQLAlchemy may be referenced by the composition root solely to construct/own concrete resources.
+SQLAlchemy models and primitives live under the SQLAlchemy persistence adapter. The composition root may reference SQLAlchemy solely to construct/own concrete resources.
 
-The following must not enter contracts/application/presentation handler signatures:
-
-- ORM declarative classes,
-- `Session` / `AsyncSession`,
-- `Engine` / `AsyncEngine`,
-- SQLAlchemy statements/results,
-- dialect-specific SQL.
-
-SQLAlchemy multi-dialect support does not replace the repository/UoW abstraction.
+ORM classes, sessions, engines, statements/results, and dialect-specific SQL must not enter contracts/application/presentation handler signatures.
 
 ### ADR-007 — Legacy compatibility lives in adapters
 Status: accepted
@@ -149,15 +115,7 @@ Date: 2026-09-14
 
 Webasyst-specific behavior is translated at explicit compatibility boundaries rather than spread through new application code.
 
-Compatibility adapters cover as needed:
-
-- domain/path route resolution,
-- request parameter conventions,
-- auth/session behavior,
-- API response/error envelopes,
-- legacy identifiers and field names,
-- plugin/hook/event naming,
-- configuration translation.
+Compatibility adapters cover route/config parsing, request conventions, auth/session behavior, API envelopes, legacy field names, and plugin/hook/event naming.
 
 New application code consumes typed contracts, not PHP associative-array semantics.
 
@@ -167,19 +125,15 @@ Date: 2026-09-14
 
 Initial migration reads/writes the existing Webasyst data safely where feasible. Do not perform destructive schema redesign during behavioral migration.
 
-Any legacy data-shape change must be documented here, covered by migration tests, and include rollback/recovery/coexistence implications.
-
 Alembic owns only schema changes introduced by the Python system; it must not blindly recreate the existing legacy schema.
 
 ### ADR-009 — Migration is incremental
 Status: accepted
 Date: 2026-09-14
 
-Migrate in vertical, independently testable slices.
+Migrate in vertical, independently testable slices:
 
-Broad sequence:
-
-1. characterization tests/fixtures,
+1. characterization fixtures,
 2. packaging/composition root,
 3. persistence ports + first adapter,
 4. contact vertical slice,
@@ -195,11 +149,9 @@ Broad sequence:
 Status: accepted
 Date: 2026-09-14
 
-Contacts/users are foundational to Webasyst authentication and permissions, so contacts prove the first architectural seams.
+Contacts/users prove the first architectural seams: settings, composition root, Pydantic contracts, repository/UoW protocols, SQLAlchemy adapter, use cases, HTTP endpoints, and tests.
 
-The slice includes startup/settings, composition root, Pydantic contact contracts, repository/UoW protocols, SQLAlchemy adapter, read/create/update use cases, thin FastAPI endpoints, fake-based unit tests, persistence-contract tests, and concrete adapter integration tests.
-
-This proves architecture only. It is not Webasyst contact API parity until legacy behavior is separately characterized and handled by compatibility adapters.
+This proves architecture only. It is not Webasyst contact API parity until legacy behavior is separately characterized.
 
 ### ADR-011 — `waSystem` will not be recreated as a universal runtime object
 Status: accepted
@@ -215,9 +167,7 @@ Date: 2026-09-14
 
 The first contacts vertical slice maps the base legacy `wa_contact` table only.
 
-The source schema for this table includes profile fields plus legacy user/auth-related columns. The first public contact contract exposes profile fields only. Password/session/token behavior is not exposed by this slice.
-
-`wa_contact_emails`, `wa_contact_data`, and `wa_contact_data_text` are separate later compatibility slices. This prevents profile CRUD from being prematurely coupled to email state, arbitrary contact fields, or authentication.
+The first public contact contract exposes profile fields only. `wa_contact_emails`, `wa_contact_data`, `wa_contact_data_text`, passwords, sessions, and tokens are separate later slices.
 
 ### ADR-013 — Initial relational persistence path is async
 Status: accepted
@@ -225,9 +175,66 @@ Date: 2026-09-14
 
 The first SQLAlchemy implementation uses `AsyncEngine`, `AsyncSession`, async repositories, and an async Unit of Work.
 
-MySQL/MariaDB uses `asyncmy`. Fast persistence-contract/integration tests may use `aiosqlite` without changing application code.
+MySQL/MariaDB uses `asyncmy`. Tests may use `aiosqlite` without changing application code. Async SQLAlchemy and driver primitives remain infrastructure-private.
 
-Async SQLAlchemy and driver primitives remain infrastructure-private.
+### ADR-014 — Mutually exclusive states use discriminated unions, not nullable bags
+Status: accepted
+Date: 2026-09-14
+
+Nullable/optional fields MUST NOT be used to encode mutually exclusive architectural states.
+
+Use Pydantic discriminated unions and normalize legacy input at compatibility boundaries.
+
+`None` is allowed only when absence itself is a valid domain value, not as a discriminator for unrelated variants.
+
+Examples:
+
+- redirect vs dispatch are separate result types,
+- app namespace vs plugin namespace are separate types,
+- default dispatch vs explicit action dispatch are separate types,
+- controller vs single action vs multi-action targets are separate types.
+
+Arbitrary legacy `dict[str, Any]` shapes may exist only at parsing/normalization boundaries. Downstream matchers/resolvers/use cases consume closed typed variants.
+
+### ADR-015 — Webasyst 4.2.0 source wins over conflicting current documentation
+Status: accepted
+Date: 2026-09-14
+
+Official Webasyst developer documentation is a compatibility reference and SHOULD be consulted for migrated framework behavior.
+
+When current documentation conflicts with the supplied Webasyst 4.2.0 source, the 4.2.0 source is authoritative unless a later ADR intentionally adopts newer behavior.
+
+Known example: current naming-rules documentation describes `Controller -> Actions -> Action`, while 4.2.0 `waFrontController::getController()` and routing documentation use `Controller -> Single Action -> Multi Actions`. The migration preserves the 4.2.0 runtime behavior.
+
+### ADR-016 — Routing and dispatch are typed staged compatibility pipelines
+Status: accepted
+Date: 2026-09-14
+
+Frontend routing is modeled as two distinct stages:
+
+```text
+FrontendRouteRequest
+    -> SystemRouteResolver
+    -> SettlementResolution
+    -> AppRouteResolver
+    -> DispatchRequest
+```
+
+Backend routing uses a separate `BackendRouteRequest`/resolver and produces the same normalized `DispatchRequest` family.
+
+A system settlement must not masquerade as a partially populated dispatch request. Defaults and legacy precedence rules are applied before constructing final dispatch variants.
+
+Dispatch handler resolution preserves Webasyst 4.2.0 order:
+
+```text
+Controller
+-> Single Action
+-> Multi Actions
+-> optional default-module fallback when try_default is enabled
+-> 404
+```
+
+PHP `class_exists()` discovery is replaced by an explicit injectable handler registry. Per-application front-controller overrides are represented by an injectable dispatch-strategy registry.
 
 ---
 
@@ -246,38 +253,27 @@ contracts + application-owned ports
  infrastructure implementations
 ```
 
-Concrete request path:
+Concrete native request path:
 
 ```text
 HTTP request
-    |
-FastAPI route / Webasyst compatibility adapter
-    |
-Pydantic input contract
-    |
-Application use case
-    |
-Repository / UnitOfWork Protocol
-    |
-Selected persistence adapter
-    |
-Database
+    -> FastAPI route
+    -> Pydantic input contract
+    -> Application use case
+    -> Repository / UnitOfWork Protocol
+    -> Selected persistence adapter
+    -> Database
 ```
 
-Response path:
+Legacy compatibility request path:
 
 ```text
-Database row
-    |
-Persistence adapter
-    |
-Pydantic contract
-    |
-Application result
-    |
-Presentation/compatibility serializer
-    |
-HTTP response
+HTTP request
+    -> presentation adapter
+    -> legacy parser / normalizer
+    -> Pydantic variant contracts
+    -> routing / dispatch compatibility resolver
+    -> registered handler / application boundary
 ```
 
 ---
@@ -292,8 +288,9 @@ src/gomazon_webasyst/
     container.py
   contracts/
     contacts.py
-    auth.py
     routing.py
+    dispatch.py
+    auth.py
     permissions.py
     api.py
     plugins.py
@@ -303,27 +300,17 @@ src/gomazon_webasyst/
     ports/
       contacts.py
       unit_of_work.py
+      dispatch_registry.py
       auth.py
       cache.py
       filesystem.py
       events.py
       plugins.py
   infrastructure/
-    persistence/
-      sqlalchemy/
-        base.py
-        models.py
-        mappings.py
-        repositories.py
-        unit_of_work.py
-        factory.py
-    auth/
-    cache/
-    filesystem/
-    events/
-    plugins/
+    persistence/sqlalchemy/
   compatibility/webasyst/
     routing/
+    dispatch/
     auth/
     api/
     config/
@@ -350,25 +337,35 @@ Feature-local packages may replace broad horizontal directories as subsystems gr
 | Legacy | Python target |
 |---|---|
 | `waSystem` | composition root + settings + explicit services/request context |
-| `waRouting` | native FastAPI routes + Webasyst compatibility route resolver |
-| `waModel`, `waDb*` | repository/UoW ports + SQLAlchemy persistence adapter |
-| `waFrontController`, `waController`, `waAction` | thin presentation/compatibility handlers + application use cases |
+| `waRouting` | Webasyst compatibility parser + typed system/app/backend route resolvers |
+| `waModel`, `waDb*` | repository/UoW ports + persistence adapters |
+| `waFrontController` | typed dispatch resolver + strategy registry |
+| `waController`, `waAction`, `*Actions` | explicit registered handler target variants |
 | `waAPIController`, `waAPIMethod` | typed API routers + auth dependency + compatibility serializer |
 | `waAuth`, OAuth adapters | auth use cases + auth/session/token ports + provider adapters |
 | `waEvent` | typed event bus + legacy event bridge |
 | `waPlugin`, `waPlugins` | plugin manifest/registry + typed hooks + compatibility bridge |
 
-Do not recreate generic legacy escape hatches such as `waModel::query()` as application-level APIs.
+Do not recreate generic legacy escape hatches such as `waModel::query()` or global `waRequest::param()` as application-level APIs.
 
 ---
 
-## Composition root
+## Routing/dispatch compatibility rules
 
-All concrete implementation selection occurs at startup.
-
-The composition root constructs and owns settings, persistence resources, UoW factory, repositories, cache/filesystem adapters, auth/OAuth adapters, event/plugin adapters, and application services.
-
-Application modules must never import a global container to resolve dependencies dynamically.
+- Legacy route arrays/shorthand strings are parsed once at the boundary.
+- Downstream code never receives arbitrary route dictionaries.
+- Frontend and backend requests are different contracts.
+- System settlement and final app dispatch are different contracts.
+- Route patterns support literals, wildcards, `<name>`, and `<name:regex>` captures.
+- Domain-specific routes and `default` fallback are characterized separately.
+- Route order is significant.
+- Routing-derived dispatch parameters override query-derived parameters according to 4.2.0 behavior.
+- Backend module defaults to `backend`; frontend normalization applies `frontend` before final dispatch.
+- Plugin namespace is a distinct variant, never `plugin: str | None`.
+- Redirect is a routing outcome variant, never `redirect: str | None`.
+- Invalid dispatch identifiers map to typed 400 errors.
+- Missing routes/handlers map to typed 404 errors.
+- Authorization, widgets, static-content routes, `priority_settlement`, generated page routes, and special callback paths are separate slices unless explicitly added by a later ADR.
 
 ---
 
@@ -376,27 +373,25 @@ Application modules must never import a global container to resolve dependencies
 
 - Repositories expose intent-oriented methods.
 - No arbitrary query-builder access outside infrastructure.
-- No MySQL-specific assumptions in application code.
-- Database-specific indexes, locks, extensions and SQL remain inside adapters.
+- No DB-specific assumptions in application code.
+- Database-specific SQL remains inside adapters.
 - Use explicit transaction scopes.
 - Every use case must be testable with fake repositories/UoW.
 - Concrete persistence adapters require integration tests.
 - Multiple adapters must pass the same persistence contract suite.
 - Existing legacy tables are mapped; Python migrations do not recreate them blindly.
 
-Initial selection examples:
+Initial production example:
 
 ```text
 GOMAZON_DATABASE_URL=mysql+asyncmy://user:pass@host/webasyst
 ```
 
-Tests may use:
+Test example:
 
 ```text
 GOMAZON_DATABASE_URL=sqlite+aiosqlite:///:memory:
 ```
-
-A future PostgreSQL implementation may use a different infrastructure adapter/driver without changing application contracts/use cases.
 
 ---
 
@@ -404,30 +399,23 @@ A future PostgreSQL implementation may use a different infrastructure adapter/dr
 
 The first native Python contact endpoints are architectural proof endpoints, not legacy Webasyst API compatibility endpoints.
 
-Initial public profile fields come from `wa_contact` and include:
-
-- `id`, `name`,
-- `firstname`, `middlename`, `lastname`,
-- `title`, `company`, `jobtitle`,
-- `company_contact_id`, `is_company`,
-- `locale`, `timezone`,
-- `create_datetime` on reads.
-
-The following remain out of the first public contract even though some are stored on `wa_contact`:
-
-- `login`, `password`, `is_user`, `is_staff`,
-- auth/session/token behavior,
-- email/phone/custom contact fields,
-- photo/file handling,
-- birthday/sex/about compatibility semantics.
-
-Those capabilities get dedicated contracts/use cases when migrated.
+The first public profile contract excludes login/password/user/staff flags, sessions/tokens, email/phone/custom fields, photo/file handling, and other legacy semantics until dedicated slices migrate them.
 
 ---
 
 ## Web/API compatibility policy
 
-For every migrated compatibility surface, characterize/test as applicable: method, route/domain matching, parsing, auth, authorization, status, output shape, redirects, cookies/session mutation, and errors.
+For every migrated compatibility surface, characterize/test as applicable:
+
+- method,
+- route/domain matching,
+- parsing and precedence,
+- authentication/authorization,
+- status,
+- output shape,
+- redirects,
+- cookie/session mutation,
+- error semantics.
 
 When exact compatibility is intentionally broken, record an ADR before the new behavior becomes canonical.
 
@@ -463,11 +451,13 @@ Core/application services must not depend on a template engine. Broad Smarty/tem
 
 ## Error model
 
-Application errors are framework-agnostic typed errors/results.
+Application and compatibility-core errors are framework-agnostic typed errors/results.
 
-Presentation adapters translate them to native HTTP responses. Webasyst compatibility adapters may translate the same errors to legacy envelopes.
+Presentation adapters translate them to HTTP responses. Webasyst compatibility adapters may translate them to legacy envelopes.
 
 Raw SQLAlchemy/driver exceptions must not leak across the persistence boundary.
+
+Redirects are typed successful routing outcomes, not exceptions.
 
 ---
 
@@ -486,7 +476,7 @@ Reusable behavioral tests define repository expectations and run against each co
 Cover mappings, queries, transactions, concrete DI wiring, configured dialect selection, and ASGI routes.
 
 ### Legacy compatibility
-Use characterization/golden tests for behavior claimed to match Webasyst.
+Use characterization/golden tests for behavior claimed to match Webasyst. Routing tests must cite/source subtle 4.2.0 behavior when documentation differs.
 
 ### Migration
 Cover representative legacy rows, type/nullability edge cases, idempotency, rollback/recovery, and coexistence where applicable.
@@ -501,27 +491,30 @@ Cover representative legacy rows, type/nullability edge cases, idempotency, roll
 4. Do not bypass DI with globals.
 5. Do not leak ORM models, sessions, engines, statements, or driver types into application contracts/use cases.
 6. Use Pydantic v2 contracts at explicit boundaries.
-7. Add/adjust application-owned Protocols before coupling services to infrastructure.
-8. Add tests before or with behavior-changing implementation.
-9. Prefer small vertical migration slices.
-10. Do not mechanically translate PHP structure.
-11. Preserve legacy behavior only when it is a compatibility requirement.
-12. Update this file in the same change whenever architecture changes.
-13. Add or supersede a numbered ADR; do not silently rewrite architectural history.
-14. Do not claim Webasyst compatibility without characterization/compatibility tests.
-15. Native Python endpoints and compatibility endpoints must remain distinguishable until parity is proven.
+7. Do not encode mutually exclusive states with collections of optional fields; use discriminated unions.
+8. Normalize arbitrary legacy input once at a compatibility boundary and keep it out of downstream code.
+9. Add/adjust application-owned Protocols before coupling services to infrastructure.
+10. Add tests before or with behavior-changing implementation.
+11. Prefer small vertical migration slices.
+12. Do not mechanically translate PHP structure.
+13. Preserve legacy behavior only when it is a compatibility requirement.
+14. When current docs and 4.2.0 source disagree, follow ADR-015.
+15. Update this file in the same change whenever architecture changes.
+16. Add or supersede a numbered ADR; do not silently rewrite architectural history.
+17. Do not claim Webasyst compatibility without characterization/compatibility tests.
+18. Native Python endpoints and compatibility endpoints remain distinguishable until parity is proven.
 
 ---
 
 ## Foundation completion criteria
 
-The initial foundation is proven when:
+The foundation remains valid when:
 
 - application use cases run without FastAPI/SQLAlchemy imports,
-- persistence can be replaced with fakes through DI,
-- MySQL/MariaDB can be selected/configured at the composition root,
-- changing a test adapter does not modify application code,
-- Pydantic contracts cross presentation/application and application/persistence boundaries,
+- persistence can be replaced through DI,
+- Pydantic contracts cross architectural boundaries,
 - ORM models remain infrastructure-private,
-- the `wa_contact` vertical slice passes unit, architecture, persistence-contract, integration, and HTTP tests,
+- legacy dictionaries are contained at compatibility parser boundaries,
+- normalized variants avoid nullable state machines,
+- routing/dispatch behavior is characterized against Webasyst 4.2.0,
 - every introduced architectural decision is reflected in this file.
