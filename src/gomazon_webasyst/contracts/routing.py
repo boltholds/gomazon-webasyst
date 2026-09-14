@@ -2,6 +2,12 @@ from typing import Annotated, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
+from gomazon_webasyst.contracts.enums import (
+    AppRouteConstraintKind,
+    DispatchSeedKind,
+    SettlementKind,
+)
+
 
 RouteData: TypeAlias = dict[str, JsonValue]
 
@@ -39,51 +45,51 @@ class RoutePattern(BaseModel):
 
 class EmptySeed(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["empty"] = "empty"
+    kind: Literal[DispatchSeedKind.EMPTY] = DispatchSeedKind.EMPTY
 
 
 class ModuleSeed(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["module"] = "module"
+    kind: Literal[DispatchSeedKind.MODULE] = DispatchSeedKind.MODULE
     module: str
 
 
 class ActionOnlySeed(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["action_only"] = "action_only"
+    kind: Literal[DispatchSeedKind.ACTION_ONLY] = DispatchSeedKind.ACTION_ONLY
     action: str
 
 
 class ActionSeed(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["action"] = "action"
+    kind: Literal[DispatchSeedKind.ACTION] = DispatchSeedKind.ACTION
     module: str
     action: str
 
 
 class PluginSeed(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["plugin"] = "plugin"
+    kind: Literal[DispatchSeedKind.PLUGIN] = DispatchSeedKind.PLUGIN
     plugin: str
 
 
 class PluginActionOnlySeed(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["plugin_action_only"] = "plugin_action_only"
+    kind: Literal[DispatchSeedKind.PLUGIN_ACTION_ONLY] = DispatchSeedKind.PLUGIN_ACTION_ONLY
     plugin: str
     action: str
 
 
 class PluginModuleSeed(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["plugin_module"] = "plugin_module"
+    kind: Literal[DispatchSeedKind.PLUGIN_MODULE] = DispatchSeedKind.PLUGIN_MODULE
     plugin: str
     module: str
 
 
 class PluginActionSeed(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["plugin_action"] = "plugin_action"
+    kind: Literal[DispatchSeedKind.PLUGIN_ACTION] = DispatchSeedKind.PLUGIN_ACTION
     plugin: str
     module: str
     action: str
@@ -104,12 +110,12 @@ DispatchSeed: TypeAlias = Annotated[
 
 class AnyAppRouteConstraint(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["any"] = "any"
+    kind: Literal[AppRouteConstraintKind.ANY] = AppRouteConstraintKind.ANY
 
 
 class ModuleRouteConstraint(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["module"] = "module"
+    kind: Literal[AppRouteConstraintKind.MODULE] = AppRouteConstraintKind.MODULE
     module: str
 
 
@@ -122,7 +128,7 @@ AppRouteConstraint: TypeAlias = Annotated[
 class AppSettlement(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    kind: Literal["app"] = "app"
+    kind: Literal[SettlementKind.APP] = SettlementKind.APP
     app: str
     matched_prefix: str
     remaining_path: str
@@ -134,7 +140,7 @@ class AppSettlement(BaseModel):
 class RedirectSettlement(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    kind: Literal["redirect"] = "redirect"
+    kind: Literal[SettlementKind.REDIRECT] = SettlementKind.REDIRECT
     location: str
     status_code: Literal[301, 302]
 
