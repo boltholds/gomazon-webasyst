@@ -16,6 +16,7 @@ Authoritative companion artifacts:
 - Contacts plan: `docs/superpowers/plans/2026-09-14-contacts-foundation.md`
 - Routing/dispatch design: `docs/superpowers/specs/2026-09-14-routing-dispatch-design.md`
 - Routing/dispatch plan: `docs/superpowers/plans/2026-09-14-routing-dispatch.md`
+- Auth/session design: `docs/superpowers/specs/2026-09-14-auth-session-design.md`
 - Official legacy documentation reference: `https://developers.webasyst.com/docs`
 
 ---
@@ -251,7 +252,43 @@ String-valued contract discriminators MUST derive from the shared `EnumStr` base
 
 Pydantic v2 field discriminators still require each concrete model discriminator field to be typed as `Literal[...]`; therefore the required pattern is `kind: Literal[NamespaceKind.APP] = NamespaceKind.APP`, not `kind: NamespaceKind = NamespaceKind.APP`.
 
-Each semantic discriminator domain has its own enum (`DispatchSeedKind`, `AppRouteConstraintKind`, `SettlementKind`, `DispatchNamespaceKind`, `DispatchRequestKind`, `DispatchTargetKind`, `LegacyDispatchOutcomeKind`). Raw legacy/JSON strings remain accepted at validation boundaries, and JSON serialization emits the original string values.
+Each semantic discriminator domain has its own enum. Raw legacy/JSON strings remain accepted at validation boundaries, and JSON serialization emits the original string values.
+
+### ADR-020 — Expected negative outcomes use explicit typed results, not sentinel absence
+Status: accepted
+Date: 2026-09-14
+
+Expected absence, rejection, invalidation, or other ordinary negative outcomes MUST be represented by explicit typed result variants rather than `None`, `False`, empty collections, magic strings, or overloaded exceptions.
+
+Examples include identity lookup miss, rejected credentials, expired/revoked sessions, unsupported credential schemes, importer selection failure, provider selection failure, and target/plugin resolution failures when those outcomes are part of normal control flow.
+
+Use discriminated Pydantic result unions with `EnumStr` error/status domains. `None` remains valid only when absence itself is the domain value, not when it stands for an operation failure or branch of control flow.
+
+Infrastructure faults such as database unavailability, I/O failure, timeout, corruption, or programming errors are not normal negative outcomes and MUST NOT be collapsed into a `NOT_FOUND`/`REJECTED` result. They propagate as typed infrastructure/application errors according to the boundary.
+
+Security-sensitive public adapters may intentionally coarsen internal result types, for example mapping identity-not-found and password-mismatch to one external `INVALID_CREDENTIALS` response to avoid information disclosure.
+
+### ADR-021 — Extensible lookup and selection use policies/registries, not method proliferation
+Status: accepted
+Date: 2026-09-14
+
+When a behavior is expected to gain new lookup schemes, providers, importers, targets, identity sources, OAuth providers, storage backends, or similar strategies, application-owned ports MUST NOT grow one method per current variant (`find_by_login`, `find_by_email`, `find_by_phone`, etc.).
+
+Represent the requested scheme as data and route it through policy/registry boundaries:
+
+```text
+input
+  -> ordered policy set
+  -> typed lookup/selection plan
+  -> registry/directory keyed by scheme/provider id
+  -> explicit typed result
+```
+
+Extension identifiers such as identity-key schemes are open extension points and SHOULD remain strings/value objects rather than closed enums when third-party or later-added schemes must be registerable without modifying core contracts.
+
+Closed result/status/discriminator domains still use `EnumStr` per ADR-019.
+
+Adding a new scheme/provider SHOULD require registering a new policy/resolver/adapter, not editing existing use-case branches or adding a new method to a central repository/service interface.
 
 ---
 
@@ -298,17 +335,27 @@ src/gomazon_webasyst/
     contacts.py
     routing.py
     dispatch.py
+    auth.py
   application/
     contacts.py
+    auth.py
     ports/
       unit_of_work.py
       contacts.py
       dispatch_registry.py
+      identity_directory.py
+      auth_subjects.py
+      password_verifier.py
+      session_state.py
+      auth_session_registry.py
   infrastructure/
     persistence/sqlalchemy/
+    auth/
+    sessions/
   compatibility/webasyst/
     routing/
     dispatch/
+    auth/
     service.py
   presentation/http/
     contacts.py
@@ -341,6 +388,24 @@ Compatibility may depend on contracts/application-owned ports. Application code 
 
 ---
 
+## Auth/session compatibility rules
+
+The first auth slice is backend password authentication plus session create/resolve/revoke.
+
+- identity lookup is driven by an ordered `LoginPolicySet` and an `IdentityDirectory`, not `find_by_*` methods;
+- `IdentityKey.scheme` is an open extension identifier and is not a closed enum;
+- expected lookup, credential and session failures are explicit typed result variants;
+- public login responses may coarsen internal rejection reasons to avoid account enumeration;
+- legacy default password verification is MD5-compatible but hashing remains behind an injected `PasswordVerifier`;
+- application code must not contain MD5/password-hash implementation details;
+- successful password login MUST NOT automatically rehash or write a new password in this slice;
+- session state analogous to legacy `auth_user` and active-auth registry state in `wa_contact_auths` are separate ports;
+- `wa_contact_auths` is a registry/revocation table, not the session-state store;
+- credential-version invalidation is represented through an injected token factory and explicit `CREDENTIALS_CHANGED` session result;
+- remember-me, one-time password, frontend confirmation/signup, permissions, OAuth/social/Webasyst ID, API OAuth2 tokens and PHP-session-file interoperability are separate slices.
+
+---
+
 ## Persistence rules
 
 - no arbitrary query-builder access outside infrastructure;
@@ -364,13 +429,9 @@ GOMAZON_DATABASE_URL=sqlite+aiosqlite:///:memory:   # tests
 
 Application/compatibility errors are framework-agnostic typed errors. Presentation translates them to HTTP.
 
-Routing/dispatch initial errors:
+Ordinary negative outcomes that callers are expected to branch on are typed result variants per ADR-020. Infrastructure/programming failures remain exceptional and must not be disguised as ordinary negative outcomes.
 
-- `InvalidLegacyRoute`;
-- `InvalidDispatchParameter` -> 400;
-- `RouteNotFound` -> 404;
-- `DispatchTargetNotFound` -> 404;
-- `PluginUnavailable` -> 404.
+Routing/dispatch initial errors include `InvalidLegacyRoute`, `InvalidDispatchParameter`, `RouteNotFound`, `DispatchTargetNotFound`, and `PluginUnavailable`.
 
 Redirects are successful typed outcomes.
 
@@ -379,10 +440,10 @@ Redirects are successful typed outcomes.
 ## Testing strategy
 
 ### Unit
-Use fake repositories/UoW/registries. Core use cases and compatibility resolvers require no ASGI server or external DB.
+Use fake repositories/UoW/registries/policies. Core use cases and compatibility resolvers require no ASGI server or external DB.
 
 ### Architecture
-Automated import-boundary tests prevent FastAPI/SQLAlchemy/drivers from leaking into contracts/application.
+Automated import-boundary tests prevent FastAPI/SQLAlchemy/drivers/concrete crypto or password algorithms from leaking into contracts/application.
 
 ### Persistence contract
 Reusable behavioral tests run against each concrete persistence adapter.
@@ -391,7 +452,7 @@ Reusable behavioral tests run against each concrete persistence adapter.
 Tests reference the relevant Webasyst 4.2.0 method/class when behavior is subtle or docs conflict with source.
 
 ### Integration
-Cover DB wiring and ASGI compatibility flow. CI installs dev drivers and runs the full suite on Python 3.12.
+Cover DB wiring, ASGI compatibility flow, and auth/session composition. CI installs dev drivers and runs the full suite on Python 3.12.
 
 ---
 
@@ -411,15 +472,17 @@ Do not silently add auth/session/permission checks, CSRF, widgets, `priority_set
 6. Use Pydantic v2 at explicit boundaries.
 7. Use discriminated unions for variant state; do not add nullable control bags for convenience.
 8. Declare serialized string discriminator values through `EnumStr` enums; never duplicate raw discriminator magic strings across contract models.
-9. Parse legacy dictionaries once at compatibility boundaries.
-10. Add/adjust application-owned Protocols before coupling to infrastructure.
-11. Use tests before/with behavior changes and source-backed characterization for legacy semantics.
-12. Prefer small vertical slices.
-13. Do not mechanically translate PHP structure.
-14. Update this file in the same change whenever architecture changes.
-15. Add/supersede numbered ADRs; do not silently rewrite architectural history.
-16. Do not claim Webasyst compatibility without characterization tests.
-17. Keep native Python endpoints distinguishable from compatibility endpoints until parity is proven.
+9. Represent expected negative outcomes as explicit typed result variants; do not use `None`, `False`, empty values, or exceptions as ordinary branch markers.
+10. For extensible lookup/selection, use policies plus registries/directories keyed by scheme/provider id; do not grow central interfaces with `find_by_*` or one-method-per-provider APIs.
+11. Parse legacy dictionaries once at compatibility boundaries.
+12. Add/adjust application-owned Protocols before coupling to infrastructure.
+13. Use tests before/with behavior changes and source-backed characterization for legacy semantics.
+14. Prefer small vertical slices.
+15. Do not mechanically translate PHP structure.
+16. Update this file in the same change whenever architecture changes.
+17. Add/supersede numbered ADRs; do not silently rewrite architectural history.
+18. Do not claim Webasyst compatibility without characterization tests.
+19. Keep native Python endpoints distinguishable from compatibility endpoints until parity is proven.
 
 ---
 
@@ -434,4 +497,5 @@ The foundation is considered proven when CI confirms:
 - ORM models stay infrastructure-private;
 - contact slice passes unit/architecture/persistence/integration/HTTP tests;
 - routing/dispatch slice passes contract/pattern/parser/resolver/registry/strategy/ASGI tests;
+- auth/session slice, when implemented, passes contract/policy/directory/password/session/persistence/integration tests;
 - every new architectural decision is reflected here.
