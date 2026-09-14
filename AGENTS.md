@@ -15,6 +15,7 @@ Authoritative companion artifacts:
 - Routing/dispatch design: `docs/superpowers/specs/2026-09-14-routing-dispatch-design.md`
 - Routing/dispatch plan: `docs/superpowers/plans/2026-09-14-routing-dispatch.md`
 - Auth/session design: `docs/superpowers/specs/2026-09-14-auth-session-design.md`
+- Persistent-login design: `docs/superpowers/specs/2026-09-14-persistent-login-design.md`
 - Official legacy documentation reference: `https://developers.webasyst.com/docs`
 
 ---
@@ -211,6 +212,18 @@ Allowed uses are limited to genuine nullable data imposed by an external schema/
 
 The architecture test suite enforces this rule across source annotations.
 
+### ADR-024 — Persistent authentication is a strategy bridge, not a fixed token format
+Status: accepted
+Date: 2026-09-14
+
+Application code treats a long-lived login credential as an opaque `PersistentCredential`. Acceptance is performed by an ordered `PersistentCredentialStrategy` resolver chain, while issuance is a separately injected `PersistentCredentialIssuer`. The Webasyst 4.2.0 deterministic `auth_token` format is compatibility-only and is registered as the terminal fallback for unprefixed credentials. Future formats such as a prefixed opaque v2 token may be accepted before the legacy strategy and may become the configured issuer without changing persistent-login use cases.
+
+### ADR-025 — Persistent-login intent and credential transport are separate from primary authentication
+Status: accepted
+Date: 2026-09-14
+
+Do not add `remember: bool`, nullable remember fields, cookie types, or transport settings to `BackendPasswordCredentials`. Password authentication establishes a normal session only. Persistent issuance is an explicit `IssuePersistentCredential` operation invoked after successful authentication when the caller requests persistence. Restore results carry a typed `RefreshPersistentCredential | ClearPersistentCredential | KeepPersistentCredential` disposition; presentation maps that intent to cookies. The legacy `remember` cookie is only UI preference state and is not an authentication credential. If remember-me is globally disabled, persistent restore is not invoked and an existing `auth_token` is left untouched, matching 4.2.0.
+
 ---
 
 ## Target dependency direction
@@ -240,9 +253,13 @@ src/gomazon_webasyst/
     routing.py
     dispatch.py
     auth.py
+    persistent_login.py
   application/
     contacts.py
     auth.py
+    persistent_login.py
+    persistent_values.py
+    session_establishment.py
     ports/
       unit_of_work.py
       contacts.py
@@ -253,14 +270,17 @@ src/gomazon_webasyst/
       session_state.py
       session_validation.py
       auth_session_registry.py
+      persistent_credentials.py
   infrastructure/
     persistence/sqlalchemy/
     auth/
+      persistent_credentials.py
     sessions/
   compatibility/webasyst/
     routing/
     dispatch/
     auth/
+      persistent.py
     service.py
   presentation/http/
     contacts.py
@@ -291,7 +311,7 @@ Compatibility may depend on contracts/application-owned ports. Application code 
 
 ## Auth/session compatibility rules
 
-The first auth slice is backend password authentication plus session create/resolve/revoke.
+The first auth slice is backend password authentication plus session create/resolve/revoke; persistent login is the next compatibility layer on top of it.
 
 - identity lookup is driven by ordered `LoginPolicySet` + `IdentityDirectory`, not `find_by_*` methods;
 - `IdentityKey.scheme` is an open extension identifier, not a closed enum;
@@ -304,7 +324,11 @@ The first auth slice is backend password authentication plus session create/reso
 - `wa_contact_auths` is a registry/revocation table, not the session-state store;
 - `SessionId` is the opaque initial locator; established auth-session identity is `AuthSessionKey`;
 - credential-version invalidation uses an injected token factory and explicit `CREDENTIALS_CHANGED` result;
-- remember-me, OTP, frontend confirmation/signup, permissions, OAuth/social/Webasyst ID, API OAuth2 tokens, and PHP-session-file interoperability are later slices.
+- persistent credential acceptance uses an ordered strategy resolver; issuance is configured separately;
+- legacy `auth_token` is stateless, deterministic, 30-day and compatibility-only; successful restore refreshes the same credential and invalid credentials are cleared by transport;
+- ordinary `remember=false` does not itself mean revoke; persistence issuance and revocation/clear are separate operations;
+- the legacy `remember` cookie is UI preference state and must not enter auth application contracts;
+- OTP, frontend confirmation/signup, permissions, OAuth/social/Webasyst ID, API OAuth2 tokens, opaque v2 persistence, and PHP-session-file interoperability are later slices.
 
 ---
 
@@ -338,7 +362,7 @@ Application/compatibility errors are framework-agnostic. Presentation translates
 Use fakes for repositories/UoW/registries/policies. Core use cases and compatibility resolvers require no ASGI server or external DB.
 
 ### Architecture
-Prevent FastAPI/SQLAlchemy/drivers/concrete crypto/password algorithms from leaking into contracts/application. Enforce ADR-023 by rejecting unexpected `Optional`/`T | None` annotations outside genuine nullable schema/protocol boundaries.
+Prevent FastAPI/SQLAlchemy/drivers/concrete crypto/password algorithms from leaking into contracts/application. Enforce ADR-023 by rejecting unexpected `Optional`/`T | None` annotations outside genuine nullable schema/protocol boundaries. Persistent-login application code must not import legacy token-format classes or cookie/HTTP types.
 
 ### Persistence contract
 Reusable behavioral tests run against concrete persistence adapters.
@@ -347,7 +371,7 @@ Reusable behavioral tests run against concrete persistence adapters.
 Reference relevant Webasyst 4.2.0 methods/classes when behavior is subtle or documentation conflicts with source.
 
 ### Integration
-Cover DB wiring, ASGI compatibility flow, and auth/session composition. CI runs the full suite on Python 3.12.
+Cover DB wiring, ASGI compatibility flow, auth/session composition, and persistent-login issuance/restore. CI runs the full suite on Python 3.12.
 
 ---
 
@@ -365,15 +389,16 @@ Cover DB wiring, ASGI compatibility flow, and auth/session composition. CI runs 
 10. For extensible lookup/selection, use policies plus registries/directories keyed by open scheme/provider identifiers; do not grow `find_by_*` APIs.
 11. Replace repeated correlated primitive pairs with immutable internal VOs; prefer `@dataclass(slots=True, frozen=True)` for non-wire value objects.
 12. Reserve `T | None` / `Optional[T]` for genuine external data/protocol nullability only; never use it for operation/lookup results, lifecycle state, dispatch/match state, or omitted controls.
-13. Parse legacy dictionaries once at compatibility boundaries.
-14. Add/adjust application-owned Protocols before coupling to infrastructure.
-15. Use tests before/with behavior changes and source-backed characterization for legacy semantics.
-16. Prefer small vertical slices.
-17. Do not mechanically translate PHP structure.
-18. Update this file in the same change whenever architecture changes.
-19. Add/supersede numbered ADRs; do not silently rewrite architectural history.
-20. Do not claim Webasyst compatibility without characterization tests.
-21. Keep native Python endpoints distinguishable from compatibility endpoints until parity is proven.
+13. Keep primary authentication, persistence issuance, and credential transport as separate operations/boundaries; do not add remember flags to password credentials.
+14. Parse legacy dictionaries once at compatibility boundaries.
+15. Add/adjust application-owned Protocols before coupling to infrastructure.
+16. Use tests before/with behavior changes and source-backed characterization for legacy semantics.
+17. Prefer small vertical slices.
+18. Do not mechanically translate PHP structure.
+19. Update this file in the same change whenever architecture changes.
+20. Add/supersede numbered ADRs; do not silently rewrite architectural history.
+21. Do not claim Webasyst compatibility without characterization tests.
+22. Keep native Python endpoints distinguishable from compatibility endpoints until parity is proven.
 
 ---
 
@@ -388,5 +413,6 @@ The foundation is considered proven when CI confirms:
 - ORM models stay infrastructure-private;
 - contact slice passes unit/architecture/persistence/integration/HTTP tests;
 - routing/dispatch slice passes contract/pattern/parser/resolver/registry/strategy/ASGI tests;
-- auth/session slice, when implemented, passes contract/policy/directory/password/session/persistence/integration tests;
+- auth/session slice passes contract/policy/directory/password/session/persistence/integration tests;
+- persistent-login slice, when implemented, passes strategy/issuer/session-establishment/restore/characterization/integration tests;
 - every new architectural decision is reflected here.
