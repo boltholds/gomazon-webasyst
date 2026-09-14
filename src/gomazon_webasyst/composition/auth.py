@@ -7,6 +7,10 @@ from gomazon_webasyst.application.auth import (
     LogoutBackendSession,
     ResolveBackendSession,
 )
+from gomazon_webasyst.application.ports.session_validation import (
+    SessionValidationPolicy,
+    StrictSessionValidationPolicy,
+)
 from gomazon_webasyst.compatibility.webasyst.auth.factory import create_webasyst_login_policy_set
 from gomazon_webasyst.compatibility.webasyst.auth.passwords import LegacyMd5PasswordVerifier
 from gomazon_webasyst.compatibility.webasyst.auth.phone import LegacyPhonePrefixPolicy
@@ -28,6 +32,7 @@ def create_auth_use_cases(
     session_factory: async_sessionmaker[AsyncSession],
     *,
     phone_prefix_policy: LegacyPhonePrefixPolicy = LegacyPhonePrefixPolicy(),
+    validation_policy: SessionValidationPolicy = StrictSessionValidationPolicy(),
 ) -> AuthUseCases:
     planner = create_webasyst_login_policy_set()
     directory = create_sqlalchemy_identity_directory(
@@ -54,6 +59,7 @@ def create_auth_use_cases(
             subject_store=subjects,
             token_factory=token_factory,
             session_registry=registry,
+            validation_policy=validation_policy,
         ),
         logout_backend_session=LogoutBackendSession(
             session_state=session_state,

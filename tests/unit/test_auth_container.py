@@ -24,3 +24,17 @@ def test_container_exposes_auth_session_use_cases_as_first_class_dependencies():
     assert container.authenticate_backend_password is not None
     assert container.resolve_backend_session is not None
     assert container.logout_backend_session is not None
+
+
+def test_auth_composition_accepts_explicit_session_validation_policy():
+    from gomazon_webasyst.application.ports.session_validation import SessionValidationDecision
+    from gomazon_webasyst.composition.auth import create_auth_use_cases
+
+    class TrustStoredPolicy:
+        def decide(self, state):
+            return SessionValidationDecision.TRUST_STORED
+
+    policy = TrustStoredPolicy()
+    auth = create_auth_use_cases(object(), validation_policy=policy)
+
+    assert auth.resolve_backend_session._validation_policy is policy

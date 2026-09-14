@@ -6,6 +6,11 @@ from gomazon_webasyst.application.ports.identity_directory import IdentityDirect
 from gomazon_webasyst.application.ports.login_policy import LoginPlanner
 from gomazon_webasyst.application.ports.password_verifier import PasswordVerifier
 from gomazon_webasyst.application.ports.session_state import SessionStateStore
+from gomazon_webasyst.application.ports.session_validation import (
+    SessionValidationDecision,
+    SessionValidationPolicy,
+    StrictSessionValidationPolicy,
+)
 from gomazon_webasyst.contracts.auth import (
     AuthSessionRegistration,
     AuthenticatedSubject,
@@ -111,11 +116,13 @@ class ResolveBackendSession:
         subject_store: AuthSubjectStore,
         token_factory: CredentialVersionTokenFactory,
         session_registry: AuthSessionRegistry,
+        validation_policy: SessionValidationPolicy = StrictSessionValidationPolicy(),
     ) -> None:
         self._session_state = session_state
         self._subject_store = subject_store
         self._token_factory = token_factory
         self._session_registry = session_registry
+        self._validation_policy = validation_policy
 
     async def __call__(self, session_id: SessionId) -> SessionResolutionResult:
         state_result = await self._session_state.resolve(session_id)
@@ -129,6 +136,9 @@ class ResolveBackendSession:
         assert isinstance(state_result, SessionStateResolved)
         state = state_result.state
         key = state.key
+
+        if self._validation_policy.decide(state) is SessionValidationDecision.TRUST_STORED:
+            return SessionResolved(subject=state.subject, session_key=key)
 
         subject_result = await self._subject_store.get(key.contact_id)
         if isinstance(subject_result, SubjectResolutionError):
