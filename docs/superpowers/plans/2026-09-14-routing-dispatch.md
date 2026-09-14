@@ -90,4 +90,4 @@
 
 - [x] `python -m pytest -q` locally: 86 passed, 3 driver-dependent foundation skips.
 - [x] `python -m compileall -q src`: exit 0.
-- [ ] GitHub Actions Python 3.12 full suite after branch synchronization.
+- [x] GitHub Actions Python 3.12 full suite: 91 passed, 0 failed, 0 skipped.
