@@ -41,7 +41,7 @@ Observed 4.2.0 behavior important to this slice:
 
 ## Cross-project invariants
 
-This design introduces two project-wide ADRs in `AGENTS.md`.
+This design introduces three project-wide ADRs in `AGENTS.md`.
 
 ### Explicit expected outcomes
 
@@ -69,6 +69,10 @@ raw input
 ```
 
 Do not create central interfaces with `find_by_login`, `find_by_email`, `find_by_phone`, and future `find_by_*` methods.
+
+### Immutable session identity value objects
+
+Repeated correlated identifiers are modeled as immutable value objects rather than parallel primitives. `SessionId` represents the opaque transport/session-store lookup value, while `AuthSessionKey(contact_id, session_id)` represents an established authenticated session. Both are stdlib `@dataclass(slots=True, frozen=True)` value objects, not Pydantic wire contracts.
 
 ## Auth slice boundaries
 
@@ -253,9 +257,34 @@ Presentation MUST be able to map multiple internal rejection reasons to one exte
 
 No `bool`, `None`, or exception is used for normal credential rejection.
 
-## Session model: state store vs active-auth registry
+## Session model: value objects, state store, and active-auth registry
 
-Legacy Webasyst has two separate responsibilities and Python keeps them separate.
+Legacy Webasyst has two separate storage responsibilities and Python keeps them separate. Session identity itself is modeled with immutable value objects rather than repeatedly passing correlated primitives.
+
+### Session identity value objects
+
+Internal auth/session identifiers use stdlib dataclasses with value semantics:
+
+```python
+from dataclasses import dataclass
+
+
+@dataclass(slots=True, frozen=True)
+class SessionId:
+    value: str
+
+
+@dataclass(slots=True, frozen=True)
+class AuthSessionKey:
+    contact_id: int
+    session_id: SessionId
+```
+
+`AuthSessionKey` is the canonical identity of an established authenticated session across application ports. Code must not repeatedly pass `contact_id: int, session_id: str` as parallel primitive parameters.
+
+`SessionId` exists separately because the initial HTTP request supplies only the opaque session id. The contact id is unknown until session state has been resolved, so requiring an `AuthSessionKey` for the first lookup would force presentation or storage code to invent information it does not yet have.
+
+These are internal value objects, not wire contracts. Pydantic remains the default for serialized/cross-boundary contracts; small internal immutable values may use `@dataclass(slots=True, frozen=True)` when serialization/validation machinery is unnecessary.
 
 ### SessionStateStore
 
@@ -266,9 +295,11 @@ Conceptual port:
 ```python
 class SessionStateStore(Protocol):
     async def create(self, subject: AuthenticatedSubject, metadata: SessionMetadata) -> SessionCreationResult: ...
-    async def resolve(self, session_id: str) -> SessionStateResolution: ...
-    async def revoke(self, session_id: str) -> SessionRevocationResult: ...
+    async def resolve(self, session_id: SessionId) -> SessionStateResolution: ...
+    async def revoke(self, key: AuthSessionKey) -> SessionRevocationResult: ...
 ```
+
+Successful creation/resolution results carry the canonical `AuthSessionKey`, so every operation after the initial opaque-id lookup uses the same VO.
 
 The storage adapter is DI-selected. A later Redis, database, or PHP-session compatibility adapter must be introducible without changing auth use cases.
 
@@ -278,11 +309,13 @@ Maps the active authorization to legacy `wa_contact_auths` semantics:
 
 ```python
 class AuthSessionRegistry(Protocol):
-    async def register(self, record: AuthSessionRegistration) -> RegistryWriteResult: ...
-    async def check(self, contact_id: int, session_id: str) -> RegistryCheckResult: ...
-    async def touch(self, contact_id: int, session_id: str) -> RegistryTouchResult: ...
-    async def revoke(self, contact_id: int, session_id: str) -> RegistryRevocationResult: ...
+    async def register(self, registration: AuthSessionRegistration) -> RegistryWriteResult: ...
+    async def check(self, key: AuthSessionKey) -> RegistryCheckResult: ...
+    async def touch(self, key: AuthSessionKey) -> RegistryTouchResult: ...
+    async def revoke(self, key: AuthSessionKey) -> RegistryRevocationResult: ...
 ```
+
+`AuthSessionRegistration` contains the `AuthSessionKey` plus registry metadata such as credential-version token, timestamps, and user-agent data. It does not duplicate `contact_id` and `session_id` as loose arguments.
 
 The first SQLAlchemy adapter maps the existing `wa_contact_auths` table; it does not create a replacement table.
 
@@ -307,8 +340,9 @@ Session state stores the version token captured at authentication. Session resol
 Conceptual flow:
 
 ```text
-ResolveBackendSession(session_id)
+ResolveBackendSession(SessionId)
   -> SessionStateStore.resolve
+  -> SessionResolvedState(AuthSessionKey, ...)
   -> IdentityDirectory/read-by-subject-id capability
   -> CredentialVersionTokenFactory
   -> AuthSessionRegistry.check
@@ -360,7 +394,7 @@ This keeps login-key lookup extensible while keeping stable identity retrieval e
 `LogoutBackendSession` coordinates both stores:
 
 ```text
-session id
+AuthSessionKey
   -> SessionStateStore.revoke
   -> AuthSessionRegistry.revoke
   -> LogoutResult
@@ -453,8 +487,9 @@ The slice is complete when:
 - legacy login ordering and source behavior are characterized;
 - password verification is an injected adapter and application code contains no MD5 logic;
 - session state and `wa_contact_auths` registry are separate ports;
+- established authenticated sessions use immutable `AuthSessionKey` rather than repeated `(contact_id, session_id)` primitive pairs, while initial lookup uses `SessionId`;
 - credential-version invalidation is explicit;
 - backend eligibility and security response coarsening are tested;
 - existing legacy tables are used without destructive migration;
 - architecture, unit, persistence-contract, and integration tests pass;
-- `AGENTS.md` records the project-wide typed-negative-result and policy/registry ADRs.
+- `AGENTS.md` records the project-wide typed-negative-result, policy/registry, and immutable-VO ADRs.
