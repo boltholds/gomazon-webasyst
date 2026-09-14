@@ -1,6 +1,6 @@
 # Backend Auth & Session Foundation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Implement Webasyst 4.2.0 backend password authentication and authenticated-session create/resolve/revoke with policy-driven identity lookup, explicit typed outcomes, immutable session VOs, and existing legacy tables.
 
@@ -32,13 +32,16 @@
 - Modify: `src/gomazon_webasyst/contracts/enums.py`
 - Test: `tests/unit/test_auth_contracts.py`
 
-**Interfaces:** Produces `SessionId`, `AuthSessionKey`, `AuthIdentity`, `IdentityKey`, `IdentityLookupPlan`, identity/password/session/authentication result unions, `AuthenticatedSubject`, `SessionMetadata`, and `AuthSessionRegistration`.
+**Interfaces:**
+- Produces `SessionId`, `AuthSessionKey` immutable VOs.
+- Produces Pydantic `AuthIdentity`, `IdentityKey`, `IdentityLookupPlan`, identity/password/session/authentication result unions, `AuthenticatedSubject`, `SessionMetadata`, `AuthSessionRegistration`.
+- Adds auth discriminator/error enums derived from `EnumStr`.
 
-- [ ] Write failing tests proving session VOs are frozen/hashable, negative outcomes are explicit union members, raw string discriminators validate, and JSON serialization preserves string values.
-- [ ] Run `python -m pytest tests/unit/test_auth_contracts.py -v` and verify RED.
-- [ ] Implement minimal VOs/contracts/enums. `IdentityKey.scheme` remains `str`; `AuthSessionKey` contains `contact_id: int` and `session_id: SessionId`.
-- [ ] Re-run contract and architecture tests GREEN.
-- [ ] Commit `feat: add typed auth contracts and session value objects`.
+- [x] **Step 1: Write failing contract/VO tests** proving `SessionId`/`AuthSessionKey` are frozen/hashable, negative outcomes are explicit union members, raw string discriminators validate, and JSON serialization preserves legacy string values.
+- [x] **Step 2: Run** `python -m pytest tests/unit/test_auth_contracts.py -v` and verify failure is caused by missing auth contracts.
+- [x] **Step 3: Implement minimal VOs/contracts/enums**. `AuthSessionKey` contains `contact_id: int` and `session_id: SessionId`; no duplicate loose pair fields. `IdentityKey.scheme` remains `str`.
+- [x] **Step 4: Re-run auth contract tests**, then architecture tests.
+- [x] **Step 5: Commit** `feat: add typed auth contracts and session value objects`.
 
 ### Task 2: Policy-driven login planning
 
@@ -48,13 +51,16 @@
 - Test: `tests/unit/test_login_policies.py`
 - Test: `tests/compatibility/test_auth_characterization.py`
 
-**Interfaces:** `LoginPolicy.evaluate(value, context) -> LoginPolicyDecision`; `LoginPolicySet.plan(value, context) -> LoginPlanResult`. Built-ins are generic registered policies for email priority, phone priority, and configured-scheme fallback.
+**Interfaces:**
+- `LoginPolicy.evaluate(value: str, context: LoginPolicyContext) -> LoginPolicyDecision`.
+- `LoginPolicySet.plan(value, context) -> LoginPlanResult`.
+- Built-ins are generic registered policies for email priority, phone priority, and configured-scheme fallback; adding another scheme does not modify `AuthenticateBackendPassword`.
 
-- [ ] Write failing tests for Webasyst ordering: configured valid email first, configured valid phone first, otherwise configured scheme order; dedupe; disabled schemes absent; blank input returns typed reject.
-- [ ] Run RED.
-- [ ] Implement generic policies + policy set; keep validation outside auth use case.
-- [ ] Run policy + characterization tests GREEN.
-- [ ] Commit `feat: add policy driven backend login planning`.
+- [x] **Step 1: Write failing tests** for Webasyst ordering: valid configured email first, valid configured phone first, otherwise configured scheme order; dedupe repeated keys; disabled schemes are not added; blank identifier returns typed reject.
+- [x] **Step 2: Run policy tests and verify RED**.
+- [x] **Step 3: Implement minimal generic policies + policy set**. Phone recognition follows legacy allowed characters; email recognizer covers characterized Webasyst-compatible cases without putting validation inside the auth use case.
+- [x] **Step 4: Run policy + characterization tests GREEN**.
+- [x] **Step 5: Commit** `feat: add policy driven backend login planning`.
 
 ### Task 3: Identity directory and legacy SQLAlchemy resolvers
 
@@ -65,14 +71,18 @@
 - Test: `tests/unit/test_identity_directory.py`
 - Test: `tests/integration/test_sqlalchemy_auth_identity.py`
 
-**Interfaces:** `IdentityKeyResolver.resolve(key) -> IdentityKeyResolution`; `IdentityDirectory.resolve(plan) -> IdentityResolution`; registry maps open schemes to resolvers.
+**Interfaces:**
+- `IdentityKeyResolver.resolve(key) -> IdentityKeyResolution`.
+- `IdentityDirectory.resolve(plan) -> IdentityResolution`.
+- Registry maps open schemes to resolvers.
+- Built-in SQLAlchemy resolvers: `login`, `email`, `phone`.
 
-- [ ] Write failing unit tests for ordered first-success, typed all-miss, typed unsupported scheme, and extension by registering `employee_id` without API changes.
-- [ ] Write failing SQLite tests for `is_user=1`, non-empty password, primary email/phone `sort=0`, first contact by id, login lookup, cleaned phone digits.
-- [ ] Run RED.
-- [ ] Map only required legacy email/data columns and implement async resolvers hidden in infrastructure.
-- [ ] Run unit/integration/architecture tests GREEN.
-- [ ] Commit `feat: add extensible legacy identity directory`.
+- [x] **Step 1: Write failing unit tests** proving ordered first-success, typed all-miss, typed unsupported scheme, and extensibility by registering `employee_id` without changing the directory API.
+- [x] **Step 2: Write failing SQLite integration tests** for legacy semantics: `is_user=1`, non-empty password, primary email/phone (`sort=0`), first matching contact by id, login lookup, cleaned phone digits.
+- [x] **Step 3: Run tests RED**.
+- [x] **Step 4: Map only required legacy columns for `wa_contact_emails` and `wa_contact_data`, then implement directory/resolvers with async SQLAlchemy sessions hidden inside infrastructure**.
+- [x] **Step 5: Run unit/integration tests GREEN** and architecture guard.
+- [x] **Step 6: Commit** `feat: add extensible legacy identity directory`.
 
 ### Task 4: Subject store, password verifier, and credential token factory
 
@@ -87,13 +97,16 @@
 - Test: `tests/unit/test_credential_token.py`
 - Test: `tests/integration/test_sqlalchemy_auth_subjects.py`
 
-**Interfaces:** `AuthSubjectStore.get(subject_id) -> SubjectResolution`; `PasswordVerifier.verify(candidate, stored_hash) -> PasswordVerification`; `CredentialVersionTokenFactory.create(identity) -> CredentialVersionToken`.
+**Interfaces:**
+- `AuthSubjectStore.get(subject_id: int) -> SubjectResolution` explicit result.
+- `PasswordVerifier.verify(candidate: SecretStr, stored_hash: str) -> PasswordVerification`.
+- `CredentialVersionTokenFactory.create(identity) -> CredentialVersionToken`.
 
-- [ ] Write failing tests for MD5 compatibility, invalid password, exact legacy token formula, and explicit subject miss/disabled outcomes.
-- [ ] Run RED.
-- [ ] Implement minimal adapters; MD5 exists only in compatibility adapter.
-- [ ] Run GREEN + architecture guard.
-- [ ] Commit `feat: add legacy password and credential token adapters`.
+- [x] **Step 1: Write failing tests** for MD5 compatibility, invalid password, injected verifier shape, exact legacy token formula `md5(create_datetime + login + password_hash)` with id inserted between first/last 15 chars, and explicit subject miss/disabled outcomes.
+- [x] **Step 2: Run RED**.
+- [x] **Step 3: Implement minimal adapters**. MD5 exists only in compatibility adapter. Token formatting matches `waAuth::getToken()` exactly.
+- [x] **Step 4: Run GREEN** plus architecture guard proving application does not import `hashlib`/compat password implementation.
+- [x] **Step 5: Commit** `feat: add legacy password and credential token adapters`.
 
 ### Task 5: Session state store and `wa_contact_auths` registry
 
@@ -106,14 +119,18 @@
 - Test: `tests/unit/test_session_state_store.py`
 - Test: `tests/integration/test_sqlalchemy_auth_session_registry.py`
 
-**Interfaces:** `SessionStateStore.create(...) -> SessionCreationResult`; `resolve(SessionId)`; `revoke(AuthSessionKey)`. Registry `register(registration)`, `check/touch/revoke(AuthSessionKey)`.
+**Interfaces:**
+- `SessionStateStore.create(...) -> SessionCreationResult` carrying `AuthSessionKey`.
+- `SessionStateStore.resolve(SessionId) -> SessionStateResolution`.
+- `SessionStateStore.revoke(AuthSessionKey) -> SessionRevocationResult`.
+- `AuthSessionRegistry.register(registration)`, `check(key)`, `touch(key)`, `revoke(key)` all explicit typed results.
 
-- [ ] Write failing in-memory store tests for create/resolve/revoke/idempotent revoke and VO usage.
-- [ ] Write failing SQLite registry tests for mapping/upsert/check/touch/revoke and explicit missing result.
-- [ ] Run RED.
-- [ ] Implement separate state-store and active-auth registry adapters.
-- [ ] Run GREEN.
-- [ ] Commit `feat: add session state and active auth registry adapters`.
+- [x] **Step 1: Write failing in-memory state-store tests** for create/resolve/revoke/idempotent revoke and VO usage.
+- [x] **Step 2: Write failing SQLite registry tests** mapping `wa_contact_auths`, unique session id semantics, register/upsert, check, touch, revoke, and explicit missing result.
+- [x] **Step 3: Run RED**.
+- [x] **Step 4: Implement the in-memory state adapter and SQLAlchemy active-auth registry**; do not merge responsibilities.
+- [x] **Step 5: Run GREEN**.
+- [x] **Step 6: Commit** `feat: add session state and active auth registry adapters`.
 
 ### Task 6: Backend auth/session application use cases
 
@@ -121,15 +138,19 @@
 - Create: `src/gomazon_webasyst/application/auth.py`
 - Test: `tests/unit/test_auth_use_cases.py`
 
-**Interfaces:** `AuthenticateBackendPassword(...) -> AuthenticationResult`; `ResolveBackendSession(SessionId) -> SessionResolutionResult`; `LogoutBackendSession(SessionId) -> LogoutResult`.
+**Interfaces:**
+- `AuthenticateBackendPassword(...) -> AuthenticationResult`.
+- `ResolveBackendSession(SessionId) -> SessionResolutionResult`.
+- `LogoutBackendSession(SessionId) -> LogoutResult` (initial opaque id is resolved to `AuthSessionKey` before coordinated revoke).
+- Uses only application-owned ports/contracts/VOs.
 
-- [ ] Write failing authentication tests for identity miss, wrong password, disabled subject, successful session+registry creation, and cleanup if registry registration fails.
-- [ ] Write failing session tests for state miss/expired, subject unavailable/disabled, token mismatch, registry revoked, touch, and strict-check policy.
-- [ ] Write failing logout tests for idempotence and coordinated revoke through `AuthSessionKey`.
-- [ ] Run RED.
-- [ ] Implement minimal use cases with no password/session algorithm details in application.
-- [ ] Run GREEN + full unit suite.
-- [ ] Commit `feat: add backend authentication session use cases`.
+- [x] **Step 1: Write failing authentication tests** for identity miss, wrong password, disabled/non-user subject, successful state creation + registry registration, and compensation (revoke created state if registry registration raises infrastructure error).
+- [x] **Step 2: Write failing session-resolution tests** for state miss/expired, subject unavailable/disabled, credential token mismatch, registry revoked, successful touch, and strict-check policy.
+- [x] **Step 3: Write failing logout tests** proving idempotence and coordinated revocation through canonical `AuthSessionKey`.
+- [x] **Step 4: Run RED**.
+- [x] **Step 5: Implement minimal use cases and explicit policy objects**; no password/session algorithm details in application.
+- [x] **Step 6: Run GREEN + full unit suite**.
+- [x] **Step 7: Commit** `feat: add backend authentication session use cases`.
 
 ### Task 7: Composition and end-to-end integration
 
@@ -140,16 +161,18 @@
 - Test: `tests/integration/test_auth_session_flow.py`
 - Modify: `tests/architecture/test_dependency_boundaries.py`
 
-**Interfaces:** Composition builds policy set, identity/subject/registry adapters, password/token adapters, in-memory session state store, and three auth use cases. No production auth HTTP route is mounted in `main.py` in this slice.
+**Interfaces:**
+- Composition root builds resolver registry, policy set, SQLAlchemy identity/subject/registry adapters, compatibility password/token adapters, in-memory session state store, and three use cases.
+- No auth HTTP catch-all/login route is mounted in `main.py` in this slice unless separately approved.
 
-- [ ] Write failing E2E test: seed legacy rows -> authenticate -> get `AuthSessionKey` -> resolve by `SessionId` -> logout -> resolve returns typed negative outcome.
-- [ ] Extend architecture guard for SQLAlchemy/FastAPI/hashlib/session framework leakage.
-- [ ] Run RED.
-- [ ] Wire concrete adapters at composition root.
-- [ ] Run integration GREEN.
-- [ ] Run full `python -m pytest -v` and `python -m compileall -q src tests`.
-- [ ] Record exact verification counts; update `AGENTS.md` only if implementation reveals a new architecture decision.
-- [ ] Commit `feat: wire backend auth session foundation`.
+- [x] **Step 1: Write failing end-to-end integration test**: seed legacy contact/email/phone rows -> authenticate -> obtain `AuthSessionKey` -> resolve by `SessionId` -> revoke/logout -> subsequent resolve returns explicit negative result.
+- [x] **Step 2: Extend architecture guard** for FastAPI/SQLAlchemy/hashlib/session framework imports in application/contracts.
+- [x] **Step 3: Run RED**.
+- [x] **Step 4: Wire concrete adapters at composition root** and implement small auth factory helpers.
+- [x] **Step 5: Run auth integration GREEN**.
+- [x] **Step 6: Run full `python -m pytest -v` and `python -m compileall -q src tests`**.
+- [x] **Step 7: Update this plan verification section with exact local/CI counts; update `AGENTS.md` only if implementation revealed a new architecture decision**.
+- [x] **Step 8: Commit** `feat: wire backend auth session foundation`.
 
 ## Verification
 
@@ -157,9 +180,30 @@ Before merge:
 
 - `python -m pytest -v`
 - `python -m compileall -q src tests`
-- feature-branch GitHub Actions on Python 3.12 with dev drivers
-- compare `main...feature/auth-session` for unrelated changes
+- feature-branch GitHub Actions on Python 3.12 with all dev drivers installed
+- compare `main...feature/auth-session` and verify no unrelated changes
 - confirm no production HTTP auth endpoint has been silently mounted
 - confirm no normal auth result contract uses `Optional`/bool sentinel semantics
 - confirm no central `find_by_login/find_by_email/find_by_phone` API exists
 - confirm `AuthSessionRegistry` does not accept loose `(contact_id, session_id)` parameters
+
+## Implementation Status
+
+Implemented on `feature/auth-session`.
+
+Verification:
+
+- Local Python 3.13 snapshot: `128 passed, 7 skipped`; skips are driver-dependent integration modules unavailable locally.
+- `python -m compileall -q src tests`: exit 0.
+- GitHub Actions Python 3.12 with `aiosqlite`/`asyncmy`: `141 passed, 0 failed, 0 skipped` on commit `8344f99dc147791738172dc671c0db60a7f52ca9`.
+- `main.py` remains unchanged; no production auth HTTP route is mounted.
+- `AuthSessionRegistry` uses `AuthSessionKey`; initial opaque lookup uses `SessionId`.
+- Identity lookup remains policy/registry driven with no central `find_by_*` API.
+- Session validation cadence is an explicit `SessionValidationPolicy`; composition selects strict-every-request by default and can inject another policy.
+
+Known foundation limitations (intentional, outside this slice):
+
+- default `SessionStateStore` adapter is in-memory and therefore not durable across process restart or suitable for multi-worker shared state;
+- legacy auth config is not yet loaded automatically, so enabled login schemes and phone-prefix transform configuration must be supplied by composition/caller;
+- legacy `wa_contact_auths` old-session cleanup is not implemented;
+- remember-me, frontend auth, permissions, OAuth/API tokens and PHP-session interoperability remain later slices.
