@@ -2,18 +2,24 @@ from typing import Annotated, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from gomazon_webasyst.contracts.enums import (
+    DispatchNamespaceKind,
+    DispatchRequestKind,
+    DispatchTargetKind,
+    LegacyDispatchOutcomeKind,
+)
 from gomazon_webasyst.contracts.routing import RedirectSettlement, RouteData
 
 
 class AppNamespace(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["app"] = "app"
+    kind: Literal[DispatchNamespaceKind.APP] = DispatchNamespaceKind.APP
     app: str
 
 
 class PluginNamespace(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["plugin"] = "plugin"
+    kind: Literal[DispatchNamespaceKind.PLUGIN] = DispatchNamespaceKind.PLUGIN
     app: str
     plugin: str
 
@@ -26,14 +32,14 @@ DispatchNamespace: TypeAlias = Annotated[
 
 class DefaultDispatch(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["default"] = "default"
+    kind: Literal[DispatchRequestKind.DEFAULT] = DispatchRequestKind.DEFAULT
     namespace: DispatchNamespace
     module: str
 
 
 class ActionDispatch(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["action"] = "action"
+    kind: Literal[DispatchRequestKind.ACTION] = DispatchRequestKind.ACTION
     namespace: DispatchNamespace
     module: str
     action: str
@@ -69,19 +75,19 @@ class ResolvedDispatch(BaseModel):
 
 class ControllerTarget(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["controller"] = "controller"
+    kind: Literal[DispatchTargetKind.CONTROLLER] = DispatchTargetKind.CONTROLLER
     handler_id: str
 
 
 class SingleActionTarget(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["single_action"] = "single_action"
+    kind: Literal[DispatchTargetKind.SINGLE_ACTION] = DispatchTargetKind.SINGLE_ACTION
     handler_id: str
 
 
 class MultiActionTarget(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["multi_action"] = "multi_action"
+    kind: Literal[DispatchTargetKind.MULTI_ACTION] = DispatchTargetKind.MULTI_ACTION
     handler_id: str
     action_method: str
 
@@ -94,7 +100,7 @@ DispatchTarget: TypeAlias = Annotated[
 
 class HandlerDispatchOutcome(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    kind: Literal["handler"] = "handler"
+    kind: Literal[LegacyDispatchOutcomeKind.HANDLER] = LegacyDispatchOutcomeKind.HANDLER
     dispatch: ResolvedDispatch
     target: DispatchTarget
 
