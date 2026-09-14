@@ -5,7 +5,9 @@ from gomazon_webasyst.contracts.dispatch import (
     DefaultDispatch,
     DispatchRequest,
     DispatchTarget,
+    HandlerRegistered,
     MultiActionTarget,
+    PluginAvailable,
     PluginNamespace,
     SingleActionTarget,
 )
@@ -22,28 +24,28 @@ class DispatchResolver:
         self, request: DispatchRequest, *, try_default: bool = False
     ) -> DispatchTarget:
         namespace = request.namespace
-        if isinstance(namespace, PluginNamespace) and not self._registry.plugin_available(
-            namespace.app, namespace.plugin
-        ):
-            raise PluginUnavailable(
-                f"plugin {namespace.app}/{namespace.plugin} is not enabled"
-            )
+        if isinstance(namespace, PluginNamespace):
+            availability = self._registry.plugin_available(namespace.app, namespace.plugin)
+            if not isinstance(availability, PluginAvailable):
+                raise PluginUnavailable(
+                    f"plugin {namespace.app}/{namespace.plugin} is not enabled"
+                )
 
         m_key = module_key(request)
         if isinstance(request, ActionDispatch):
             a_key = action_key(request)
-            handler_id = self._registry.controller_id(a_key)
-            if handler_id is not None:
-                return ControllerTarget(handler_id=handler_id)
+            controller = self._registry.controller_id(a_key)
+            if isinstance(controller, HandlerRegistered):
+                return ControllerTarget(handler_id=controller.handler_id)
 
-            handler_id = self._registry.action_id(a_key)
-            if handler_id is not None:
-                return SingleActionTarget(handler_id=handler_id)
+            action = self._registry.action_id(a_key)
+            if isinstance(action, HandlerRegistered):
+                return SingleActionTarget(handler_id=action.handler_id)
 
-            handler_id = self._registry.actions_id(m_key)
-            if handler_id is not None:
+            actions = self._registry.actions_id(m_key)
+            if isinstance(actions, HandlerRegistered):
                 return MultiActionTarget(
-                    handler_id=handler_id,
+                    handler_id=actions.handler_id,
                     action_method=request.action,
                 )
 
@@ -53,18 +55,18 @@ class DispatchResolver:
                     try_default=False,
                 )
         else:
-            handler_id = self._registry.controller_id(m_key)
-            if handler_id is not None:
-                return ControllerTarget(handler_id=handler_id)
+            controller = self._registry.controller_id(m_key)
+            if isinstance(controller, HandlerRegistered):
+                return ControllerTarget(handler_id=controller.handler_id)
 
-            handler_id = self._registry.action_id(m_key)
-            if handler_id is not None:
-                return SingleActionTarget(handler_id=handler_id)
+            action = self._registry.action_id(m_key)
+            if isinstance(action, HandlerRegistered):
+                return SingleActionTarget(handler_id=action.handler_id)
 
-            handler_id = self._registry.actions_id(m_key)
-            if handler_id is not None:
+            actions = self._registry.actions_id(m_key)
+            if isinstance(actions, HandlerRegistered):
                 return MultiActionTarget(
-                    handler_id=handler_id,
+                    handler_id=actions.handler_id,
                     action_method="default",
                 )
 

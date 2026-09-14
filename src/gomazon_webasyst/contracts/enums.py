@@ -5,6 +5,12 @@ class EnumStr(StrEnum):
     """String enum base used by serialized contract discriminators."""
 
 
+class LegacyRouteRuleKind(EnumStr):
+    APP = "app"
+    REDIRECT = "redirect"
+    DISPATCH = "dispatch"
+
+
 class DispatchSeedKind(EnumStr):
     EMPTY = "empty"
     MODULE = "module"
@@ -42,8 +48,23 @@ class DispatchTargetKind(EnumStr):
     MULTI_ACTION = "multi_action"
 
 
+class HandlerRegistryLookupKind(EnumStr):
+    REGISTERED = "registered"
+    MISSING = "missing"
+
+
+class PluginRegistryLookupKind(EnumStr):
+    AVAILABLE = "available"
+    MISSING = "missing"
+
+
 class LegacyDispatchOutcomeKind(EnumStr):
     HANDLER = "handler"
+
+
+class ContactResolutionKind(EnumStr):
+    RESOLVED = "resolved"
+    MISSING = "missing"
 
 
 class IdentityResolutionKind(EnumStr):

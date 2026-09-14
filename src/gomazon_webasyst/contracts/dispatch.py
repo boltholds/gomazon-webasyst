@@ -6,8 +6,11 @@ from gomazon_webasyst.contracts.enums import (
     DispatchNamespaceKind,
     DispatchRequestKind,
     DispatchTargetKind,
+    HandlerRegistryLookupKind,
     LegacyDispatchOutcomeKind,
+    PluginRegistryLookupKind,
 )
+
 from gomazon_webasyst.contracts.routing import RedirectSettlement, RouteData
 
 
@@ -107,5 +110,38 @@ class HandlerDispatchOutcome(BaseModel):
 
 LegacyDispatchOutcome: TypeAlias = Annotated[
     RedirectSettlement | HandlerDispatchOutcome,
+    Field(discriminator="kind"),
+]
+
+
+class HandlerRegistered(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    kind: Literal[HandlerRegistryLookupKind.REGISTERED] = HandlerRegistryLookupKind.REGISTERED
+    handler_id: str
+
+
+class HandlerMissing(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    kind: Literal[HandlerRegistryLookupKind.MISSING] = HandlerRegistryLookupKind.MISSING
+
+
+HandlerRegistryLookup: TypeAlias = Annotated[
+    HandlerRegistered | HandlerMissing,
+    Field(discriminator="kind"),
+]
+
+
+class PluginAvailable(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    kind: Literal[PluginRegistryLookupKind.AVAILABLE] = PluginRegistryLookupKind.AVAILABLE
+
+
+class PluginMissing(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    kind: Literal[PluginRegistryLookupKind.MISSING] = PluginRegistryLookupKind.MISSING
+
+
+PluginRegistryLookup: TypeAlias = Annotated[
+    PluginAvailable | PluginMissing,
     Field(discriminator="kind"),
 ]

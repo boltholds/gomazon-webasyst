@@ -22,12 +22,12 @@ from gomazon_webasyst.contracts.enums import SessionCreationErrorType, SessionSt
 class InMemorySessionStateStore:
     def __init__(
         self,
-        session_id_factory: Callable[[], SessionId] | None = None,
-        clock: Callable[[], datetime] | None = None,
+        session_id_factory: Callable[[], SessionId] = lambda: SessionId(uuid4().hex),
+        clock: Callable[[], datetime] = datetime.now,
         ttl: timedelta = timedelta(minutes=30),
     ) -> None:
-        self._session_id_factory = session_id_factory or (lambda: SessionId(uuid4().hex))
-        self._clock = clock or datetime.now
+        self._session_id_factory = session_id_factory
+        self._clock = clock
         self._ttl = ttl
         self._states: dict[SessionId, StoredAuthSession] = {}
 
@@ -48,9 +48,9 @@ class InMemorySessionStateStore:
         return SessionCreated(state=state)
 
     async def resolve(self, session_id: SessionId) -> SessionStateResolution:
-        state = self._states.get(session_id)
-        if state is None:
+        if session_id not in self._states:
             return SessionStateError(type=SessionStateErrorType.NOT_FOUND)
+        state = self._states[session_id]
         now = self._clock()
         if now - state.last_seen_at > self._ttl:
             del self._states[session_id]
@@ -60,8 +60,10 @@ class InMemorySessionStateStore:
         return SessionStateResolved(state=refreshed)
 
     async def revoke(self, key: AuthSessionKey) -> SessionRevocationResult:
-        state = self._states.get(key.session_id)
-        if state is None or state.key != key:
+        if key.session_id not in self._states:
+            return SessionAlreadyMissing()
+        state = self._states[key.session_id]
+        if state.key != key:
             return SessionAlreadyMissing()
         del self._states[key.session_id]
         return SessionRevoked()

@@ -8,13 +8,13 @@ from httpx import ASGITransport, AsyncClient
 
 from gomazon_webasyst.composition.settings import Settings
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.base import Base
-from gomazon_webasyst.main import create_app
+from gomazon_webasyst.main import create_app_with_settings
 
 
 @pytest.mark.asyncio
 async def test_contact_http_vertical_slice_with_real_sqlalchemy_adapter(tmp_path: Path) -> None:
     db_path = tmp_path / "contacts.db"
-    app = create_app(Settings(database_url=f"sqlite+aiosqlite:///{db_path}"))
+    app = create_app_with_settings(Settings(database_url=f"sqlite+aiosqlite:///{db_path}"))
 
     async with app.router.lifespan_context(app):
         async with app.state.container.engine.begin() as connection:

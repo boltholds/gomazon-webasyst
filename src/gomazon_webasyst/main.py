@@ -8,9 +8,12 @@ from gomazon_webasyst.presentation.http.contacts import router as contacts_route
 from gomazon_webasyst.presentation.http.errors import install_error_handlers
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
-    resolved = settings or Settings()
-    container = create_container(resolved)
+def create_app() -> FastAPI:
+    return create_app_with_settings(Settings())
+
+
+def create_app_with_settings(settings: Settings) -> FastAPI:
+    container = create_container(settings)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -20,7 +23,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             await container.close()
 
-    app = FastAPI(title=resolved.app_name, lifespan=lifespan)
+    app = FastAPI(title=settings.app_name, lifespan=lifespan)
     app.include_router(contacts_router)
     install_error_handlers(app)
     return app

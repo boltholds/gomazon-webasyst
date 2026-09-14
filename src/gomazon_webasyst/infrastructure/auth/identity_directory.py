@@ -1,4 +1,6 @@
 import re
+from dataclasses import dataclass
+from typing import TypeAlias
 from collections.abc import Callable, Mapping
 
 from sqlalchemy import select
@@ -21,6 +23,19 @@ from gomazon_webasyst.infrastructure.persistence.sqlalchemy.models import (
     WaContactEmailRow,
     WaContactRow,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _IdentityRowFound:
+    row: WaContactRow
+
+
+@dataclass(frozen=True, slots=True)
+class _IdentityRowMissing:
+    pass
+
+
+_IdentityRowLookup: TypeAlias = _IdentityRowFound | _IdentityRowMissing
 
 
 def _identity(row: WaContactRow) -> AuthIdentity:
@@ -51,9 +66,9 @@ class ResolverRegistryIdentityDirectory:
 
     async def resolve(self, plan: IdentityLookupPlan) -> IdentityResolution:
         for key in plan.keys:
-            resolver = self._resolvers.get(key.scheme)
-            if resolver is None:
+            if key.scheme not in self._resolvers:
                 return IdentityResolutionError(type=IdentityResolutionErrorType.UNSUPPORTED_SCHEME)
+            resolver = self._resolvers[key.scheme]
             result = await resolver.resolve(key)
             if isinstance(result, IdentityKeyResolved):
                 return IdentityResolved(identity=result.identity, matched_key=key)
@@ -65,23 +80,23 @@ class _SQLAlchemyIdentityResolver:
         self,
         session_factory: async_sessionmaker[AsyncSession],
         scheme: str,
-        value_candidates: Callable[[str], tuple[str, ...]] | None = None,
+        value_candidates: Callable[[str], tuple[str, ...]] = lambda value: (value,),
     ) -> None:
         self._session_factory = session_factory
         self._scheme = scheme
-        self._value_candidates = value_candidates or (lambda value: (value,))
+        self._value_candidates = value_candidates
 
     async def resolve(self, key: IdentityKey):
         if key.scheme != self._scheme:
             return IdentityKeyNotFound()
         async with self._session_factory() as session:
             for value in self._value_candidates(key.value):
-                row = await self._load(session, value)
-                if row is not None:
-                    return IdentityKeyResolved(identity=_identity(row))
+                row_result = await self._load(session, value)
+                if isinstance(row_result, _IdentityRowFound):
+                    return IdentityKeyResolved(identity=_identity(row_result.row))
         return IdentityKeyNotFound()
 
-    async def _load(self, session: AsyncSession, value: str) -> WaContactRow | None:
+    async def _load(self, session: AsyncSession, value: str) -> "_IdentityRowLookup":
         base = [WaContactRow.is_user == 1, WaContactRow.password != ""]
         if self._scheme == "login":
             statement = (
@@ -112,16 +127,18 @@ class _SQLAlchemyIdentityResolver:
                 .limit(1)
             )
         else:
-            return None
-        return (await session.execute(statement)).scalars().first()
+            return _IdentityRowMissing()
+        row = (await session.execute(statement)).scalars().first()
+        if row is None:
+            return _IdentityRowMissing()
+        return _IdentityRowFound(row=row)
 
 
 def create_sqlalchemy_identity_directory(
     session_factory: async_sessionmaker[AsyncSession],
     *,
-    phone_candidates: Callable[[str], tuple[str, ...]] | None = None,
+    phone_candidates: Callable[[str], tuple[str, ...]] = lambda value: (clean_legacy_phone(value),),
 ) -> ResolverRegistryIdentityDirectory:
-    phone_candidates = phone_candidates or (lambda value: (clean_legacy_phone(value),))
     return ResolverRegistryIdentityDirectory(
         {
             "login": _SQLAlchemyIdentityResolver(session_factory, "login"),

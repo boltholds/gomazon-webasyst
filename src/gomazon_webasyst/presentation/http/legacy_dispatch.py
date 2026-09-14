@@ -34,9 +34,9 @@ def create_legacy_compatibility_router(
     router = APIRouter()
 
     async def execute(outcome: HandlerDispatchOutcome) -> Response:
-        handler = handlers.get(outcome.target.handler_id)
-        if handler is None:
+        if outcome.target.handler_id not in handlers:
             return JSONResponse({"detail": "Legacy handler not registered"}, status_code=404)
+        handler = handlers[outcome.target.handler_id]
         result = handler(outcome)
         if inspect.isawaitable(result):
             result = await result

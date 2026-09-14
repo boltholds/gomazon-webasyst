@@ -5,7 +5,7 @@ pytest.importorskip("aiosqlite")
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
-from gomazon_webasyst.contracts.contacts import ContactCreate
+from gomazon_webasyst.contracts.contacts import ContactCreate, ContactMissing, ContactResolved
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.base import Base
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.repositories import SQLAlchemyContactRepository
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.unit_of_work import SQLAlchemyUnitOfWorkFactory
@@ -41,8 +41,8 @@ async def test_uow_commit_is_visible_to_next_uow() -> None:
         await first.commit()
     async with factory() as second:
         loaded = await second.contacts.get(created.id)
-    assert loaded is not None
-    assert loaded.name == "Committed"
+    assert isinstance(loaded, ContactResolved)
+    assert loaded.contact.name == "Committed"
     await engine.dispose()
 
 
@@ -50,13 +50,13 @@ async def test_uow_commit_is_visible_to_next_uow() -> None:
 async def test_uow_exception_rolls_back() -> None:
     engine = await make_engine()
     factory = SQLAlchemyUnitOfWorkFactory(async_sessionmaker(engine, expire_on_commit=False))
-    created_id: int | None = None
+    created_id = 0
     with pytest.raises(RuntimeError):
         async with factory() as first:
             created = await first.contacts.create(ContactCreate(name="Rolled back"))
             created_id = created.id
             raise RuntimeError("force rollback")
-    assert created_id is not None
+    assert created_id > 0
     async with factory() as second:
-        assert await second.contacts.get(created_id) is None
+        assert await second.contacts.get(created_id) == ContactMissing(contact_id=created_id)
     await engine.dispose()

@@ -45,7 +45,7 @@ class FakeContainer:
 async def test_contact_http_routes_use_application_services(monkeypatch) -> None:
     container = FakeContainer()
     monkeypatch.setattr(main_module, "create_container", lambda settings: container)
-    app = main_module.create_app(Settings(database_url="sqlite+aiosqlite:///:memory:"))
+    app = main_module.create_app_with_settings(Settings(database_url="sqlite+aiosqlite:///:memory:"))
 
     async with app.router.lifespan_context(app):
         transport = ASGITransport(app=app)

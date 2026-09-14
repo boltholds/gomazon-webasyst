@@ -2,7 +2,7 @@ from datetime import datetime
 
 import pytest
 
-from gomazon_webasyst.contracts.contacts import ContactCreate, ContactUpdate
+from gomazon_webasyst.contracts.contacts import ContactCreate, ContactMissing, ContactResolved, ContactUpdate
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.models import WaContactRow
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.repositories import SQLAlchemyContactRepository
 
@@ -45,16 +45,17 @@ async def test_repository_get_and_update() -> None:
     session = FakeAsyncSession()
     repo = SQLAlchemyContactRepository(session)  # type: ignore[arg-type]
     created = await repo.create(ContactCreate(name="Alice"))
-    assert await repo.get(created.id) == created
+    loaded = await repo.get(created.id)
+    assert loaded == ContactResolved(contact=created)
 
     updated = await repo.update(created.id, ContactUpdate(company="Example Ltd"))
-    assert updated is not None
-    assert updated.company == "Example Ltd"
+    assert isinstance(updated, ContactResolved)
+    assert updated.contact.company == "Example Ltd"
     assert session.rows[created.id].company == "Example Ltd"
 
 
 @pytest.mark.asyncio
-async def test_repository_missing_rows_return_none() -> None:
+async def test_repository_missing_rows_return_typed_result() -> None:
     repo = SQLAlchemyContactRepository(FakeAsyncSession())  # type: ignore[arg-type]
-    assert await repo.get(123) is None
-    assert await repo.update(123, ContactUpdate(name="Nobody")) is None
+    assert await repo.get(123) == ContactMissing(contact_id=123)
+    assert await repo.update(123, ContactUpdate(name="Nobody")) == ContactMissing(contact_id=123)

@@ -1,6 +1,6 @@
 from gomazon_webasyst.application.errors import ContactNotFound
 from gomazon_webasyst.application.ports.unit_of_work import UnitOfWorkFactory
-from gomazon_webasyst.contracts.contacts import ContactCreate, ContactRead, ContactUpdate
+from gomazon_webasyst.contracts.contacts import ContactCreate, ContactMissing, ContactRead, ContactResolved, ContactUpdate
 
 
 class GetContact:
@@ -10,9 +10,12 @@ class GetContact:
     async def execute(self, contact_id: int) -> ContactRead:
         async with self._uow_factory() as uow:
             result = await uow.contacts.get(contact_id)
-        if result is None:
-            raise ContactNotFound(contact_id)
-        return result
+        match result:
+            case ContactResolved(contact=contact):
+                return contact
+            case ContactMissing():
+                raise ContactNotFound(contact_id)
+        raise TypeError(f"unsupported contact resolution: {type(result)!r}")
 
 
 class CreateContact:
@@ -33,7 +36,10 @@ class UpdateContact:
     async def execute(self, contact_id: int, data: ContactUpdate) -> ContactRead:
         async with self._uow_factory() as uow:
             result = await uow.contacts.update(contact_id, data)
-            if result is None:
-                raise ContactNotFound(contact_id)
-            await uow.commit()
-            return result
+            match result:
+                case ContactResolved(contact=contact):
+                    await uow.commit()
+                    return contact
+                case ContactMissing():
+                    raise ContactNotFound(contact_id)
+            raise TypeError(f"unsupported contact resolution: {type(result)!r}")

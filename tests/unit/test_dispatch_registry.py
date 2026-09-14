@@ -2,7 +2,10 @@ from gomazon_webasyst.compatibility.webasyst.dispatch.registry import InMemoryDi
 from gomazon_webasyst.contracts.dispatch import (
     ActionHandlerKey,
     AppNamespace,
+    HandlerRegistered,
     ModuleHandlerKey,
+    PluginAvailable,
+    PluginMissing,
     PluginNamespace,
 )
 
@@ -17,16 +20,16 @@ def test_registry_stores_each_handler_kind_independently() -> None:
     registry.register_action(action_key, "action")
     registry.register_actions(module_key, "actions")
 
-    assert registry.controller_id(action_key) == "controller"
-    assert registry.action_id(action_key) == "action"
-    assert registry.actions_id(module_key) == "actions"
+    assert registry.controller_id(action_key) == HandlerRegistered(handler_id="controller")
+    assert registry.action_id(action_key) == HandlerRegistered(handler_id="action")
+    assert registry.actions_id(module_key) == HandlerRegistered(handler_id="actions")
 
 
 def test_plugin_availability_is_explicit() -> None:
     registry = InMemoryDispatchRegistry()
-    assert registry.plugin_available("shop", "reviews") is False
+    assert isinstance(registry.plugin_available("shop", "reviews"), PluginMissing)
     registry.enable_plugin("shop", "reviews")
-    assert registry.plugin_available("shop", "reviews") is True
+    assert isinstance(registry.plugin_available("shop", "reviews"), PluginAvailable)
 
 
 def test_keys_distinguish_app_and_plugin_namespaces() -> None:

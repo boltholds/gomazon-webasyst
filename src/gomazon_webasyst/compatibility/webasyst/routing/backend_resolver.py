@@ -1,4 +1,8 @@
 import re
+from collections.abc import Mapping
+from types import MappingProxyType
+
+from pydantic import JsonValue
 
 from gomazon_webasyst.contracts.dispatch import ResolvedDispatch
 from gomazon_webasyst.contracts.routing import (
@@ -13,6 +17,7 @@ from .seed_utils import dispatch_from_seed, seed_from_controls, seed_to_controls
 
 
 _VALID_DISPATCH_PARAM = re.compile(r"^[a-z_][a-z0-9_]*$", re.IGNORECASE)
+_EMPTY_ROUTE_DATA: Mapping[str, JsonValue] = MappingProxyType({})
 
 
 class BackendRouteResolver:
@@ -21,17 +26,15 @@ class BackendRouteResolver:
         request: BackendRouteRequest,
         seed: DispatchSeed = EmptySeed(),
         *,
-        route_data: RouteData | None = None,
+        route_data: Mapping[str, JsonValue] = _EMPTY_ROUTE_DATA,
     ) -> ResolvedDispatch:
         controls: dict[str, str] = {
             "module": request.query.get("module", "backend"),
         }
-        action = request.query.get("action")
-        plugin = request.query.get("plugin")
-        if action is not None:
-            controls["action"] = action
-        if plugin is not None:
-            controls["plugin"] = plugin
+        if "action" in request.query:
+            controls["action"] = request.query["action"]
+        if "plugin" in request.query:
+            controls["plugin"] = request.query["plugin"]
 
         controls.update(seed_to_controls(seed))
 
@@ -47,5 +50,5 @@ class BackendRouteResolver:
             request=dispatch_from_seed(
                 request.app, normalized_seed, default_module="backend"
             ),
-            route_data=route_data or {},
+            route_data=dict(route_data),
         )

@@ -4,7 +4,7 @@ import pytest
 
 from gomazon_webasyst.application.contacts import CreateContact, GetContact, UpdateContact
 from gomazon_webasyst.application.errors import ContactNotFound
-from gomazon_webasyst.contracts.contacts import ContactCreate, ContactRead, ContactUpdate
+from gomazon_webasyst.contracts.contacts import ContactCreate, ContactMissing, ContactRead, ContactResolved, ContactResolution, ContactUpdate
 
 NOW = datetime(2026, 9, 14, 12, 0, 0)
 
@@ -14,8 +14,10 @@ class FakeRepo:
         self.items: dict[int, ContactRead] = {}
         self.next_id = 1
 
-    async def get(self, contact_id: int) -> ContactRead | None:
-        return self.items.get(contact_id)
+    async def get(self, contact_id: int) -> ContactResolution:
+        if contact_id not in self.items:
+            return ContactMissing(contact_id=contact_id)
+        return ContactResolved(contact=self.items[contact_id])
 
     async def create(self, data: ContactCreate) -> ContactRead:
         item = ContactRead(id=self.next_id, create_datetime=NOW, **data.model_dump())
@@ -23,15 +25,15 @@ class FakeRepo:
         self.next_id += 1
         return item
 
-    async def update(self, contact_id: int, data: ContactUpdate) -> ContactRead | None:
-        current = self.items.get(contact_id)
-        if current is None:
-            return None
+    async def update(self, contact_id: int, data: ContactUpdate) -> ContactResolution:
+        if contact_id not in self.items:
+            return ContactMissing(contact_id=contact_id)
+        current = self.items[contact_id]
         values = current.model_dump()
         values.update(data.model_dump(exclude_unset=True))
         item = ContactRead(**values)
         self.items[contact_id] = item
-        return item
+        return ContactResolved(contact=item)
 
 
 class FakeUow:

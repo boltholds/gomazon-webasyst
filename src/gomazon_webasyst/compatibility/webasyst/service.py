@@ -1,4 +1,7 @@
 from collections.abc import Mapping, Sequence
+from types import MappingProxyType
+
+from pydantic import JsonValue
 
 from gomazon_webasyst.compatibility.webasyst.dispatch.strategies import DispatchStrategyRegistry
 from gomazon_webasyst.compatibility.webasyst.routing.app_resolver import AppRouteResolver
@@ -14,6 +17,9 @@ from gomazon_webasyst.contracts.routing import (
     RedirectSettlement,
     RouteData,
 )
+
+
+_EMPTY_ROUTE_DATA: Mapping[str, JsonValue] = MappingProxyType({})
 
 
 class LegacyCompatibilityService:
@@ -51,7 +57,7 @@ class LegacyCompatibilityService:
         request: BackendRouteRequest,
         seed: DispatchSeed = EmptySeed(),
         *,
-        route_data: RouteData | None = None,
+        route_data: Mapping[str, JsonValue] = _EMPTY_ROUTE_DATA,
     ) -> HandlerDispatchOutcome:
         resolved = self._backend.resolve(request, seed, route_data=route_data)
         strategy = self._strategies.for_request(resolved.request)
