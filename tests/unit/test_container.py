@@ -18,6 +18,16 @@ def test_create_container_wires_all_contact_use_cases_to_one_uow_factory(monkeyp
     uow_factory = object()
     monkeypatch.setattr(container_module, "create_engine", lambda settings: engine)
     monkeypatch.setattr(container_module, "create_uow_factory", lambda selected: uow_factory)
+    monkeypatch.setattr(container_module, "create_session_factory", lambda selected: object())
+    monkeypatch.setattr(
+        container_module,
+        "create_auth_use_cases",
+        lambda selected: type("Auth", (), {
+            "authenticate_backend_password": object(),
+            "resolve_backend_session": object(),
+            "logout_backend_session": object(),
+        })(),
+    )
 
     container = container_module.create_container(
         Settings(database_url="mysql+asyncmy://user:pass@db/webasyst")
@@ -36,8 +46,16 @@ async def test_container_closes_persistence_resource(monkeypatch) -> None:
     engine = FakeEngine()
     monkeypatch.setattr(container_module, "create_engine", lambda settings: engine)
     monkeypatch.setattr(container_module, "create_uow_factory", lambda selected: object())
-    container = container_module.create_container(
-        Settings(database_url="sqlite+aiosqlite:///:memory:")
+    monkeypatch.setattr(container_module, "create_session_factory", lambda selected: object())
+    monkeypatch.setattr(
+        container_module,
+        "create_auth_use_cases",
+        lambda selected: type("Auth", (), {
+            "authenticate_backend_password": object(),
+            "resolve_backend_session": object(),
+            "logout_backend_session": object(),
+        })(),
     )
+    container = container_module.create_container(Settings(database_url="sqlite+aiosqlite:///:memory:"))
     await container.close()
     assert engine.disposed == 1

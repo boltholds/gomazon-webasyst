@@ -3,7 +3,7 @@ from pathlib import Path
 
 ROOT = Path("src/gomazon_webasyst")
 CHECK_DIRS = [ROOT / "contracts", ROOT / "application"]
-FORBIDDEN = {"fastapi", "sqlalchemy", "asyncmy", "aiosqlite"}
+FORBIDDEN = {"fastapi", "sqlalchemy", "asyncmy", "aiosqlite", "hashlib"}
 
 
 def imported_roots(path: Path) -> set[str]:

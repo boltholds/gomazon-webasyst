@@ -42,3 +42,54 @@ class WaContactRow(Base):
     create_contact_id: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     locale: Mapped[str] = mapped_column(String(8), nullable=False, server_default=text("''"))
     timezone: Mapped[str] = mapped_column(String(64), nullable=False, server_default=text("''"))
+
+
+class WaContactEmailRow(Base):
+    __tablename__ = "wa_contact_emails"
+    __table_args__ = (
+        Index("wa_contact_emails_contact_sort", "contact_id", "sort", unique=True),
+        Index("wa_contact_emails_email", "email"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    contact_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    ext: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("''"))
+    sort: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    status: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'unknown'"))
+
+
+class WaContactDataRow(Base):
+    __tablename__ = "wa_contact_data"
+    __table_args__ = (
+        Index("wa_contact_data_contact_field_sort", "contact_id", "field", "sort", unique=True),
+        Index("wa_contact_data_contact_id", "contact_id"),
+        Index("wa_contact_data_value", "value"),
+        Index("wa_contact_data_field", "field"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    contact_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    field: Mapped[str] = mapped_column(String(32), nullable=False)
+    ext: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("''"))
+    value: Mapped[str] = mapped_column(String(255), nullable=False)
+    sort: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    status: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+class WaContactAuthRow(Base):
+    __tablename__ = "wa_contact_auths"
+    __table_args__ = (
+        Index("wa_contact_auths_contact_id", "contact_id"),
+        Index("wa_contact_auths_token", "token"),
+        Index("wa_contact_auths_session_id", "session_id", unique=True),
+        Index("wa_contact_auths_contact_session_id", "contact_id", "session_id", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    contact_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    session_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    token: Mapped[str] = mapped_column(String(42), nullable=False)
+    login_datetime: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_datetime: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
