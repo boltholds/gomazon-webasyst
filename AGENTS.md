@@ -243,6 +243,16 @@ When no internal app route matches, Webasyst 4.2.0 continues to front-controller
 
 Final compatibility orchestration uses `LegacyDispatchOutcome = RedirectSettlement | HandlerDispatchOutcome`, not tuples/nullable fields.
 
+### ADR-019 — Serialized discriminator values are declared through EnumStr
+Status: accepted
+Date: 2026-09-14
+
+String-valued contract discriminators MUST derive from the shared `EnumStr` base (`enum.StrEnum`) rather than repeat raw magic strings across models.
+
+Pydantic v2 field discriminators still require each concrete model discriminator field to be typed as `Literal[...]`; therefore the required pattern is `kind: Literal[NamespaceKind.APP] = NamespaceKind.APP`, not `kind: NamespaceKind = NamespaceKind.APP`.
+
+Each semantic discriminator domain has its own enum (`DispatchSeedKind`, `AppRouteConstraintKind`, `SettlementKind`, `DispatchNamespaceKind`, `DispatchRequestKind`, `DispatchTargetKind`, `LegacyDispatchOutcomeKind`). Raw legacy/JSON strings remain accepted at validation boundaries, and JSON serialization emits the original string values.
+
 ---
 
 ## Target dependency direction
@@ -400,15 +410,16 @@ Do not silently add auth/session/permission checks, CSRF, widgets, `priority_set
 5. Do not leak ORM/session/engine/driver types into contracts/use cases.
 6. Use Pydantic v2 at explicit boundaries.
 7. Use discriminated unions for variant state; do not add nullable control bags for convenience.
-8. Parse legacy dictionaries once at compatibility boundaries.
-9. Add/adjust application-owned Protocols before coupling to infrastructure.
-10. Use tests before/with behavior changes and source-backed characterization for legacy semantics.
-11. Prefer small vertical slices.
-12. Do not mechanically translate PHP structure.
-13. Update this file in the same change whenever architecture changes.
-14. Add/supersede numbered ADRs; do not silently rewrite architectural history.
-15. Do not claim Webasyst compatibility without characterization tests.
-16. Keep native Python endpoints distinguishable from compatibility endpoints until parity is proven.
+8. Declare serialized string discriminator values through `EnumStr` enums; never duplicate raw discriminator magic strings across contract models.
+9. Parse legacy dictionaries once at compatibility boundaries.
+10. Add/adjust application-owned Protocols before coupling to infrastructure.
+11. Use tests before/with behavior changes and source-backed characterization for legacy semantics.
+12. Prefer small vertical slices.
+13. Do not mechanically translate PHP structure.
+14. Update this file in the same change whenever architecture changes.
+15. Add/supersede numbered ADRs; do not silently rewrite architectural history.
+16. Do not claim Webasyst compatibility without characterization tests.
+17. Keep native Python endpoints distinguishable from compatibility endpoints until parity is proven.
 
 ---
 
