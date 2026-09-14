@@ -169,6 +169,22 @@ AppNamespace | PluginNamespace
 
 No final normalized request contains nullable `module`, `action`, or `plugin` fields.
 
+### Enum-backed discriminators
+
+Serialized discriminator values are declared once through `EnumStr` (`enum.StrEnum`) subclasses rather than repeated raw strings. Each semantic discriminator domain has its own enum. Pydantic v2 still requires concrete discriminator fields to use `Literal`, so models use enum members inside `Literal`, for example:
+
+```python
+class DispatchNamespaceKind(EnumStr):
+    APP = "app"
+    PLUGIN = "plugin"
+
+class AppNamespace(BaseModel):
+    kind: Literal[DispatchNamespaceKind.APP] = DispatchNamespaceKind.APP
+    app: str
+```
+
+Raw JSON/legacy values such as `{"kind": "app"}` remain valid input, while JSON serialization still emits `"app"`.
+
 ## Backend normalization
 
 `BackendRouteResolver` characterizes `waFrontController::getDispatchParams()`:
