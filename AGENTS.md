@@ -201,6 +201,16 @@ class AuthSessionKey:
 
 Pydantic remains canonical for serialized/cross-boundary contracts. Small internal VOs MAY use `@dataclass(slots=True, frozen=True)` when they need value semantics but no wire-format validation/serialization.
 
+### ADR-023 — Optional/None is reserved for genuine nullable data boundaries
+Status: accepted
+Date: 2026-09-14
+
+`T | None` / `Optional[T]` MUST NOT be used as an operation result, lookup miss, registry miss, lifecycle state, dispatch/match state, or omitted-control marker. Those cases use explicit result variants, immutable state/value objects, or separate entry points.
+
+Allowed uses are limited to genuine nullable data imposed by an external schema/protocol, such as nullable legacy ORM columns and the standard `__aexit__` exception arguments. Raw third-party/library APIs may yield `None` internally, but adapters MUST normalize that value immediately before it crosses an application/compatibility boundary.
+
+The architecture test suite enforces this rule across source annotations.
+
 ---
 
 ## Target dependency direction
@@ -241,6 +251,7 @@ src/gomazon_webasyst/
       auth_subjects.py
       password_verifier.py
       session_state.py
+      session_validation.py
       auth_session_registry.py
   infrastructure/
     persistence/sqlalchemy/
@@ -327,7 +338,7 @@ Application/compatibility errors are framework-agnostic. Presentation translates
 Use fakes for repositories/UoW/registries/policies. Core use cases and compatibility resolvers require no ASGI server or external DB.
 
 ### Architecture
-Prevent FastAPI/SQLAlchemy/drivers/concrete crypto/password algorithms from leaking into contracts/application.
+Prevent FastAPI/SQLAlchemy/drivers/concrete crypto/password algorithms from leaking into contracts/application. Enforce ADR-023 by rejecting unexpected `Optional`/`T | None` annotations outside genuine nullable schema/protocol boundaries.
 
 ### Persistence contract
 Reusable behavioral tests run against concrete persistence adapters.
@@ -353,15 +364,16 @@ Cover DB wiring, ASGI compatibility flow, and auth/session composition. CI runs 
 9. Represent expected negative outcomes as explicit typed results; do not use sentinel absence or bools for ordinary branches.
 10. For extensible lookup/selection, use policies plus registries/directories keyed by open scheme/provider identifiers; do not grow `find_by_*` APIs.
 11. Replace repeated correlated primitive pairs with immutable internal VOs; prefer `@dataclass(slots=True, frozen=True)` for non-wire value objects.
-12. Parse legacy dictionaries once at compatibility boundaries.
-13. Add/adjust application-owned Protocols before coupling to infrastructure.
-14. Use tests before/with behavior changes and source-backed characterization for legacy semantics.
-15. Prefer small vertical slices.
-16. Do not mechanically translate PHP structure.
-17. Update this file in the same change whenever architecture changes.
-18. Add/supersede numbered ADRs; do not silently rewrite architectural history.
-19. Do not claim Webasyst compatibility without characterization tests.
-20. Keep native Python endpoints distinguishable from compatibility endpoints until parity is proven.
+12. Reserve `T | None` / `Optional[T]` for genuine external data/protocol nullability only; never use it for operation/lookup results, lifecycle state, dispatch/match state, or omitted controls.
+13. Parse legacy dictionaries once at compatibility boundaries.
+14. Add/adjust application-owned Protocols before coupling to infrastructure.
+15. Use tests before/with behavior changes and source-backed characterization for legacy semantics.
+16. Prefer small vertical slices.
+17. Do not mechanically translate PHP structure.
+18. Update this file in the same change whenever architecture changes.
+19. Add/supersede numbered ADRs; do not silently rewrite architectural history.
+20. Do not claim Webasyst compatibility without characterization tests.
+21. Keep native Python endpoints distinguishable from compatibility endpoints until parity is proven.
 
 ---
 
