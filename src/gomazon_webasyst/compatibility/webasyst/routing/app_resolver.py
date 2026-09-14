@@ -4,8 +4,8 @@ from gomazon_webasyst.contracts.dispatch import ResolvedDispatch
 from gomazon_webasyst.contracts.routing import AppSettlement, ModuleRouteConstraint
 
 from .legacy_parser import AppDispatchRule
-from .patterns import match_route
-from .seed_utils import CONTROL_NAMES, dispatch_from_seed, explicit_module, merge_seed
+from .patterns import RouteNotMatched, RouteMatched, match_route
+from .seed_utils import CONTROL_NAMES, app_route_constraint, dispatch_from_seed, merge_seed
 
 
 class AppRouteResolver:
@@ -19,13 +19,18 @@ class AppRouteResolver:
             if rule.temporarily_off:
                 continue
             if isinstance(settlement.constraint, ModuleRouteConstraint):
-                candidate_module = explicit_module(rule.seed)
-                if candidate_module != settlement.constraint.module:
+                candidate_constraint = app_route_constraint(rule.seed)
+                if not isinstance(candidate_constraint, ModuleRouteConstraint):
+                    continue
+                if candidate_constraint.module != settlement.constraint.module:
                     continue
 
-            route_match = match_route(rule.pattern, path)
-            if route_match is None:
+            pattern_result = match_route(rule.pattern, path)
+            if isinstance(pattern_result, RouteNotMatched):
                 continue
+            if not isinstance(pattern_result, RouteMatched):
+                raise TypeError(f"unsupported route match result: {type(pattern_result)!r}")
+            route_match = pattern_result.match
 
             seed = merge_seed(settlement.seed, route_match.captures, rule.seed)
             route_data = dict(settlement.route_data)

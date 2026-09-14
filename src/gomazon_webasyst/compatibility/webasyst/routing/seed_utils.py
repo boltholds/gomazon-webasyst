@@ -10,8 +10,11 @@ from gomazon_webasyst.contracts.dispatch import (
 from gomazon_webasyst.contracts.routing import (
     ActionOnlySeed,
     ActionSeed,
+    AnyAppRouteConstraint,
+    AppRouteConstraint,
     DispatchSeed,
     EmptySeed,
+    ModuleRouteConstraint,
     ModuleSeed,
     PluginActionOnlySeed,
     PluginActionSeed,
@@ -45,26 +48,31 @@ def seed_to_controls(seed: DispatchSeed) -> dict[str, str]:
 
 
 def seed_from_controls(values: Mapping[str, str]) -> DispatchSeed:
-    module = values.get("module")
-    action = values.get("action")
-    plugin = values.get("plugin")
+    has_module = "module" in values
+    has_action = "action" in values
+    has_plugin = "plugin" in values
 
-    if plugin is None:
-        if module is None and action is None:
+    if not has_plugin:
+        if not has_module and not has_action:
             return EmptySeed()
-        if module is None:
-            return ActionOnlySeed(action=action)
-        if action is None:
-            return ModuleSeed(module=module)
-        return ActionSeed(module=module, action=action)
+        if not has_module:
+            return ActionOnlySeed(action=values["action"])
+        if not has_action:
+            return ModuleSeed(module=values["module"])
+        return ActionSeed(module=values["module"], action=values["action"])
 
-    if module is None and action is None:
+    plugin = values["plugin"]
+    if not has_module and not has_action:
         return PluginSeed(plugin=plugin)
-    if module is None:
-        return PluginActionOnlySeed(plugin=plugin, action=action)
-    if action is None:
-        return PluginModuleSeed(plugin=plugin, module=module)
-    return PluginActionSeed(plugin=plugin, module=module, action=action)
+    if not has_module:
+        return PluginActionOnlySeed(plugin=plugin, action=values["action"])
+    if not has_action:
+        return PluginModuleSeed(plugin=plugin, module=values["module"])
+    return PluginActionSeed(
+        plugin=plugin,
+        module=values["module"],
+        action=values["action"],
+    )
 
 
 def merge_seed(
@@ -74,28 +82,59 @@ def merge_seed(
 ) -> DispatchSeed:
     values = seed_to_controls(base)
     for key in CONTROL_NAMES:
-        value = captures.get(key)
-        if value is not None and key not in values:
-            values[key] = value
+        if key in captures and key not in values:
+            values[key] = captures[key]
     values.update(seed_to_controls(explicit))
     return seed_from_controls(values)
 
 
-def explicit_module(seed: DispatchSeed) -> str | None:
-    values = seed_to_controls(seed)
-    return values.get("module")
+def app_route_constraint(seed: DispatchSeed) -> AppRouteConstraint:
+    match seed:
+        case ModuleSeed(module=module) | ActionSeed(module=module) | PluginModuleSeed(module=module) | PluginActionSeed(module=module):
+            return ModuleRouteConstraint(module=module)
+        case EmptySeed() | ActionOnlySeed() | PluginSeed() | PluginActionOnlySeed():
+            return AnyAppRouteConstraint()
+    raise TypeError(f"unsupported dispatch seed: {type(seed)!r}")
 
 
 def dispatch_from_seed(app: str, seed: DispatchSeed, *, default_module: str) -> DispatchRequest:
-    values = seed_to_controls(seed)
-    module = values.get("module", default_module)
-    action = values.get("action")
-    plugin = values.get("plugin")
-    namespace = (
-        PluginNamespace(app=app, plugin=plugin)
-        if plugin is not None
-        else AppNamespace(app=app)
-    )
-    if action is None:
-        return DefaultDispatch(namespace=namespace, module=module)
-    return ActionDispatch(namespace=namespace, module=module, action=action)
+    match seed:
+        case EmptySeed():
+            return DefaultDispatch(namespace=AppNamespace(app=app), module=default_module)
+        case ModuleSeed(module=module):
+            return DefaultDispatch(namespace=AppNamespace(app=app), module=module)
+        case ActionOnlySeed(action=action):
+            return ActionDispatch(
+                namespace=AppNamespace(app=app),
+                module=default_module,
+                action=action,
+            )
+        case ActionSeed(module=module, action=action):
+            return ActionDispatch(
+                namespace=AppNamespace(app=app),
+                module=module,
+                action=action,
+            )
+        case PluginSeed(plugin=plugin):
+            return DefaultDispatch(
+                namespace=PluginNamespace(app=app, plugin=plugin),
+                module=default_module,
+            )
+        case PluginActionOnlySeed(plugin=plugin, action=action):
+            return ActionDispatch(
+                namespace=PluginNamespace(app=app, plugin=plugin),
+                module=default_module,
+                action=action,
+            )
+        case PluginModuleSeed(plugin=plugin, module=module):
+            return DefaultDispatch(
+                namespace=PluginNamespace(app=app, plugin=plugin),
+                module=module,
+            )
+        case PluginActionSeed(plugin=plugin, module=module, action=action):
+            return ActionDispatch(
+                namespace=PluginNamespace(app=app, plugin=plugin),
+                module=module,
+                action=action,
+            )
+    raise TypeError(f"unsupported dispatch seed: {type(seed)!r}")

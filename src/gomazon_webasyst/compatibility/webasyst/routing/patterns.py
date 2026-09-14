@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import re
+from typing import TypeAlias
 
 from gomazon_webasyst.contracts.routing import RouteCapture, RoutePattern
 
@@ -8,9 +9,35 @@ _PLACEHOLDER = re.compile(r"<([a-z_]+):?([^>]*)?>", re.IGNORECASE)
 
 
 @dataclass(frozen=True, slots=True)
+class NoWildcard:
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class WildcardCapture:
+    value: str
+
+
+RouteWildcard: TypeAlias = NoWildcard | WildcardCapture
+
+
+@dataclass(frozen=True, slots=True)
 class RouteMatch:
     captures: dict[str, str]
-    wildcard: str | None
+    wildcard: RouteWildcard
+
+
+@dataclass(frozen=True, slots=True)
+class RouteMatched:
+    match: RouteMatch
+
+
+@dataclass(frozen=True, slots=True)
+class RouteNotMatched:
+    pass
+
+
+RoutePatternMatch: TypeAlias = RouteMatched | RouteNotMatched
 
 
 def _translate_literal(segment: str, wildcard_index: int) -> tuple[str, int]:
@@ -62,12 +89,12 @@ def compile_route_pattern(source: str) -> RoutePattern:
     )
 
 
-def match_route(pattern: RoutePattern, path: str) -> RouteMatch | None:
-    match = re.fullmatch(pattern.regex_source, path, flags=re.IGNORECASE)
-    if match is None:
-        return None
+def match_route(pattern: RoutePattern, path: str) -> RoutePatternMatch:
+    regex_match = re.fullmatch(pattern.regex_source, path, flags=re.IGNORECASE)
+    if regex_match is None:
+        return RouteNotMatched()
 
-    groups = match.groupdict()
+    groups = regex_match.groupdict()
     captures = {capture.name: groups[capture.name] for capture in pattern.captures}
     wildcard_groups = [
         (name, value)
@@ -75,5 +102,7 @@ def match_route(pattern: RoutePattern, path: str) -> RouteMatch | None:
         if name.startswith("__wildcard_") and value is not None
     ]
     wildcard_groups.sort(key=lambda item: int(item[0].rsplit("_", 1)[1]))
-    wildcard = wildcard_groups[0][1] if wildcard_groups else None
-    return RouteMatch(captures=captures, wildcard=wildcard)
+    wildcard: RouteWildcard = (
+        WildcardCapture(wildcard_groups[0][1]) if wildcard_groups else NoWildcard()
+    )
+    return RouteMatched(match=RouteMatch(captures=captures, wildcard=wildcard))
