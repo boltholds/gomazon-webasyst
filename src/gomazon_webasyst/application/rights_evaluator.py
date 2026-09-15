@@ -89,14 +89,16 @@ class RightsEvaluator:
         snapshot: RightsSnapshot,
         app_id: AppId,
     ) -> dict[str, int]:
+        names = {
+            assignment.key.name
+            for assignment in snapshot.assignments
+            if isinstance(assignment, NamedRightAssignment) and assignment.key.app_id == app_id
+        }
         values: dict[str, int] = {}
-        for assignment in snapshot.assignments:
-            if not isinstance(assignment, NamedRightAssignment):
-                continue
-            if assignment.key.app_id != app_id:
-                continue
-            current = values.get(assignment.key.name.value, assignment.value.value)
-            values[assignment.key.name.value] = max(current, assignment.value.value)
+        for name in sorted(names, key=lambda item: item.value):
+            result = self.effective_right(snapshot, PermissionKey(app_id, name))
+            if isinstance(result, FiniteRight):
+                values[name.value] = result.value
         return values
 
     @staticmethod
