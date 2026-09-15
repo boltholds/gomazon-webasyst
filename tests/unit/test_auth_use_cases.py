@@ -9,6 +9,7 @@ from gomazon_webasyst.application.auth import (
     ResolveBackendSession,
 )
 from gomazon_webasyst.application.auth_values import AuthSessionKey, SessionId
+from gomazon_webasyst.application.session_establishment import BackendSessionEstablisher
 from gomazon_webasyst.contracts.auth import (
     AuthIdentity,
     AuthenticatedSubject,
@@ -133,13 +134,20 @@ def credentials():
 
 
 def make_auth(directory_result, password_result, *, registry=None, store=None):
+    registry = registry or Registry()
+    store = store or InMemorySessionStateStore(
+        session_id_factory=lambda: SessionId("sess-1")
+    )
+    establisher = BackendSessionEstablisher(
+        session_state=store,
+        session_registry=registry,
+        token_factory=TokenFactory(),
+    )
     return AuthenticateBackendPassword(
         planner=Planner(),
         identity_directory=Directory(directory_result),
         password_verifier=Verifier(password_result),
-        token_factory=TokenFactory(),
-        session_state=store or InMemorySessionStateStore(session_id_factory=lambda: SessionId("sess-1")),
-        session_registry=registry or Registry(),
+        session_establisher=establisher,
     )
 
 
