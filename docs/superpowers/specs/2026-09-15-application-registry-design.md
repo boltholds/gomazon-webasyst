@@ -24,7 +24,7 @@ The supplied Webasyst Framework 4.2.0 source is authoritative under ADR-015.
 
 Relevant legacy behavior:
 
-- `waSystem::getApps()` reads `wa-config/apps.php`, force-adds `webasyst`, then loads metadata from each enabled application's `lib/config/app.php`.
+- `waSystem::getApps()` reads `wa-config/apps.php`, appends `webasyst`, then loads metadata from each enabled application's `lib/config/app.php`.
 - The bundled `wa-config/apps.php.example` enables `team`, `site`, `blog`, and `photos`; `webasyst` is supplied by framework logic rather than that file.
 - `waSystem::getApps(false)` hides `webasyst` from the ordinary application list; `getApps(true)` includes it.
 - `waAppConfig::getPlugins()` reads the application's configured plugin enablement state, then loads each enabled plugin's `plugins/<plugin>/lib/config/plugin.php`.
@@ -123,11 +123,13 @@ The registry combines catalog knowledge with installation state and exposes type
 
 The registry is the framework-wide source of application/plugin availability. Consumers must not maintain parallel enabled-app/plugin sets.
 
+`StaticApplicationRegistry` itself is generic application-layer code over injected typed catalog and manifest values. It MUST NOT import the concrete Webasyst 4.2.0 catalog. Only composition selects `StaticWebasyst42Catalog`.
+
 ## 5. Shared identifiers
 
 `AppId` is no longer ACL-specific. It is used by access control, dispatch, application registry, and future event/plugin subsystems.
 
-Move shared application identifiers into a framework-wide application value module, for example:
+Move shared application identifiers into a framework-wide application value module:
 
 ```text
 src/gomazon_webasyst/application/app_values.py
@@ -154,6 +156,8 @@ class PluginRef:
 
 The existing ACL import surface may temporarily re-export `AppId` from `access_values.py` during migration, but there MUST be only one concrete `AppId` type.
 
+Pydantic descriptor/result models may embed these frozen dataclass VOs directly; serialization behavior must be characterized so ids have one stable wire representation. Do not introduce a second Pydantic-only `AppId` class.
+
 ## 6. Typed application descriptors
 
 Cross-boundary descriptors use Pydantic v2. No canonical `dict[str, Any]`, `extra`, or opaque metadata bags are allowed.
@@ -172,7 +176,7 @@ ApplicationDescriptor
 
 The concrete contract contains at least:
 
-- `id: AppId` (serialized through a Pydantic-friendly representation)
+- `id: AppId`
 - name
 - version
 - vendor
@@ -227,12 +231,14 @@ The descriptor exposes an ordered tuple of routing parameters. No `Any` value is
 
 Header items are normalized into explicit descriptors containing stable identity, name, icon/image metadata, link, and a typed access requirement.
 
-Access requirement uses explicit variants, for example:
+The application-registry contract MUST NOT import ACL types because ACL writes depend on `ApplicationRegistry`. To avoid a dependency cycle, header access uses its own open permission-name value/field inside application metadata:
 
 ```text
 PublicHeaderItem
-RequiresRight(RightName)
+RequiresPermission(name)
 ```
+
+`name` carries the legacy permission string such as `backend`. A later header-rendering/application-access adapter may convert that open permission name to ACL `RightName` when evaluating it.
 
 No nullable access-control bag is used.
 
@@ -308,7 +314,7 @@ Characterization must include legacy derived-handler semantics from `waAppConfig
 - a plugin with `frontend=true` effectively has a `routing -> routing` handler unless explicitly present;
 - application-specific settings capability may normalize to `custom_settings`.
 
-The static descriptor SHOULD represent the normalized effective metadata that framework consumers would observe, not require each consumer to reimplement these rules.
+The static descriptor MUST represent the normalized effective metadata that framework consumers would observe, not require each consumer to reimplement these rules.
 
 ## 8. Static catalog layout
 
@@ -383,21 +389,27 @@ These are startup/configuration failures. They are not ordinary typed lookup mis
 
 ### 9.2 `webasyst` system application
 
-Legacy `waSystem::getApps()` force-adds `webasyst` independently of `wa-config/apps.php`.
+Legacy `waSystem::getApps()` force-adds `webasyst` independently of `wa-config/apps.php` and appends it after entries already present in that configuration.
 
 The Python installation model therefore requires the `webasyst` application to be present in a valid runtime installation manifest. It remains identifiable as a system/global-control application through compatibility semantics.
 
-The registry may provide ordinary and system-inclusive listing operations to mirror the useful distinction in `getApps(false)` versus `getApps(true)` without reproducing PHP method signatures.
+Listing semantics are explicit:
+
+- `list_enabled_apps()` returns enabled non-system applications in installation order, matching the useful behavior of `waSystem::getApps(false)`;
+- `list_enabled_apps_including_system()` returns the full enabled manifest order, matching the useful behavior of `waSystem::getApps(true)`;
+- `list_catalog_apps()` returns every known catalog descriptor in deterministic catalog order regardless of installation state.
 
 ### 9.3 Default bundled profile
 
-If this slice supplies a default example/composition manifest, it should mirror the supplied `wa-config/apps.php.example` plus the framework-required `webasyst` application:
+If this slice supplies a default example/composition manifest, it mirrors iteration order produced from the supplied `wa-config/apps.php.example` followed by the framework-appended `webasyst` entry:
 
-1. `webasyst`
-2. `team`
-3. `site`
-4. `blog`
-5. `photos`
+1. `team`
+2. `site`
+3. `blog`
+4. `photos`
+5. `webasyst`
+
+Therefore ordinary enabled-app listing returns `team, site, blog, photos`, while system-inclusive listing adds trailing `webasyst`.
 
 No bundled app-owned plugins are implicitly enabled by that default profile because the supplied archive does not provide an equivalent plugin-enable config example. Tests and product composition may inject explicit manifests.
 
@@ -442,26 +454,34 @@ Application-owned port, conceptually:
 class ApplicationRegistry(Protocol):
     def resolve_app(self, app_id: AppId) -> ApplicationResolution: ...
     def resolve_plugin(self, plugin: PluginRef) -> PluginResolution: ...
-    def list_apps(self) -> tuple[ApplicationDescriptor, ...]: ...
+    def list_catalog_apps(self) -> tuple[ApplicationDescriptor, ...]: ...
     def list_enabled_apps(self) -> tuple[ApplicationDescriptor, ...]: ...
+    def list_enabled_apps_including_system(self) -> tuple[ApplicationDescriptor, ...]: ...
     def list_plugins(self, app_id: AppId) -> PluginListResult: ...
     def list_enabled_plugins(self, app_id: AppId) -> PluginListResult: ...
 ```
 
+`list_plugins(app_id)` lists all known application-owned plugins for a known catalog app regardless of installation state. `list_enabled_plugins(app_id)` lists enabled plugins only when the owner app is enabled. Unknown app and disabled-owner states are explicit typed list outcomes rather than empty tuples.
+
 Canonical availability APIs do not return bool. Consumers branch on typed resolution variants.
 
-Listing an unknown app uses an explicit typed list rejection/result rather than an empty tuple that could be confused with a known app with no plugins.
+## 11. Implementation location and name
 
-## 11. Implementation name
-
-The production implementation is intentionally static and should be named accordingly:
+The production implementation is intentionally static and generic over injected typed values:
 
 ```text
-StaticApplicationRegistry
-StaticWebasyst42Catalog
+application/application_registry.py
+    StaticApplicationRegistry
 ```
 
-Do not call it `InMemoryApplicationRegistry`; static catalog composition is the intended production architecture for bundled 4.2.0 metadata, not a temporary test implementation.
+The Webasyst-specific catalog remains in compatibility:
+
+```text
+compatibility/webasyst/applications/catalog.py
+    WEBASYST_42_CATALOG
+```
+
+Do not call the production implementation `InMemoryApplicationRegistry`; static catalog composition is the intended production architecture for bundled 4.2.0 metadata, not a temporary test implementation.
 
 Tests may use `FakeApplicationRegistry`.
 
@@ -556,7 +576,7 @@ This explicitly distinguishes:
 
 The last case remains a dispatch-target-not-found problem rather than being misreported as installation-disabled.
 
-Dispatch-specific presentation/compatibility exceptions may map typed registry results to existing `PluginUnavailable`/application-unavailable errors, but the registry itself stays exception-free for ordinary lookup outcomes.
+Dispatch-specific compatibility exceptions may map typed registry results to existing plugin/application-unavailable errors, but the registry itself stays exception-free for ordinary lookup outcomes.
 
 ## 14. Composition
 
@@ -574,7 +594,7 @@ The same instance is injected into:
 - dispatch resolver;
 - future event/plugin framework consumers.
 
-Application code depends only on the application-owned registry port/contracts. It MUST NOT import the concrete Webasyst catalog.
+Application code depends only on application-owned catalog/registry values and the registry port. It MUST NOT import the concrete Webasyst catalog.
 
 Concrete catalog and installation-profile selection belong at the composition/compatibility edge.
 
@@ -585,7 +605,7 @@ Ordinary runtime state uses typed results:
 - unknown app/plugin;
 - disabled app/plugin;
 - owner-disabled plugin;
-- plugin-list request for unknown app.
+- plugin-list request for unknown/disabled owner app.
 
 Invalid static catalog or installation manifest is a startup/configuration/programming failure and may raise a dedicated configuration exception during registry construction.
 
@@ -605,12 +625,12 @@ At minimum they verify:
 - application capabilities;
 - UI-version normalization;
 - routing parameter normalization;
-- header-item normalization;
+- header-item normalization without ACL dependency;
 - plugin capability normalization;
 - Team external-calendar integration variants;
 - owned and cross-application handler normalization;
 - derived `rights.config` and `routing` handler semantics where applicable;
-- the supplied default app profile semantics (`webasyst` + apps enabled in `apps.php.example`).
+- the supplied default app profile semantics: `team, site, blog, photos, webasyst` for system-inclusive order and `team, site, blog, photos` for ordinary order.
 
 These tests are the migration guard against accidental drift from the supplied 4.2.0 source.
 
@@ -619,6 +639,7 @@ These tests are the migration guard against accidental drift from the supplied 4
 Unit coverage includes:
 
 - `AppId`, `PluginId`, `PluginRef` value semantics;
+- stable Pydantic serialization of the shared VOs;
 - only one concrete `AppId` type exists;
 - descriptor validation/serialization;
 - catalog uniqueness validation;
@@ -627,7 +648,7 @@ Unit coverage includes:
 - enabled/disabled/unknown application resolution;
 - enabled/disabled/owner-disabled/unknown plugin resolution;
 - plugin listing typed results;
-- system-inclusive versus ordinary app listing where exposed.
+- system-inclusive versus ordinary app listing.
 
 ## 18. Integration tests
 
@@ -663,6 +684,7 @@ Add guards that enforce:
 - no `dict[str, Any]` or equivalent opaque canonical descriptor bag;
 - exactly one shared `AppId` implementation;
 - application/contracts do not import the concrete Webasyst catalog;
+- application-registry contracts do not import ACL types;
 - ACL evaluator/read math does not depend on `ApplicationRegistry`;
 - app-scoped ACL writes do depend on the registry port;
 - handler registry no longer owns application/plugin installation state;
@@ -687,7 +709,6 @@ src/gomazon_webasyst/
     webasyst/
       applications/
         catalog.py
-        registry.py
         descriptors/
           webasyst.py
           apiexplorer.py
@@ -721,7 +742,7 @@ Included:
 - complete bundled application-owned 4.2.0 plugin metadata copy;
 - static catalog;
 - ordered installation manifest;
-- static registry;
+- generic static registry;
 - ACL write-side app validation;
 - separation of handler registration from installation/plugin availability;
 - dispatch app/plugin validation;
@@ -747,12 +768,13 @@ The slice is complete when:
 1. no production application/plugin registry code executes or parses PHP;
 2. bundled Webasyst 4.2.0 app/plugin metadata is represented through typed Python descriptors;
 3. catalog inventory matches the exact supplied 4.2.0 source;
-4. installation order and plugin ownership are explicit;
+4. installation order and plugin ownership are explicit and default system-inclusive ordering matches legacy iteration semantics;
 5. unknown/disabled application/plugin lookup is typed;
 6. ACL writes reject unknown/disabled apps while ACL reads remain legacy-data compatible;
 7. dispatch uses registry availability and handler registry only for handler lookup;
 8. enabled-but-unimplemented dispatch is distinguishable from disabled installation state;
 9. one registry instance is shared by ACL and dispatch through DI;
-10. no new RBAC/database/runtime-PHP dependency is introduced;
-11. architecture guards enforce the new boundaries;
-12. the full existing test suite plus new registry tests passes.
+10. application-registry contracts do not depend on ACL types or the concrete Webasyst catalog;
+11. no new RBAC/database/runtime-PHP dependency is introduced;
+12. architecture guards enforce the new boundaries;
+13. the full existing test suite plus new registry tests passes.
