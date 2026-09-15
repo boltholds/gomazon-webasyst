@@ -13,6 +13,10 @@ from gomazon_webasyst.contracts.enums import (
     ApiTokenExpiryKind,
     ApiTokenLastUseKind,
     ApiTokenLookupKind,
+    AuthorizationCodeExchangeKind,
+    AuthorizationCodeExchangeRejectReason,
+    AuthorizationCodeIssueKind,
+    AuthorizationCodeIssueRejectReason,
 )
 
 
@@ -92,5 +96,46 @@ class ApiTokenMissing(BaseModel):
 
 ApiTokenResolution: TypeAlias = Annotated[
     ApiTokenResolved | ApiTokenMissing,
+    Field(discriminator="kind"),
+]
+
+
+class AuthorizationCodeIssued(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, arbitrary_types_allowed=True)
+
+    kind: Literal[AuthorizationCodeIssueKind.ISSUED] = AuthorizationCodeIssueKind.ISSUED
+    record: StoredAuthorizationCode
+
+
+class AuthorizationCodeIssueRejected(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AuthorizationCodeIssueKind.REJECTED] = AuthorizationCodeIssueKind.REJECTED
+    reason: AuthorizationCodeIssueRejectReason
+
+
+AuthorizationCodeIssueResult: TypeAlias = Annotated[
+    AuthorizationCodeIssued | AuthorizationCodeIssueRejected,
+    Field(discriminator="kind"),
+]
+
+
+class AuthorizationCodeExchanged(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, arbitrary_types_allowed=True)
+
+    kind: Literal[AuthorizationCodeExchangeKind.EXCHANGED] = AuthorizationCodeExchangeKind.EXCHANGED
+    access_token: ApiAccessToken
+    scope: ApiScope
+
+
+class AuthorizationCodeExchangeRejected(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AuthorizationCodeExchangeKind.REJECTED] = AuthorizationCodeExchangeKind.REJECTED
+    reason: AuthorizationCodeExchangeRejectReason
+
+
+AuthorizationCodeExchangeResult: TypeAlias = Annotated[
+    AuthorizationCodeExchanged | AuthorizationCodeExchangeRejected,
     Field(discriminator="kind"),
 ]
