@@ -12,6 +12,7 @@ from gomazon_webasyst.contracts.enums import (
 )
 from gomazon_webasyst.contracts.persistent_login import (
     BackendSessionEstablishmentRejected,
+    ClearPersistentCredential,
     KeepPersistentCredential,
     PersistentCredentialIssueRejected,
     PersistentCredentialIssueResult,
@@ -82,3 +83,8 @@ class RestoreBackendSessionFromPersistentCredential:
             session_key=established.session_key,
             credential_disposition=resolved.disposition,
         )
+
+
+class RevokePersistentCredential:
+    async def __call__(self) -> ClearPersistentCredential:
+        return ClearPersistentCredential()
