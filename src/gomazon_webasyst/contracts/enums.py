@@ -357,3 +357,26 @@ class ApiTokenLastUseKind(EnumStr):
 class ApiTokenLookupKind(EnumStr):
     RESOLVED = "resolved"
     MISSING = "missing"
+
+
+class AuthorizationCodeIssueKind(EnumStr):
+    ISSUED = "issued"
+    REJECTED = "rejected"
+
+
+class AuthorizationCodeIssueRejectReason(EnumStr):
+    COLLISION = "collision"
+
+
+class AuthorizationCodeExchangeKind(EnumStr):
+    EXCHANGED = "exchanged"
+    REJECTED = "rejected"
+
+
+class AuthorizationCodeExchangeRejectReason(EnumStr):
+    NOT_FOUND = "not_found"
+    CLIENT_MISMATCH = "client_mismatch"
+    EXPIRED = "expired"
+    TOKEN_COLLISION = "token_collision"
+    CONCURRENT_STATE_CHANGED = "concurrent_state_changed"
+    CODE_STATE_CHANGED = "code_state_changed"
