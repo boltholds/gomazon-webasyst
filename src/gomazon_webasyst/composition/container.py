@@ -21,6 +21,13 @@ from gomazon_webasyst.application.access_control import (
     SetGlobalAdminAccess,
     UpdateGroup,
 )
+from gomazon_webasyst.application.api_credentials import (
+    ExchangeAuthorizationCode,
+    IssueAuthorizationCode,
+    IssueImplicitApiAccessToken,
+    ResolveApiAccessToken,
+    RevokeApiAccessToken,
+)
 from gomazon_webasyst.application.auth import (
     AuthenticateBackendPassword,
     LogoutBackendSession,
@@ -33,6 +40,7 @@ from gomazon_webasyst.application.persistent_login import (
     RevokePersistentCredential,
 )
 from gomazon_webasyst.composition.access_control import create_access_control_use_cases
+from gomazon_webasyst.composition.api_credentials import create_api_credential_use_cases
 from gomazon_webasyst.composition.auth import create_auth_use_cases
 from gomazon_webasyst.composition.session_state_providers import (
     SessionStateProviderRegistry,
@@ -61,6 +69,11 @@ class Container:
     issue_persistent_credential: IssuePersistentCredential
     restore_backend_session_from_persistent_credential: RestoreBackendSessionFromPersistentCredential
     revoke_persistent_credential: RevokePersistentCredential
+    issue_authorization_code: IssueAuthorizationCode
+    exchange_authorization_code: ExchangeAuthorizationCode
+    issue_implicit_api_access_token: IssueImplicitApiAccessToken
+    resolve_api_access_token: ResolveApiAccessToken
+    revoke_api_access_token: RevokeApiAccessToken
     get_group: GetGroup
     list_groups: ListGroups
     list_user_groups: ListUserGroups
@@ -103,6 +116,7 @@ def create_container_with_session_state_registry(
     uow_factory = create_uow_factory(engine)
     session_factory = create_session_factory(engine)
     auth = create_auth_use_cases(session_factory, session_state=session_state)
+    api_credentials = create_api_credential_use_cases(session_factory)
     access = create_access_control_use_cases(session_factory)
     return Container(
         settings=settings,
@@ -118,6 +132,11 @@ def create_container_with_session_state_registry(
             auth.restore_backend_session_from_persistent_credential
         ),
         revoke_persistent_credential=auth.revoke_persistent_credential,
+        issue_authorization_code=api_credentials.issue_authorization_code,
+        exchange_authorization_code=api_credentials.exchange_authorization_code,
+        issue_implicit_api_access_token=api_credentials.issue_implicit_api_access_token,
+        resolve_api_access_token=api_credentials.resolve_api_access_token,
+        revoke_api_access_token=api_credentials.revoke_api_access_token,
         get_group=access.get_group,
         list_groups=access.list_groups,
         list_user_groups=access.list_user_groups,
