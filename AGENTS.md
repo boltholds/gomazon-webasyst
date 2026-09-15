@@ -17,6 +17,7 @@ Authoritative companion artifacts:
 - Auth/session design: `docs/superpowers/specs/2026-09-14-auth-session-design.md`
 - Persistent-login design: `docs/superpowers/specs/2026-09-14-persistent-login-design.md`
 - Access-control design: `docs/superpowers/specs/2026-09-15-access-control-design.md`
+- State backend + API OAuth2 design: `docs/superpowers/specs/2026-09-15-state-backends-api-oauth2-design.md`
 - Official legacy documentation reference: `https://developers.webasyst.com/docs`
 
 ---
@@ -248,6 +249,12 @@ Status: accepted
 Date: 2026-09-15
 
 Every ACL/group/membership mutation receives the authenticated actor and checks an injected application-owned `AccessAdministrationPolicy` before writing. The first compatibility policy allows administration only to subjects with effective `GlobalAdminAccess`. Authorization is evaluated using the same `AccessControlUnitOfWork` transaction as the mutation so the decision and state change share one transactional view. Expected denial is a typed result; repositories are not security boundaries and presentation must not bypass use cases.
+
+### ADR-030 — Runtime session state backend selection is a composition concern
+Status: accepted
+Date: 2026-09-15
+
+`SessionStateStore` remains the domain-specific application-owned port for session create/resolve/revoke semantics. Concrete runtime storage is selected only in composition through an extensible `SessionStateProviderRegistry` keyed by open `StateProviderName` values and factories implementing `SessionStateStoreFactory`. One application container resolves exactly one store instance and shares it across password authentication, session resolution/logout, and persistent-login restoration; providers MUST NOT create a new store per request or use-case call. The default provider is in-process memory, but Redis, KeyDB/Dragonfly, Supabase/Postgres, or other adapters may be registered without changing application use cases or adding central backend conditionals. Future provider implementations must satisfy the same `SessionStateStore` behavioral contract. For Supabase, durable Postgres state is authoritative; Realtime may propagate revocation/invalidation or cache synchronization but is not itself the source of truth.
 
 ---
 
