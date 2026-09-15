@@ -15,11 +15,14 @@ from gomazon_webasyst.contracts.access_control import (
     AppAccess,
     EffectiveRight,
     FiniteRight,
+    FiniteRightsSnapshot,
     FullAppAccess,
     GlobalAdminAccess,
     LimitedAppAccess,
     NoAppAccess,
+    RightsSnapshotResult,
     UnlimitedRight,
+    UnlimitedRightsSnapshot,
 )
 from gomazon_webasyst.contracts.enums import UnlimitedRightReason
 
@@ -83,6 +86,37 @@ class RightsEvaluator:
             fallback_key = PermissionKey(key.app_id, fallback.name)
             return FiniteRight(value=self._named_value(snapshot, fallback_key))
         return FiniteRight(value=0)
+
+    def rights_snapshot(
+        self,
+        snapshot: RightsSnapshot,
+        app_id: AppId,
+    ) -> RightsSnapshotResult:
+        classification = self._app_semantics.classify_app(app_id)
+        global_value = self._global_value(snapshot)
+        access = self.app_access(snapshot, app_id)
+
+        if not isinstance(classification, GlobalControlApp) and global_value > 0:
+            return UnlimitedRightsSnapshot(
+                app_access=access,
+                reason=UnlimitedRightReason.GLOBAL_ADMIN,
+            )
+
+        app_value = (
+            global_value
+            if isinstance(classification, GlobalControlApp)
+            else self._app_value(snapshot, app_id)
+        )
+        if app_value >= 2:
+            return UnlimitedRightsSnapshot(
+                app_access=access,
+                reason=UnlimitedRightReason.APP_FULL_ACCESS,
+            )
+
+        return FiniteRightsSnapshot(
+            app_access=access,
+            effective_named_rights=self.effective_named_rights(snapshot, app_id),
+        )
 
     def effective_named_rights(
         self,
