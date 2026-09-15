@@ -17,6 +17,7 @@ Authoritative companion artifacts:
 - Auth/session design: `docs/superpowers/specs/2026-09-14-auth-session-design.md`
 - Persistent-login design: `docs/superpowers/specs/2026-09-14-persistent-login-design.md`
 - Access-control design: `docs/superpowers/specs/2026-09-15-access-control-design.md`
+- Application-registry design: `docs/superpowers/specs/2026-09-15-application-registry-design.md`
 - Official legacy documentation reference: `https://developers.webasyst.com/docs`
 
 ---
@@ -249,6 +250,18 @@ Date: 2026-09-15
 
 Every ACL/group/membership mutation receives the authenticated actor and checks an injected application-owned `AccessAdministrationPolicy` before writing. The first compatibility policy allows administration only to subjects with effective `GlobalAdminAccess`. Authorization is evaluated using the same `AccessControlUnitOfWork` transaction as the mutation so the decision and state change share one transactional view. Expected denial is a typed result; repositories are not security boundaries and presentation must not bypass use cases.
 
+### ADR-030 — Bundled application/plugin metadata is a static typed catalog, not runtime PHP configuration
+Status: accepted
+Date: 2026-09-15
+
+The Python rewrite does not parse, execute, or shell out to PHP `app.php`/application-owned `plugin.php` files at runtime. Metadata from the exact supplied Webasyst 4.2.0 source is copied once into Pydantic/typed Python descriptors and assembled into an immutable `StaticWebasyst42Catalog`. The catalog represents what the rewrite knows; a separate ordered `InstallationManifest` represents what is enabled in one installation. `AppId`, `PluginId`, and `PluginRef` are shared framework value objects. Canonical descriptors MUST NOT use opaque `dict[str, Any]` bags where bundled metadata can be modeled explicitly.
+
+### ADR-031 — ApplicationRegistry owns installation availability; handler registration remains separate
+Status: accepted
+Date: 2026-09-15
+
+A single application-owned `ApplicationRegistry` combines the static catalog with an injected installation manifest and is the framework-wide source of app/plugin availability. Expected resolution uses typed enabled/disabled/unknown variants rather than bool/None. ACL app-scoped writes validate enabled apps through this registry, while ACL reads/evaluation remain registry-independent so legacy rights rows for unknown/disabled app ids remain observable. Dispatch receives both `ApplicationRegistry` and a separate `HandlerRegistry`: installation state decides whether an app/plugin is available, while handler registration decides whether Python can execute a resolved target. No dispatch registry may maintain a parallel enabled-plugin set.
+
 ---
 
 ## Target dependency direction
@@ -274,6 +287,7 @@ contracts + application-owned ports
 src/gomazon_webasyst/
   composition/
     access_control.py
+    applications.py
   contracts/
     contacts.py
     routing.py
@@ -281,6 +295,7 @@ src/gomazon_webasyst/
     auth.py
     persistent_login.py
     access_control.py
+    applications.py
   application/
     contacts.py
     auth.py
@@ -289,12 +304,15 @@ src/gomazon_webasyst/
     session_establishment.py
     access_control.py
     access_values.py
+    app_values.py
+    application_registry.py
     rights_evaluator.py
     rights_mutation_policy.py
     ports/
       unit_of_work.py
       contacts.py
-      dispatch_registry.py
+      handler_registry.py
+      application_registry.py
       identity_directory.py
       auth_subjects.py
       password_verifier.py
@@ -317,6 +335,11 @@ src/gomazon_webasyst/
   compatibility/webasyst/
     routing/
     dispatch/
+    applications/
+      catalog.py
+      registry.py
+      descriptors/
+      plugins/
     auth/
       persistent.py
     access_control/
@@ -347,6 +370,8 @@ Compatibility may depend on contracts/application-owned ports. Application code 
 - backend query/route precedence characterizes `waFrontController::getDispatchParams()`;
 - dispatch identifiers are validated;
 - `waActions::run(null)` maps to concrete default action behavior;
+- application/plugin availability is resolved through `ApplicationRegistry`, not handler-registry state;
+- enabled app/plugin with no registered Python handler remains a dispatch-target-not-found condition;
 - production `main.py` must not mount the legacy catch-all until parity is deliberately activated.
 
 ---
@@ -393,8 +418,27 @@ The first auth slice is backend password authentication plus session create/reso
 - `wa_group.cnt` is recomputed from memberships joined to contacts with `is_user > 0`;
 - group deletion intentionally removes group-owned rights as an integrity improvement over 4.2.0;
 - ACL mutation authorization is checked inside the same transaction as the write;
-- application installation/catalog validation is deferred until the application registry slice; callers must use installed/configured app ids in this slice;
+- `AssignRight`, `RevokeRight`, and `SetAppAccess` require an enabled known application through `ApplicationRegistry`;
+- ACL read/evaluation does not filter persisted rows through application availability, preserving legacy unknown/disabled app data;
 - no global/static rights cache is introduced in the first Python ACL slice.
+
+---
+
+## Application-registry compatibility rules
+
+- exact bundled Webasyst 4.2.0 metadata is copied into typed Python descriptors; no runtime PHP parser/executor/subprocess is allowed;
+- the bundled catalog contains the framework `webasyst` application, nine bundled `wa-apps` applications, and 21 application-owned bundled plugins from the supplied source;
+- service-plugin families under `wa-plugins/*` are outside the application-owned plugin registry;
+- catalog knowledge and installation enablement are separate concepts;
+- installation order is preserved through an ordered `InstallationManifest`;
+- `webasyst` is required as the system application because legacy `waSystem::getApps()` force-adds it;
+- a default bundled profile, if used, mirrors `wa-config/apps.php.example` plus `webasyst`; plugins are not implicitly enabled without an explicit manifest entry;
+- known-but-disabled and unknown app/plugin states are distinct typed outcomes;
+- plugin identity is `PluginRef(AppId, PluginId)`; plugin ids are not globally unique;
+- catalog/manifest structural inconsistencies are startup/configuration errors, not runtime lookup misses;
+- normalized descriptors model actual bundled fields/capabilities explicitly rather than exposing opaque metadata bags;
+- legacy derived plugin handlers (`rights.config`, `routing`) are represented in normalized effective plugin metadata;
+- one composed registry instance is shared by ACL write validation and dispatch availability checks through DI.
 
 ---
 
@@ -419,26 +463,26 @@ GOMAZON_DATABASE_URL=sqlite+aiosqlite:///:memory:   # tests
 
 ## Error model
 
-Application/compatibility errors are framework-agnostic. Presentation translates them to HTTP. Ordinary negative outcomes are typed result variants per ADR-020; infrastructure/programming failures remain exceptional.
+Application/compatibility errors are framework-agnostic. Presentation translates them to HTTP. Ordinary negative outcomes are typed result variants per ADR-020; infrastructure/programming failures remain exceptional. Application-registry lookup uses explicit enabled/disabled/unknown variants, while invalid static catalog or installation-manifest construction fails as configuration/programming error.
 
 ---
 
 ## Testing strategy
 
 ### Unit
-Use fakes for repositories/UoW/registries/policies. Core use cases and compatibility resolvers require no ASGI server or external DB. ACL evaluator, fallback policy, mutation planner, administration policy and group/membership/right use cases are pure/fake-testable.
+Use fakes for repositories/UoW/registries/policies. Core use cases and compatibility resolvers require no ASGI server or external DB. ACL evaluator, fallback policy, mutation planner, administration policy and group/membership/right use cases are pure/fake-testable. Application registry tests cover catalog uniqueness, manifest invariants/order, descriptor serialization and typed app/plugin resolution.
 
 ### Architecture
-Prevent FastAPI/SQLAlchemy/drivers/concrete crypto/password algorithms from leaking into contracts/application. Enforce ADR-023 by rejecting unexpected `Optional`/`T | None` annotations outside genuine nullable schema/protocol boundaries. Persistent-login application code must not import legacy token-format classes or cookie/HTTP types. ACL application code must not import SQLAlchemy or Webasyst compatibility implementations, expose signed principal IDs, use bool-sentinel results, or handle reserved `backend` mutation rules outside the compatibility policy layer.
+Prevent FastAPI/SQLAlchemy/drivers/concrete crypto/password algorithms from leaking into contracts/application. Enforce ADR-023 by rejecting unexpected `Optional`/`T | None` annotations outside genuine nullable schema/protocol boundaries. Persistent-login application code must not import legacy token-format classes or cookie/HTTP types. ACL application code must not import SQLAlchemy or Webasyst compatibility implementations, expose signed principal IDs, use bool-sentinel results, or handle reserved `backend` mutation rules outside the compatibility policy layer. Application-registry code must not parse/execute PHP, canonical descriptors must not use `dict[str, Any]`, and handler registries must not own installation availability.
 
 ### Persistence contract
 Reusable behavioral tests run against concrete persistence adapters.
 
 ### Compatibility characterization
-Reference relevant Webasyst 4.2.0 methods/classes when behavior is subtle or documentation conflicts with source. ACL characterization covers effective `MAX` aggregation, global/app backend overrides, `.all` fallback, principal encoding, mutation cleanup, zero-as-delete and group-count semantics.
+Reference relevant Webasyst 4.2.0 methods/classes when behavior is subtle or documentation conflicts with source. ACL characterization covers effective `MAX` aggregation, global/app backend overrides, `.all` fallback, principal encoding, mutation cleanup, zero-as-delete and group-count semantics. Application-registry characterization pins the exact bundled app/plugin inventory and normalized metadata/derived-handler behavior from `waSystem::getApps()` and `waAppConfig::getPlugins()`.
 
 ### Integration
-Cover DB wiring, ASGI compatibility flow, auth/session composition, persistent-login issuance/restore, and SQLite ACL/group vertical flows. CI runs the full suite on Python 3.12.
+Cover DB wiring, ASGI compatibility flow, auth/session composition, persistent-login issuance/restore, SQLite ACL/group vertical flows, and registry integration with ACL writes and dispatch. CI runs the full suite on Python 3.12.
 
 ---
 
@@ -469,6 +513,9 @@ Cover DB wiring, ASGI compatibility flow, auth/session composition, persistent-l
 23. Keep signed Webasyst ACL principal encoding inside compatibility/infrastructure adapters; application code uses typed principals only.
 24. Treat ACL `backend` mutation as reserved structured behavior handled by app/global access operations and the legacy mutation planner, not a generic named right.
 25. Authorize ACL/group/membership mutations through application use cases inside the access-control UoW; never call ACL repositories directly from presentation.
+26. Keep bundled app/plugin metadata in typed static descriptors; do not introduce runtime PHP parsing/execution for the application registry.
+27. Keep application/plugin availability in `ApplicationRegistry`; do not mirror enabled state in dispatch/handler registries or ACL components.
+28. Keep handler registration independent from installation availability so enabled-but-unimplemented targets remain distinguishable from disabled apps/plugins.
 
 ---
 
@@ -485,5 +532,6 @@ The foundation is considered proven when CI confirms:
 - routing/dispatch slice passes contract/pattern/parser/resolver/registry/strategy/ASGI tests;
 - auth/session slice passes contract/policy/directory/password/session/persistence/integration tests;
 - persistent-login slice passes strategy/issuer/session-establishment/restore/characterization/integration tests;
-- access-control slice, when implemented, passes contracts/evaluator/fallback/mutation-policy/authorization/group/membership/persistence/integration/characterization tests;
+- access-control slice passes contracts/evaluator/fallback/mutation-policy/authorization/group/membership/persistence/integration/characterization tests;
+- application-registry slice, when implemented, passes catalog/manifest/resolution/ACL-write/dispatch/composition/characterization tests;
 - every new architectural decision is reflected here.
