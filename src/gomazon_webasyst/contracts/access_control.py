@@ -3,6 +3,8 @@ from typing import Annotated, Literal, TypeAlias
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from gomazon_webasyst.contracts.enums import (
+    AccessMutationRejectReason,
+    AccessMutationResultKind,
     AccessReadRejectReason,
     AccessReadResultKind,
     AppAccessKind,
@@ -218,3 +220,75 @@ RightsSnapshotQueryResult: TypeAlias = Annotated[
     RightsSnapshotResolved | AccessReadRejected,
     Field(discriminator="kind"),
 ]
+
+
+class AccessMutationRejected(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessMutationResultKind.REJECTED] = AccessMutationResultKind.REJECTED
+    reason: AccessMutationRejectReason
+
+
+class GroupCreated(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessMutationResultKind.GROUP_CREATED] = AccessMutationResultKind.GROUP_CREATED
+    group: GroupRead
+
+
+class GroupUpdated(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessMutationResultKind.GROUP_UPDATED] = AccessMutationResultKind.GROUP_UPDATED
+    group: GroupRead
+
+
+class GroupDeleted(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessMutationResultKind.GROUP_DELETED] = AccessMutationResultKind.GROUP_DELETED
+    group_id: Annotated[int, Field(gt=0)]
+
+
+class GroupMembershipAdded(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessMutationResultKind.MEMBERSHIP_ADDED] = AccessMutationResultKind.MEMBERSHIP_ADDED
+    contact_id: Annotated[int, Field(gt=0)]
+    group_id: Annotated[int, Field(gt=0)]
+    member_count: Annotated[int, Field(ge=0)]
+
+
+class GroupMembershipAlreadyPresent(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessMutationResultKind.MEMBERSHIP_ALREADY_PRESENT] = AccessMutationResultKind.MEMBERSHIP_ALREADY_PRESENT
+    contact_id: Annotated[int, Field(gt=0)]
+    group_id: Annotated[int, Field(gt=0)]
+
+
+class GroupMembershipRemoved(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessMutationResultKind.MEMBERSHIP_REMOVED] = AccessMutationResultKind.MEMBERSHIP_REMOVED
+    contact_id: Annotated[int, Field(gt=0)]
+    group_id: Annotated[int, Field(gt=0)]
+    member_count: Annotated[int, Field(ge=0)]
+
+
+class GroupMembershipAlreadyAbsent(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessMutationResultKind.MEMBERSHIP_ALREADY_ABSENT] = AccessMutationResultKind.MEMBERSHIP_ALREADY_ABSENT
+    contact_id: Annotated[int, Field(gt=0)]
+    group_id: Annotated[int, Field(gt=0)]
+
+
+class GroupMembersReplaced(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessMutationResultKind.MEMBERS_REPLACED] = AccessMutationResultKind.MEMBERS_REPLACED
+    group_id: Annotated[int, Field(gt=0)]
+    added_contact_ids: tuple[int, ...]
+    removed_contact_ids: tuple[int, ...]
+    member_count: Annotated[int, Field(ge=0)]
