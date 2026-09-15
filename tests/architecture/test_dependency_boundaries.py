@@ -4,6 +4,19 @@ from pathlib import Path
 ROOT = Path("src/gomazon_webasyst")
 CHECK_DIRS = [ROOT / "contracts", ROOT / "application"]
 FORBIDDEN = {"fastapi", "sqlalchemy", "asyncmy", "aiosqlite", "hashlib"}
+PERSISTENT_APPLICATION_FILES = (
+    ROOT / "application" / "persistent_login.py",
+    ROOT / "application" / "session_establishment.py",
+    ROOT / "application" / "ports" / "persistent_credentials.py",
+)
+PERSISTENT_FORBIDDEN_PREFIXES = (
+    "fastapi",
+    "starlette",
+    "sqlalchemy",
+    "hashlib",
+    "http.cookies",
+    "gomazon_webasyst.compatibility",
+)
 
 
 def imported_roots(path: Path) -> set[str]:
@@ -17,6 +30,17 @@ def imported_roots(path: Path) -> set[str]:
     return roots
 
 
+def imported_modules(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    modules: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            modules.add(node.module)
+    return modules
+
+
 def test_application_and_contracts_do_not_import_framework_or_db_internals() -> None:
     violations: list[str] = []
     for directory in CHECK_DIRS:
@@ -26,4 +50,18 @@ def test_application_and_contracts_do_not_import_framework_or_db_internals() -> 
             bad = imported_roots(path) & FORBIDDEN
             if bad:
                 violations.append(f"{path}: {sorted(bad)}")
+    assert violations == []
+
+
+def test_persistent_login_application_does_not_import_transport_db_or_legacy_codec() -> None:
+    violations: list[str] = []
+    for path in PERSISTENT_APPLICATION_FILES:
+        modules = imported_modules(path)
+        bad = sorted(
+            module
+            for module in modules
+            if module.startswith(PERSISTENT_FORBIDDEN_PREFIXES)
+        )
+        if bad:
+            violations.append(f"{path}: {bad}")
     assert violations == []
