@@ -3,6 +3,8 @@ from typing import Annotated, Literal, TypeAlias
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from gomazon_webasyst.contracts.enums import (
+    AccessReadRejectReason,
+    AccessReadResultKind,
     AppAccessKind,
     EffectiveRightKind,
     GroupResolutionKind,
@@ -142,5 +144,77 @@ class UnlimitedRightsSnapshot(BaseModel):
 
 RightsSnapshotResult: TypeAlias = Annotated[
     FiniteRightsSnapshot | UnlimitedRightsSnapshot,
+    Field(discriminator="kind"),
+]
+
+
+class AccessReadRejected(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessReadResultKind.REJECTED] = AccessReadResultKind.REJECTED
+    reason: AccessReadRejectReason
+
+
+class UserGroupsResolved(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessReadResultKind.RESOLVED] = AccessReadResultKind.RESOLVED
+    groups: tuple[GroupRead, ...]
+
+
+UserGroupsResult: TypeAlias = Annotated[
+    UserGroupsResolved | AccessReadRejected,
+    Field(discriminator="kind"),
+]
+
+
+class GroupMembersResolved(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessReadResultKind.RESOLVED] = AccessReadResultKind.RESOLVED
+    contact_ids: tuple[int, ...]
+
+
+GroupMembersResult: TypeAlias = Annotated[
+    GroupMembersResolved | AccessReadRejected,
+    Field(discriminator="kind"),
+]
+
+
+class EffectiveRightResolved(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessReadResultKind.RESOLVED] = AccessReadResultKind.RESOLVED
+    right: EffectiveRight
+
+
+EffectiveRightResult: TypeAlias = Annotated[
+    EffectiveRightResolved | AccessReadRejected,
+    Field(discriminator="kind"),
+]
+
+
+class AppAccessResolved(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessReadResultKind.RESOLVED] = AccessReadResultKind.RESOLVED
+    access: AppAccess
+
+
+AppAccessResult: TypeAlias = Annotated[
+    AppAccessResolved | AccessReadRejected,
+    Field(discriminator="kind"),
+]
+
+
+class RightsSnapshotResolved(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessReadResultKind.RESOLVED] = AccessReadResultKind.RESOLVED
+    snapshot: RightsSnapshotResult
+
+
+RightsSnapshotQueryResult: TypeAlias = Annotated[
+    RightsSnapshotResolved | AccessReadRejected,
     Field(discriminator="kind"),
 ]
