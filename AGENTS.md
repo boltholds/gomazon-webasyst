@@ -260,7 +260,7 @@ The Python rewrite does not parse, execute, or shell out to PHP `app.php`/applic
 Status: accepted
 Date: 2026-09-15
 
-A single application-owned `ApplicationRegistry` combines the static catalog with an injected installation manifest and is the framework-wide source of app/plugin availability. Expected resolution uses typed enabled/disabled/unknown variants rather than bool/None. ACL app-scoped writes validate enabled apps through this registry, while ACL reads/evaluation remain registry-independent so legacy rights rows for unknown/disabled app ids remain observable. Dispatch receives both `ApplicationRegistry` and a separate `HandlerRegistry`: installation state decides whether an app/plugin is available, while handler registration decides whether Python can execute a resolved target. No dispatch registry may maintain a parallel enabled-plugin set.
+A single application-owned `ApplicationRegistry` combines the static catalog with an injected installation manifest and is the framework-wide source of app/plugin availability. Expected resolution uses typed enabled/disabled/unknown variants rather than bool/None. ACL app-scoped writes validate enabled apps through this registry, while ACL reads/evaluation remain registry-independent so legacy rights rows for unknown/disabled app ids remain observable. Dispatch receives both `ApplicationRegistry` and a separate `HandlerRegistry`: installation state decides whether an app/plugin is available, while handler registration decides whether Python can execute a resolved target. No dispatch registry may maintain a parallel enabled-plugin set. Application-registry contracts MUST NOT import ACL types or the concrete Webasyst catalog.
 
 ---
 
@@ -337,7 +337,6 @@ src/gomazon_webasyst/
     dispatch/
     applications/
       catalog.py
-      registry.py
       descriptors/
       plugins/
     auth/
@@ -431,12 +430,14 @@ The first auth slice is backend password authentication plus session create/reso
 - service-plugin families under `wa-plugins/*` are outside the application-owned plugin registry;
 - catalog knowledge and installation enablement are separate concepts;
 - installation order is preserved through an ordered `InstallationManifest`;
-- `webasyst` is required as the system application because legacy `waSystem::getApps()` force-adds it;
-- a default bundled profile, if used, mirrors `wa-config/apps.php.example` plus `webasyst`; plugins are not implicitly enabled without an explicit manifest entry;
+- `webasyst` is required as the system application because legacy `waSystem::getApps()` appends it to configured apps;
+- a default bundled profile, if used, is ordered `team, site, blog, photos, webasyst`; ordinary listing excludes trailing `webasyst`;
+- plugins are not implicitly enabled without an explicit manifest entry;
 - known-but-disabled and unknown app/plugin states are distinct typed outcomes;
 - plugin identity is `PluginRef(AppId, PluginId)`; plugin ids are not globally unique;
 - catalog/manifest structural inconsistencies are startup/configuration errors, not runtime lookup misses;
 - normalized descriptors model actual bundled fields/capabilities explicitly rather than exposing opaque metadata bags;
+- application-registry contracts do not import ACL types; ACL-specific conversion happens in consumers/adapters;
 - legacy derived plugin handlers (`rights.config`, `routing`) are represented in normalized effective plugin metadata;
 - one composed registry instance is shared by ACL write validation and dispatch availability checks through DI.
 
@@ -473,7 +474,7 @@ Application/compatibility errors are framework-agnostic. Presentation translates
 Use fakes for repositories/UoW/registries/policies. Core use cases and compatibility resolvers require no ASGI server or external DB. ACL evaluator, fallback policy, mutation planner, administration policy and group/membership/right use cases are pure/fake-testable. Application registry tests cover catalog uniqueness, manifest invariants/order, descriptor serialization and typed app/plugin resolution.
 
 ### Architecture
-Prevent FastAPI/SQLAlchemy/drivers/concrete crypto/password algorithms from leaking into contracts/application. Enforce ADR-023 by rejecting unexpected `Optional`/`T | None` annotations outside genuine nullable schema/protocol boundaries. Persistent-login application code must not import legacy token-format classes or cookie/HTTP types. ACL application code must not import SQLAlchemy or Webasyst compatibility implementations, expose signed principal IDs, use bool-sentinel results, or handle reserved `backend` mutation rules outside the compatibility policy layer. Application-registry code must not parse/execute PHP, canonical descriptors must not use `dict[str, Any]`, and handler registries must not own installation availability.
+Prevent FastAPI/SQLAlchemy/drivers/concrete crypto/password algorithms from leaking into contracts/application. Enforce ADR-023 by rejecting unexpected `Optional`/`T | None` annotations outside genuine nullable schema/protocol boundaries. Persistent-login application code must not import legacy token-format classes or cookie/HTTP types. ACL application code must not import SQLAlchemy or Webasyst compatibility implementations, expose signed principal IDs, use bool-sentinel results, or handle reserved `backend` mutation rules outside the compatibility policy layer. Application-registry code must not parse/execute PHP, canonical descriptors must not use `dict[str, Any]`, application-registry contracts must not import ACL types, and handler registries must not own installation availability.
 
 ### Persistence contract
 Reusable behavioral tests run against concrete persistence adapters.
@@ -516,6 +517,7 @@ Cover DB wiring, ASGI compatibility flow, auth/session composition, persistent-l
 26. Keep bundled app/plugin metadata in typed static descriptors; do not introduce runtime PHP parsing/execution for the application registry.
 27. Keep application/plugin availability in `ApplicationRegistry`; do not mirror enabled state in dispatch/handler registries or ACL components.
 28. Keep handler registration independent from installation availability so enabled-but-unimplemented targets remain distinguishable from disabled apps/plugins.
+29. Keep application-registry contracts independent from ACL contracts; application metadata may carry open permission-name values but not `RightName` or ACL result types.
 
 ---
 
