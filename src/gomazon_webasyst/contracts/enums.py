@@ -342,3 +342,18 @@ class AccessMutationRejectReason(EnumStr):
     RESERVED_RIGHT = "reserved_right"
     ZERO_VALUE = "zero_value"
     GLOBAL_CONTROL_APP = "global_control_app"
+
+
+class ApiTokenExpiryKind(EnumStr):
+    NEVER = "never"
+    EXPIRES_AT = "expires_at"
+
+
+class ApiTokenLastUseKind(EnumStr):
+    NEVER_USED = "never_used"
+    LAST_USED_AT = "last_used_at"
+
+
+class ApiTokenLookupKind(EnumStr):
+    RESOLVED = "resolved"
+    MISSING = "missing"
