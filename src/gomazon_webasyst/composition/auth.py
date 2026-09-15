@@ -11,6 +11,7 @@ from gomazon_webasyst.application.ports.session_validation import (
     SessionValidationPolicy,
     StrictSessionValidationPolicy,
 )
+from gomazon_webasyst.application.session_establishment import BackendSessionEstablisher
 from gomazon_webasyst.compatibility.webasyst.auth.factory import create_webasyst_login_policy_set
 from gomazon_webasyst.compatibility.webasyst.auth.passwords import LegacyMd5PasswordVerifier
 from gomazon_webasyst.compatibility.webasyst.auth.phone import LegacyPhonePrefixPolicy
@@ -44,15 +45,18 @@ def create_auth_use_cases(
     token_factory = LegacyCredentialVersionTokenFactory()
     session_state = InMemorySessionStateStore()
     registry = SQLAlchemyAuthSessionRegistry(session_factory)
+    establisher = BackendSessionEstablisher(
+        session_state=session_state,
+        session_registry=registry,
+        token_factory=token_factory,
+    )
 
     return AuthUseCases(
         authenticate_backend_password=AuthenticateBackendPassword(
             planner=planner,
             identity_directory=directory,
             password_verifier=verifier,
-            token_factory=token_factory,
-            session_state=session_state,
-            session_registry=registry,
+            session_establisher=establisher,
         ),
         resolve_backend_session=ResolveBackendSession(
             session_state=session_state,
