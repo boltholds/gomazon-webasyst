@@ -1,8 +1,9 @@
 from dataclasses import FrozenInstanceError
 from datetime import datetime, timezone
-from typing import TypeAdapter, get_args
+from typing import get_args
 
 import pytest
+from pydantic import TypeAdapter
 
 from gomazon_webasyst.application.access_values import AppId
 from gomazon_webasyst.application.api_credential_values import (
