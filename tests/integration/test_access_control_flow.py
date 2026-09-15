@@ -22,6 +22,7 @@ from gomazon_webasyst.contracts.access_control import (
     FiniteRight,
     GlobalAdminAccess,
     GlobalAdminAccessSet,
+    GroupCreate,
     GroupCreated,
     GroupDeleted,
     GroupMembershipAdded,
@@ -133,7 +134,7 @@ async def test_access_control_vertical_flow_with_real_legacy_tables() -> None:
     assert isinstance(effective.right, FiniteRight)
     assert effective.right.value == 4
 
-    created = await access.create_group(root, {"name": "Editors"})
+    created = await access.create_group(root, GroupCreate(name="Editors"))
     assert isinstance(created, GroupCreated)
     created_group_id = GroupId(created.group.id)
 
@@ -264,7 +265,7 @@ async def test_access_control_vertical_flow_with_real_legacy_tables() -> None:
     assert right_count == 0
     assert group_count == 0
 
-    denied = await access.create_group(user, {"name": "Forbidden"})
+    denied = await access.create_group(user, GroupCreate(name="Forbidden"))
     assert isinstance(denied, AccessMutationRejected)
     assert denied.reason is AccessMutationRejectReason.ACCESS_DENIED
 
