@@ -1,11 +1,14 @@
 from datetime import datetime, timedelta
+from inspect import signature
 
 import pytest
 
+from gomazon_webasyst.application.auth import LogoutBackendSession
 from gomazon_webasyst.application.auth_values import AuthSessionKey, SessionId
 from gomazon_webasyst.application.persistent_login import (
     IssuePersistentCredential,
     RestoreBackendSessionFromPersistentCredential,
+    RevokePersistentCredential,
 )
 from gomazon_webasyst.application.persistent_values import (
     PersistentCredential,
@@ -203,3 +206,14 @@ async def test_restore_valid_credential_but_session_unavailable_keeps_credential
     assert isinstance(result, PersistentLoginRejected)
     assert result.reason is PersistentLoginRejectReason.SESSION_UNAVAILABLE
     assert isinstance(result.credential_disposition, KeepPersistentCredential)
+
+
+@pytest.mark.asyncio
+async def test_explicit_persistent_revoke_returns_clear_without_storage_dependency():
+    result = await RevokePersistentCredential()()
+
+    assert isinstance(result, ClearPersistentCredential)
+
+
+def test_session_logout_signature_does_not_accept_persistent_credential_state():
+    assert list(signature(LogoutBackendSession.__call__).parameters) == ["self", "session_id"]
