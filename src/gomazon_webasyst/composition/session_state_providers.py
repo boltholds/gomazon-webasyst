@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from gomazon_webasyst.application.ports.session_state import SessionStateStore
+from gomazon_webasyst.infrastructure.sessions.memory import InMemorySessionStateStore
 
 
 @dataclass(slots=True, frozen=True)
@@ -60,3 +61,35 @@ class SessionStateProviderRegistry:
         if name not in self._factories:
             return ProviderUnknown(name=name)
         return ProviderResolved(name=name, factory=self._factories[name])
+
+
+class InMemorySessionStateStoreFactory:
+    def create(self) -> SessionStateStore:
+        return InMemorySessionStateStore()
+
+
+class UnknownSessionStateProviderError(RuntimeError):
+    def __init__(self, provider: StateProviderName) -> None:
+        self.provider = provider
+        super().__init__(f"unknown session state provider: {provider.value}")
+
+
+def create_default_session_state_provider_registry() -> SessionStateProviderRegistry:
+    registry = SessionStateProviderRegistry()
+    registration = registry.register(
+        StateProviderName("memory"),
+        InMemorySessionStateStoreFactory(),
+    )
+    if isinstance(registration, ProviderRegistrationRejected):
+        raise RuntimeError("default memory session state provider was registered twice")
+    return registry
+
+
+def resolve_session_state_store(
+    registry: SessionStateProviderRegistry,
+    name: StateProviderName,
+) -> SessionStateStore:
+    result = registry.resolve(name)
+    if isinstance(result, ProviderResolved):
+        return result.factory.create()
+    raise UnknownSessionStateProviderError(result.name)
