@@ -8,6 +8,11 @@ from gomazon_webasyst.application.auth import (
     ResolveBackendSession,
 )
 from gomazon_webasyst.application.contacts import CreateContact, GetContact, UpdateContact
+from gomazon_webasyst.application.persistent_login import (
+    IssuePersistentCredential,
+    RestoreBackendSessionFromPersistentCredential,
+    RevokePersistentCredential,
+)
 from gomazon_webasyst.composition.auth import create_auth_use_cases
 from gomazon_webasyst.composition.settings import Settings
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.factory import (
@@ -27,6 +32,9 @@ class Container:
     authenticate_backend_password: AuthenticateBackendPassword
     resolve_backend_session: ResolveBackendSession
     logout_backend_session: LogoutBackendSession
+    issue_persistent_credential: IssuePersistentCredential
+    restore_backend_session_from_persistent_credential: RestoreBackendSessionFromPersistentCredential
+    revoke_persistent_credential: RevokePersistentCredential
 
     async def close(self) -> None:
         await self.engine.dispose()
@@ -45,4 +53,9 @@ def create_container(settings: Settings) -> Container:
         authenticate_backend_password=auth.authenticate_backend_password,
         resolve_backend_session=auth.resolve_backend_session,
         logout_backend_session=auth.logout_backend_session,
+        issue_persistent_credential=auth.issue_persistent_credential,
+        restore_backend_session_from_persistent_credential=(
+            auth.restore_backend_session_from_persistent_credential
+        ),
+        revoke_persistent_credential=auth.revoke_persistent_credential,
     )
