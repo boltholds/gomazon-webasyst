@@ -380,3 +380,29 @@ class AuthorizationCodeExchangeRejectReason(EnumStr):
     TOKEN_COLLISION = "token_collision"
     CONCURRENT_STATE_CHANGED = "concurrent_state_changed"
     CODE_STATE_CHANGED = "code_state_changed"
+
+
+class ApiAccessTokenIssueKind(EnumStr):
+    ISSUED = "issued"
+    REJECTED = "rejected"
+
+
+class ApiAccessTokenIssueRejectReason(EnumStr):
+    TOKEN_COLLISION = "token_collision"
+    CONCURRENT_STATE_CHANGED = "concurrent_state_changed"
+
+
+class ApiAccessTokenResolveKind(EnumStr):
+    RESOLVED = "resolved"
+    REJECTED = "rejected"
+
+
+class ApiAccessTokenResolveRejectReason(EnumStr):
+    MISSING = "missing"
+    EXPIRED = "expired"
+    CONCURRENT_STATE_CHANGED = "concurrent_state_changed"
+
+
+class ApiAccessTokenRevocationKind(EnumStr):
+    REVOKED = "revoked"
+    ALREADY_MISSING = "already_missing"
