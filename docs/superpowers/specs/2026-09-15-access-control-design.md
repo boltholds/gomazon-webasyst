@@ -6,47 +6,50 @@
 
 ## 1. Goal
 
-Add a typed access-control subsystem on top of the existing Webasyst tables without translating their legacy integer/principal conventions into application-level magic values and without redesigning the model as conventional RBAC.
+Add a typed access-control subsystem on top of the existing Webasyst tables without translating their integer/principal conventions into application-level magic values and without redesigning the model as conventional RBAC.
 
-The subsystem must preserve the observable semantics of Webasyst 4.2.0 where they matter:
+The subsystem preserves these observable Webasyst 4.2.0 semantics:
 
 - effective user rights are the maximum of personal, group and guest assignments;
 - `webasyst/backend > 0` gives global administrative access;
-- an application `backend` value of `1` is limited access and `>= 2` is full/application-admin access;
-- full application access makes named rights unlimited;
-- `foo.bar` falls back to `foo.all` only when the exact effective value is falsy/zero;
-- rights values are integers, not booleans;
-- saving `backend` has destructive cleanup semantics in the legacy model;
+- application `backend == 1` means limited access and `backend >= 2` means full/application-admin access;
+- full/global access makes named rights unlimited;
+- `foo.bar` falls back to `foo.all` only when the exact effective value is zero/falsy;
+- right values are integers, not booleans;
+- saving `backend` has destructive cleanup semantics;
 - setting a right to zero removes the persisted assignment;
-- group membership is stored in `wa_user_groups` and `wa_group.cnt` is denormalized;
-- the legacy schema is preserved and mapped, not replaced.
+- memberships live in `wa_user_groups` and `wa_group.cnt` is denormalized;
+- the legacy schema is mapped rather than replaced.
 
-The Python application layer must expose explicit typed states/results and must not leak negative legacy principal IDs, SQLAlchemy, nullable sentinel outcomes, or raw `backend` magic-string mutation rules.
+The Python application layer exposes explicit typed states/results and does not leak signed legacy principals, literal `backend` storage rules, SQLAlchemy, nullable sentinel outcomes, or PHP integer sentinels.
 
 ## 2. Authoritative Webasyst 4.2.0 source
 
-The exact supplied `webasyst-framework-v.4.2.0.zip` is authoritative for this design, per ADR-015. Relevant files:
+The exact supplied `webasyst-framework-v.4.2.0.zip` is authoritative under ADR-015. Relevant files:
 
 - `wa-system/webasyst/lib/models/waContactRights.model.php`
 - `wa-system/webasyst/lib/models/waGroup.model.php`
 - `wa-system/webasyst/lib/models/waUserGroups.model.php`
 - `wa-system/contact/waContact.class.php`
 - `wa-system/webasyst/lib/config/db.php`
+- `wa-apps/team/lib/actions/group/teamGroupDelete.controller.php`
+- `wa-apps/team/lib/actions/access/teamAccessSave.actions.php`
 
-Observed 4.2.0 behavior used by this design:
+Observed behavior used by this design:
 
-1. `waContactRightsModel::get()` builds the candidate legacy principals from the personal assignment, guests (`0`) and group memberships, then uses `MAX(value)` grouped by right name.
+1. `waContactRightsModel::get()` builds candidate principals from personal rights, guests (`0`) and memberships, then uses `MAX(value)` grouped by right name.
 2. For any application other than `webasyst`, a non-zero effective `webasyst/backend` returns unlimited access.
 3. Effective application `backend >= 2` returns unlimited access for any requested named right.
-4. `waContact::getRights()` refuses named rights when application backend access is absent and applies the `foo.bar -> foo.all` fallback when the exact value is zero/falsy.
-5. `waContactRightsModel::save()` negates its logical id into the storage principal. Saving `webasyst/backend` first deletes every assignment for that principal. Saving another application's `backend` with a value other than `1` first deletes every assignment for that principal and application. A zero value deletes rather than upserts.
-6. `waGroupModel::delete()` removes memberships and the group, but does not explicitly remove `wa_contact_rights` rows for the deleted group.
+4. `waContact::getRights()` returns no named rights without application backend access and applies `foo.bar -> foo.all` when the exact value is zero/falsy.
+5. `waContactRightsModel::save()` negates its logical id into the storage principal. Saving `webasyst/backend` first deletes every assignment for that principal. Saving another application's `backend` with a value other than `1` first deletes every assignment for that principal+application. A zero value deletes rather than upserts.
+6. `waGroupModel::delete()` removes memberships and the group but does not explicitly remove group-owned rows from `wa_contact_rights`.
 7. `waGroupModel::updateCounts()` counts only joined contacts with `wa_contact.is_user > 0`.
-8. `waUserGroupsModel::add()` is duplicate-tolerant (`INSERT IGNORE`) and refreshes group counts after membership changes.
-9. Legacy tables are:
-   - `wa_contact_rights(group_id, app_id, name, value)` with composite primary key `(group_id, app_id, name)`;
+8. `waUserGroupsModel::add()` is duplicate-tolerant (`INSERT IGNORE`) and refreshes counts after membership changes.
+9. Team's group/access mutation controllers require Webasyst administrative access.
+10. Legacy tables are:
+   - `wa_contact_rights(group_id, app_id, name, value)` with PK `(group_id, app_id, name)`;
    - `wa_group(id, name, cnt, icon, sort, type, description)`;
-   - `wa_user_groups(contact_id, group_id, datetime)` with composite primary key `(contact_id, group_id)`.
+   - `wa_user_groups(contact_id, group_id, datetime)` with PK `(contact_id, group_id)`.
 
 ## 3. Chosen architecture
 
@@ -54,10 +57,10 @@ Use a typed compatibility ACL over the existing Webasyst model.
 
 Rejected alternatives:
 
-- **Conventional RBAC (`Role -> Permission`)** loses personal assignments, guest assignments, numeric right values, `MAX` aggregation and Webasyst's special backend semantics.
-- **Generic policy engine (`principal/resource/action/condition`)** is unnecessarily broad for this migration slice and would make parity harder to prove.
+- **Conventional RBAC (`Role -> Permission`)** loses personal assignments, guest assignments, numeric values, `MAX` aggregation and special backend semantics.
+- **Generic policy engine (`principal/resource/action/condition`)** is broader than this migration slice and would make parity harder to prove.
 
-The core remains Webasyst-compatible but removes storage accidents from application contracts.
+The core remains Webasyst-compatible while storage accidents and PHP sentinels are normalized at explicit boundaries.
 
 ## 4. Package boundaries
 
@@ -101,7 +104,7 @@ src/gomazon_webasyst/
     access_control.py
 ```
 
-The exact file split may be tightened during implementation if a file would only contain trivial forwarding code, but the dependency direction is fixed:
+The exact file split may be tightened during implementation when a file would only contain forwarding code. Dependency direction is fixed:
 
 ```text
 composition / presentation / compatibility
@@ -120,9 +123,13 @@ Application code must not import compatibility or SQLAlchemy modules.
 
 ## 5. Value objects and principals
 
-Internal value objects use immutable stdlib dataclasses when no wire serialization is needed:
+Internal non-wire value objects use frozen/slotted dataclasses:
 
 ```python
+@dataclass(slots=True, frozen=True)
+class ContactId:
+    value: int
+
 @dataclass(slots=True, frozen=True)
 class GroupId:
     value: int
@@ -140,17 +147,17 @@ class RightValue:
     value: int
 ```
 
-`RightName` and `AppId` are open identifiers because applications may introduce their own names. Closed status/result domains use `EnumStr`.
+`AppId` and `RightName` are open identifiers because applications may add values. Closed status/result domains use `EnumStr`.
 
 Application principals are explicit variants:
 
 ```text
-UserTarget(contact_id)
-GroupTarget(group_id)
+UserTarget(ContactId)
+GroupTarget(GroupId)
 GuestsTarget
 ```
 
-The legacy storage encoding is not a domain model:
+Legacy storage encoding:
 
 ```text
 UserTarget(ContactId(42)) -> wa_contact_rights.group_id = -42
@@ -158,11 +165,37 @@ GroupTarget(GroupId(7))   -> wa_contact_rights.group_id = 7
 GuestsTarget()            -> wa_contact_rights.group_id = 0
 ```
 
-Only the compatibility/infrastructure persistence adapter may perform this conversion.
+This conversion belongs only to the Webasyst persistence/compatibility codec. Negative principal IDs MUST NOT appear in application contracts or use-case APIs.
 
-Negative IDs MUST NOT appear in application contracts or use-case APIs.
+## 6. Normalized right assignments
 
-## 6. Group model
+Raw `wa_contact_rights` rows are normalized before crossing into application code. Application code does not inspect the string `backend`.
+
+Normalized variants:
+
+```text
+GlobalAccessAssignment(target, value)
+AppAccessAssignment(target, app_id, value)
+NamedRightAssignment(target, PermissionKey, value)
+```
+
+A Webasyst rights-row codec recognizes:
+
+```text
+app_id == "webasyst" and name == "backend" -> GlobalAccessAssignment
+name == "backend"                           -> AppAccessAssignment
+anything else                                -> NamedRightAssignment
+```
+
+The literal values `webasyst`/`backend` therefore stay in compatibility/infrastructure normalization code rather than application evaluator branches.
+
+`PermissionKey` is a stable identity:
+
+```text
+PermissionKey(AppId, RightName)
+```
+
+## 7. Group model
 
 Framework group contracts expose the legacy `wa_group` data needed by the framework:
 
@@ -179,13 +212,13 @@ Group
 
 `GroupType` is a closed `EnumStr` domain with `GROUP` and `LOCATION`, matching the legacy enum.
 
-Location-specific Team application records are outside this framework slice. Creating or updating a `LOCATION` group changes only the base `wa_group` record here; Team-specific location metadata belongs to a later application adapter/slice.
+Team-specific location records are outside this framework slice. Creating or updating a `LOCATION` group changes only the base `wa_group` record here; location metadata belongs to a later Team adapter/slice.
 
-Group reads use explicit variants such as `GroupResolved | GroupMissing`; they never return `Group | None`.
+Group reads use explicit variants such as `GroupResolved | GroupMissing`, never `Group | None`.
 
-## 7. Membership model
+## 8. Membership model
 
-Membership is the stable identity `(ContactId, GroupId)` and should use an immutable value object where it repeatedly crosses internal ports.
+Membership identity is `(ContactId, GroupId)` and becomes an immutable VO when it repeatedly crosses internal ports.
 
 Operations:
 
@@ -197,7 +230,7 @@ RemoveGroupMember
 ReplaceGroupMembers
 ```
 
-New membership mutations validate both the group and contact. The first Python mutation implementation accepts only contacts with `is_user > 0` as new members. This is an intentional application invariant: existing legacy rows pointing at other contacts are tolerated when reading, but new Python writes do not create them.
+New membership mutations validate both contact and group. The first Python writer accepts only contacts with `is_user > 0` as new members. Existing legacy rows pointing at other contacts are tolerated on read, but Python does not create more of them.
 
 Idempotent outcomes are explicit:
 
@@ -209,42 +242,42 @@ MembershipAlreadyAbsent
 MembershipRejected(reason)
 ```
 
-`ReplaceGroupMembers` computes a delta rather than deleting and reinserting every row. Unchanged memberships therefore preserve their existing legacy `datetime`.
+`ReplaceGroupMembers` applies a delta rather than delete-all/insert-all, preserving `datetime` for unchanged memberships.
 
-After a membership mutation, the same transaction recomputes `wa_group.cnt` according to the legacy rule: count only memberships whose joined contact has `is_user > 0`.
+After membership mutation, the same transaction recomputes `wa_group.cnt` according to legacy semantics: count only memberships whose joined contact has `is_user > 0`.
 
-## 8. Effective-right evaluation
+## 9. Effective-right evaluation
 
-Persistence loads assignments and memberships; a pure evaluator computes effective state.
+Persistence loads normalized assignments and memberships. A pure application evaluator aggregates them; Webasyst-specific key recognition has already happened at the compatibility boundary.
 
 For a user:
 
 ```text
-personal assignment
+personal assignments
 + every assigned group
-+ guests
++ guest assignments
         |
         v
-MAX(value) per (app_id, right_name)
+MAX(value) by normalized assignment identity
 ```
 
-The evaluator then applies access rules in this order:
+The evaluator applies typed access semantics:
 
-1. For non-`webasyst` applications, effective `webasyst/backend > 0` yields `GlobalAdminAccess` and unlimited named rights.
-2. Otherwise effective application `backend >= 2` yields `FullAppAccess` and unlimited named rights.
-3. `backend == 1` yields `LimitedAppAccess`.
-4. `backend <= 0` or absence yields `NoAppAccess`.
+1. For a non-Webasyst application, effective `GlobalAccessAssignment.value > 0` yields `GlobalAdminAccess` and unlimited named rights.
+2. Otherwise effective `AppAccessAssignment.value >= 2` yields `FullAppAccess` and unlimited named rights.
+3. App-access value `1` yields `LimitedAppAccess`.
+4. App-access value `<= 0` or absence yields `NoAppAccess`.
 5. Without application access, a named right resolves to finite `0`.
-6. With limited access, an exact named-right value is used.
-7. If the exact named-right value is `0` and the name contains `.`, evaluate the corresponding `prefix.all` value.
-8. Negative non-zero right values remain explicit values and do not trigger `.all` fallback.
+6. With limited access, use the exact effective named-right value.
+7. If the exact value is `0`, invoke the configured right-fallback policy.
+8. Negative non-zero exact values remain explicit and do not trigger fallback.
 
 `RightValue` therefore remains numeric. Boolean `can_*` is not the canonical framework contract.
 
-Effective named-right result:
+Effective named-right state:
 
 ```text
-FiniteRight(value: RightValue)
+FiniteRight(RightValue)
 UnlimitedRight(reason)
 ```
 
@@ -264,26 +297,28 @@ FullAppAccess
 GlobalAdminAccess
 ```
 
-This prevents callers from reproducing `backend == 1` / `backend >= 2` logic.
+No application caller compares raw backend integers.
 
-## 9. `.all` fallback is an injected policy
+## 10. `.all` fallback is a compatibility policy
 
-`foo.bar -> foo.all` is compatibility behavior, not an intrinsic property of `RightName`.
+`foo.bar -> foo.all` is Webasyst compatibility behavior, not an intrinsic property of `RightName`.
 
-Use an application-owned policy interface with the initial compatibility implementation:
+Application owns the policy interface; compatibility provides the initial implementation:
 
 ```text
 RightFallbackPolicy
   ExactThenLegacyAllFallback
 ```
 
-Future applications may register different right fallback behavior without changing the evaluator or storage API.
+Given an exact-zero dotted right, the legacy policy returns the corresponding fallback `PermissionKey`; otherwise it returns an explicit no-fallback variant. It does not use `None`.
 
-## 10. Rights snapshots
+Future applications may inject different behavior without changing evaluator/storage APIs.
 
-`GetRightsSnapshot(subject, app_id)` must not pretend to enumerate an infinite set of rights when the subject has full/global access.
+## 11. Rights snapshots
 
-Use a variant result:
+`GetRightsSnapshot(subject, app_id)` must not pretend to enumerate an infinite set of named rights under full/global access.
+
+Use variants:
 
 ```text
 FiniteRightsSnapshot
@@ -295,11 +330,11 @@ UnlimitedRightsSnapshot
   reason
 ```
 
-`GetEffectiveRight` remains the precise operation for an arbitrary `RightName`.
+`GetEffectiveRight` remains the precise operation for arbitrary `RightName`.
 
-## 11. Mutation API
+## 12. Mutation API
 
-Generic named-right mutation is separate from backend access mutation.
+Generic named-right mutation is separate from access-level mutation:
 
 ```text
 AssignRight(target, PermissionKey, nonzero RightValue)
@@ -308,25 +343,31 @@ SetAppAccess(target, AppId, AppAccessMode)
 SetGlobalAdminAccess(target, GlobalAdminMode)
 ```
 
-`PermissionKey` combines `AppId + RightName` as one stable identity.
+Application does not hardcode which raw right name is reserved. It calls an injected compatibility policy:
 
-`backend` is reserved in the generic `AssignRight`/`RevokeRight` API. Callers must use `SetAppAccess` or `SetGlobalAdminAccess`, so the destructive legacy cleanup semantics cannot be bypassed accidentally.
+```text
+ReservedRightPolicy.classify(PermissionKey)
+  OrdinaryNamedRight
+  ReservedAccessRight
+```
+
+The Webasyst policy classifies raw `backend` as reserved. Generic assign/revoke rejects `ReservedAccessRight`; callers use structured access operations instead.
 
 `AppAccessMode` is closed:
 
 ```text
-NONE    -> backend 0
-LIMITED -> backend 1
-FULL    -> backend 2
+NONE
+LIMITED
+FULL
 ```
 
-When reading legacy data, any `backend >= 2` maps to `FullAppAccess`.
+The Webasyst mutation codec/planner maps these to persisted backend semantics (`0`, `1`, `2`). Reads map any legacy value `>= 2` to `FullAppAccess`.
 
-`GlobalAdminMode` is closed `ENABLED | DISABLED`; the initial legacy writer uses `webasyst/backend = 1` for enabled and removes it for disabled.
+`GlobalAdminMode` is closed `ENABLED | DISABLED`; the Webasyst compatibility planner maps enabled to a non-zero global backend assignment and disabled to removal.
 
-Generic `AssignRight` requires a non-zero value. A requested zero is represented explicitly by `RevokeRight` rather than overloading assignment with deletion semantics.
+Generic `AssignRight` requires a non-zero value. Zero is represented explicitly by `RevokeRight`.
 
-## 12. Pure legacy mutation planner
+## 13. Pure legacy mutation planner
 
 Webasyst-specific destructive write behavior is centralized in a pure compatibility policy:
 
@@ -337,40 +378,49 @@ LegacyRightsMutationPolicy
 RightsMutationPlan
 ```
 
-`RightsMutationPlan` is immutable and consists of typed delete/upsert operations.
+Application owns plan/result types; compatibility owns the concrete Webasyst planner. `RightsMutationPlan` is immutable and contains typed operations, not SQL:
 
-Required planning semantics:
+```text
+DeleteAllTargetRights
+DeleteAppScope
+UpsertGlobalAccess
+DeleteGlobalAccess
+UpsertAppAccess
+DeleteAppAccess
+UpsertNamedRight
+DeleteNamedRight
+```
 
-### Global backend
+Required legacy planning semantics:
 
-For `webasyst/backend`:
+### Global access
+
+For global backend mutation:
 
 1. delete every assignment for the target;
-2. if enabling, upsert `webasyst/backend = 1`;
-3. if disabling, leave no assignment.
+2. if enabling, upsert the normalized global access assignment;
+3. if disabling, leave no global assignment.
 
-This reproduces the legacy `save()` cleanup behavior.
+The storage codec maps that normalized global assignment to `webasyst/backend`, reproducing `waContactRightsModel::save()` without exposing its strings in application code.
 
-### Application backend
+### Application access
 
-For `app/backend`:
+- `LIMITED`: preserve granular application assignments and upsert app access value `1`;
+- `NONE`: delete every assignment for target+app and leave no app-access assignment;
+- `FULL`: delete every assignment for target+app and upsert app access value `2`.
 
-- `LIMITED` (`1`): preserve existing granular application assignments and upsert backend `1`;
-- `NONE` (`0`): delete every assignment for that target+app and leave no backend assignment;
-- `FULL` (`2`): delete every assignment for that target+app and upsert backend `2`.
+The storage codec maps app-access assignment to the legacy `backend` row.
 
 ### Named rights
 
-- non-zero assignment -> upsert exact `(target, app, name, value)`;
+- non-zero assignment -> upsert exact named assignment;
 - revoke -> delete exact assignment.
 
-No repository duplicates these rules.
+Repositories execute plans but do not duplicate these rules.
 
-## 13. Persistence ports
+## 14. Persistence ports
 
 ### Group repository
-
-Intent-oriented operations:
 
 ```text
 create
@@ -393,28 +443,27 @@ replace_delta
 recount_group
 ```
 
-The repository accepts typed `ContactId`/`GroupId`, never loose legacy principal integers.
+The repository accepts typed `ContactId`/`GroupId`.
 
 ### Rights repository
 
 ```text
-load_assignments
-group/user/guest snapshot loading through typed targets
-upsert
+load_normalized_assignments
+upsert_normalized_assignment
 delete_exact
 delete_scope
 delete_all_for_target
 ```
 
-The SQLAlchemy adapter alone knows `wa_contact_rights.group_id` encoding.
+The SQLAlchemy/Webasyst adapter alone knows signed principal IDs and raw `backend` rows.
 
 ### Subject access
 
-A narrow access-subject port resolves only what ACL needs from contacts, especially existence and `is_user` eligibility. It must not depend on the full contact CRUD contract.
+A narrow ACL-subject port resolves only existence and user eligibility required by ACL. It must not depend on the full contact CRUD contract.
 
-## 14. Dedicated AccessControlUnitOfWork
+## 15. Dedicated AccessControlUnitOfWork
 
-ACL writes span multiple tables, so they use a dedicated application-owned UoW rather than extending the contact UoW into a universal service locator.
+ACL writes span multiple tables, so they use a dedicated application-owned UoW rather than turning the contact UoW into a universal container.
 
 ```text
 AccessControlUnitOfWork
@@ -433,7 +482,8 @@ Examples:
 ### DeleteGroup
 
 ```text
-authorize actor
+open UoW
+authorize actor in same UoW
 resolve group
 delete memberships
 delete rights for GroupTarget(group_id)
@@ -444,7 +494,8 @@ commit
 ### ReplaceGroupMembers
 
 ```text
-authorize actor
+open UoW
+authorize actor in same UoW
 resolve group
 validate requested contacts
 load current memberships
@@ -457,7 +508,8 @@ commit
 ### SetAppAccess / SetGlobalAdminAccess
 
 ```text
-authorize actor
+open UoW
+authorize actor in same UoW
 validate target
 build RightsMutationPlan
 execute plan
@@ -466,11 +518,11 @@ commit
 
 Infrastructure faults propagate; ordinary misses/rejections are typed results.
 
-## 15. Intentional integrity improvement: group deletion
+## 16. Intentional integrity improvement: group deletion
 
 Webasyst 4.2.0 `waGroupModel::delete()` removes membership links and the group row but does not explicitly delete `wa_contact_rights` rows owned by that group.
 
-The Python rewrite intentionally improves this behavior:
+The Python rewrite intentionally performs:
 
 ```text
 delete memberships
@@ -478,16 +530,19 @@ delete memberships
 + delete group
 ```
 
-This is an accepted compatibility deviation because once the group no longer exists those rights are not observable through legitimate group membership, while retaining them creates orphan ACL data and risks accidental resurrection if identifiers are reused.
+This is an accepted compatibility deviation because deleted-group rights are not legitimate effective rights, while retaining them creates orphan ACL state and risks accidental resurrection if an identifier is reused.
 
-The behavior must be documented and covered by integration tests.
+The behavior must be covered by integration tests.
 
-## 16. Authorization of administrative mutations
+## 17. Authorization of administrative mutations
 
-Repositories are not security boundaries. Every group/membership/right mutation use case receives the authenticated actor and checks an injected application-owned administration policy before modifying state.
+Repositories are not security boundaries. Every group/membership/right mutation use case receives the authenticated actor and checks an injected application-owned administration policy before writing.
 
 ```text
 AuthenticatedSubject actor
+        |
+        v
+effective access loaded inside UoW
         |
         v
 AccessAdministrationPolicy
@@ -499,15 +554,13 @@ Authorized | AccessDenied
 mutation
 ```
 
-The first compatibility policy permits ACL administration only to effective `GlobalAdminAccess` subjects.
+The first compatibility policy permits ACL administration only to effective `GlobalAdminAccess` subjects, matching the exact 4.2.0 Team administrative gate for access/group management.
 
-Authorization MUST be evaluated inside the same `AccessControlUnitOfWork` transaction used for the mutation, before any write, so the authorization decision and state change share one consistent transactional view.
+Authorization MUST be evaluated inside the same `AccessControlUnitOfWork` transaction used for mutation, before any write.
 
-The policy itself remains framework/database-agnostic; it consumes typed effective access state produced by application evaluation services.
+Expected denial is typed; infrastructure failures remain exceptional.
 
-Expected denial is a typed result, not an exception or bool sentinel. Infrastructure failures remain exceptional.
-
-## 17. Use cases
+## 18. Use cases
 
 Read/evaluate:
 
@@ -536,9 +589,7 @@ SetAppAccess
 SetGlobalAdminAccess
 ```
 
-All expected negative outcomes use explicit typed variants.
-
-Representative families:
+Representative result families:
 
 ```text
 GroupResolved | GroupMissing
@@ -556,116 +607,126 @@ EffectiveRightResolved | EffectiveRightRejected
 AccessAdministrationAuthorized | AccessAdministrationDenied
 ```
 
-Do not predeclare speculative error reasons such as `PROTECTED_GROUP` until the model actually gains protected groups.
+Do not predeclare speculative reasons such as `PROTECTED_GROUP` until the model gains that concept.
 
-## 18. Error and validation rules
+## 19. Error and validation rules
 
 - Ordinary not-found/already-present/already-absent/access-denied/invalid-command outcomes are typed results per ADR-020.
 - No operation result uses `T | None`, `Optional`, bool sentinels or magic strings.
-- DB failures, transaction errors and corruption propagate as infrastructure exceptions.
-- `AssignRight` rejects reserved `backend` and zero-valued assignment commands.
-- `SetAppAccess`/`SetGlobalAdminAccess` own backend semantics.
-- Target validation is explicit: a `UserTarget` must resolve to a valid backend user for new mutations; a `GroupTarget` must resolve to an existing group; `GuestsTarget` is always structurally valid.
-- Reads tolerate legacy membership rows that violate the new-write `is_user > 0` invariant; new membership writes do not create more of them.
+- DB failures, transaction failures and corruption remain exceptions.
+- Generic `AssignRight` rejects a compatibility-classified reserved access right and zero-valued assignment commands.
+- `SetAppAccess`/`SetGlobalAdminAccess` own structured access mutation.
+- A `UserTarget` must resolve to a valid backend user for new mutations.
+- A `GroupTarget` must resolve to an existing group.
+- `GuestsTarget` is structurally valid and may receive rights under administrator control.
+- Reads tolerate legacy membership rows violating the new-write user invariant; new writes do not create more.
 
-## 19. Application identifiers and installed-app validation
+## 20. Application identifiers and installed-app validation
 
-`AppId` is an open identifier. This slice does not introduce the application installation/catalog subsystem solely to validate app existence.
+`AppId` is open. This slice does not introduce the application installation/catalog subsystem solely to validate app existence.
 
-Callers/composition are expected to request rights for installed/configured applications. The legacy behavior where `waContactRightsModel::get()` forces an unknown app to zero will be completed when the application registry/catalog slice exists.
+Callers/composition are expected to request rights for installed/configured applications. The legacy rule where `waContactRightsModel::get()` forces unknown apps to zero will be completed when an application registry/catalog exists.
 
-This is an explicit, bounded compatibility gap and must not be hidden behind a nullable or fake app lookup.
+This is an explicit bounded compatibility gap; do not hide it behind a nullable or fake app lookup.
 
-## 20. No permission cache in the first slice
+## 21. No permission cache in the first slice
 
-Webasyst 4.2.0 caches some rights lookups statically. The first Python ACL slice prioritizes correctness and transaction visibility over caching.
+Webasyst 4.2.0 statically caches some rights lookups. The first Python ACL slice prioritizes correctness and transaction visibility.
 
-No cross-request or process-global permission cache is introduced. A later performance slice may add cache ports and invalidation only after behavior is measured.
+No cross-request/process-global permission cache is introduced. A later performance slice may add cache ports/invalidation after measurement.
 
-## 21. Testing strategy
+## 22. Testing strategy
 
-### Source characterization
+### Exact-source characterization
 
-Tests must characterize exact 4.2.0 behavior for:
+Characterize exact 4.2.0 behavior for:
 
 - personal + groups + guests `MAX(value)`;
-- `webasyst/backend` global override;
-- application `backend >= 2` unlimited named rights;
-- application access absent -> named right zero;
+- global backend override;
+- app backend `>= 2` unlimited named rights;
+- absent app access -> named right zero;
 - exact named right then `.all` fallback;
 - non-zero negative exact right does not fall back;
 - zero write means delete;
-- `webasyst/backend` mutation clears all target assignments;
-- `app/backend != 1` mutation clears that application scope;
+- global backend mutation clears all target assignments;
+- app backend other than limited clears that app scope;
 - legacy principal sign encoding;
 - `wa_group.cnt` counts only `is_user > 0` contacts;
-- duplicate membership behavior.
+- duplicate membership behavior;
+- Webasyst admin gating of group/access administration.
+
+Characterization fixtures may mention raw `webasyst/backend` because they document legacy source. Production application code may not.
 
 ### Unit
 
 Use fakes to test:
 
-- value objects and discriminated result contracts;
-- `RightsEvaluator`;
+- VOs and discriminated contracts;
+- normalized row codec behavior separately from application evaluator;
+- `RightsEvaluator` over normalized assignments;
 - `ExactThenLegacyAllFallback`;
+- `ReservedRightPolicy`;
 - `LegacyRightsMutationPolicy` plans;
 - `AccessAdministrationPolicy`;
 - group/membership/right use-case branching;
-- idempotent membership/right removal outcomes;
-- transactional compensation/rollback behavior where applicable.
+- idempotent mutation outcomes;
+- rollback behavior where applicable.
 
 ### Integration
 
-SQLite-backed integration tests cover real mappings of:
+SQLite integration maps:
 
 - `wa_group`;
 - `wa_user_groups`;
 - `wa_contact_rights`;
-- required `wa_contact` fields used by ACL subject validation/counts.
+- ACL-relevant `wa_contact` fields.
 
-Required vertical flows include:
+Required vertical flows:
 
 1. personal + two groups + guests -> effective `MAX` rights;
-2. group membership delta and member-count recomputation;
-3. deleted group removes memberships and orphan rights atomically;
+2. membership delta and count recomputation;
+3. group deletion removes memberships and orphan rights atomically;
 4. global-admin transition clears old assignments according to legacy semantics;
-5. application full/limited/none transitions preserve or clear granular rights correctly;
+5. app full/limited/none transitions preserve or clear granular rights correctly;
 6. named-right `.all` fallback;
 7. denied actor cannot mutate ACL.
 
 ### Architecture guards
 
-Extend architecture tests so they fail on:
+Fail on:
 
 - `Optional`/`T | None` operation results;
 - SQLAlchemy/FastAPI imports in ACL application/contracts;
 - compatibility imports from ACL application code;
-- negative principal-id encoding in application APIs;
-- direct generic handling of reserved `backend` outside the compatibility mutation/evaluation layer;
+- signed principal encoding in application APIs;
+- literal Webasyst `backend` handling in production ACL application code;
 - bool-sentinel ACL operation results.
 
-## 22. Composition
+## 23. Composition
 
 `composition/access_control.py` wires:
 
 - SQLAlchemy group/membership/rights/subject adapters;
+- Webasyst principal/right-row codecs;
 - `AccessControlUnitOfWork` factory;
-- pure rights evaluator;
+- application rights evaluator;
 - legacy `.all` fallback policy;
+- legacy reserved-right policy;
 - legacy mutation planner;
 - global-admin administration policy;
-- all ACL read and mutation use cases.
+- all ACL read/mutation use cases.
 
-The main container may expose these use cases as first-class dependencies, as auth does today.
+The main container may expose these as first-class dependencies, like auth.
 
 No HTTP endpoints are mounted in this slice.
 
-## 23. Scope boundaries
+## 24. Scope boundaries
 
 Included:
 
 - mappings of existing ACL/group tables;
-- typed ACL contracts and VOs;
+- typed ACL contracts/VOs;
+- normalized legacy row/principal codecs;
 - group CRUD;
 - membership add/remove/replace and count maintenance;
 - effective-right evaluation;
@@ -679,40 +740,41 @@ Included:
 
 Deferred:
 
-- Team application UI and HTTP endpoints;
-- Team location metadata management;
+- Team UI and HTTP endpoints;
+- Team location metadata;
 - application-specific right-config rendering;
-- application install/catalog validation beyond the explicit gap above;
+- installed-app/catalog validation beyond the explicit gap above;
 - API/OAuth scopes;
 - audit-log UI/events;
 - permission caching;
-- a new RBAC schema;
+- new RBAC schema;
 - generic ABAC/policy-engine features.
 
-## 24. Compatibility/deviation summary
+## 25. Compatibility/deviation summary
 
-Preserved intentionally:
+Preserved:
 
 - existing schema;
-- numeric right values;
+- numeric values;
 - personal/group/guest aggregation;
 - global/app admin semantics;
 - `.all` fallback;
-- destructive `backend` mutation semantics;
-- zero-as-delete persistence semantics;
-- legacy group member count definition.
+- destructive access-level mutation semantics;
+- zero-as-delete storage behavior;
+- legacy group member-count definition.
 
-Intentional Python-side improvements:
+Intentional Python improvements:
 
 - typed principals instead of signed IDs;
-- typed results instead of sentinel values;
+- normalized access assignments instead of raw `backend` strings in application code;
+- typed results instead of sentinels;
 - atomic multi-table ACL mutations;
-- explicit backend mutation API;
-- authorization checks inside the mutation transaction;
+- explicit access-level mutation API;
+- authorization inside the mutation transaction;
 - group deletion cleans orphan rights;
 - new memberships require real users;
 - no global static rights cache.
 
-## 25. Approval and implementation gate
+## 26. Approval and implementation gate
 
 This document is the approved design target. No implementation begins until the human reviewer accepts the written spec. After written-spec approval, create a separate implementation plan and execute it TDD-first on `feature/access-control`.
