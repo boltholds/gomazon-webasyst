@@ -10,6 +10,11 @@ from gomazon_webasyst.application.api_credential_values import (
     AuthorizationCode,
 )
 from gomazon_webasyst.contracts.enums import (
+    ApiAccessTokenIssueKind,
+    ApiAccessTokenIssueRejectReason,
+    ApiAccessTokenResolveKind,
+    ApiAccessTokenResolveRejectReason,
+    ApiAccessTokenRevocationKind,
     ApiTokenExpiryKind,
     ApiTokenLastUseKind,
     ApiTokenLookupKind,
@@ -137,5 +142,72 @@ class AuthorizationCodeExchangeRejected(BaseModel):
 
 AuthorizationCodeExchangeResult: TypeAlias = Annotated[
     AuthorizationCodeExchanged | AuthorizationCodeExchangeRejected,
+    Field(discriminator="kind"),
+]
+
+
+class ApiAccessTokenIssued(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, arbitrary_types_allowed=True)
+
+    kind: Literal[ApiAccessTokenIssueKind.ISSUED] = ApiAccessTokenIssueKind.ISSUED
+    access_token: ApiAccessToken
+    scope: ApiScope
+
+
+class ApiAccessTokenIssueRejected(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[ApiAccessTokenIssueKind.REJECTED] = ApiAccessTokenIssueKind.REJECTED
+    reason: ApiAccessTokenIssueRejectReason
+
+
+ApiAccessTokenIssueResult: TypeAlias = Annotated[
+    ApiAccessTokenIssued | ApiAccessTokenIssueRejected,
+    Field(discriminator="kind"),
+]
+
+
+class ApiAccessTokenResolved(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, arbitrary_types_allowed=True)
+
+    kind: Literal[ApiAccessTokenResolveKind.RESOLVED] = ApiAccessTokenResolveKind.RESOLVED
+    access_token: ApiAccessToken
+    contact_id: Annotated[int, Field(gt=0)]
+    client_id: ApiClientId
+    scope: ApiScope
+    last_use: ApiTokenLastUsedAt
+
+
+class ApiAccessTokenResolveRejected(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[ApiAccessTokenResolveKind.REJECTED] = ApiAccessTokenResolveKind.REJECTED
+    reason: ApiAccessTokenResolveRejectReason
+
+
+ApiAccessTokenResolveResult: TypeAlias = Annotated[
+    ApiAccessTokenResolved | ApiAccessTokenResolveRejected,
+    Field(discriminator="kind"),
+]
+
+
+class ApiAccessTokenRevoked(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, arbitrary_types_allowed=True)
+
+    kind: Literal[ApiAccessTokenRevocationKind.REVOKED] = ApiAccessTokenRevocationKind.REVOKED
+    access_token: ApiAccessToken
+
+
+class ApiAccessTokenAlreadyMissing(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, arbitrary_types_allowed=True)
+
+    kind: Literal[ApiAccessTokenRevocationKind.ALREADY_MISSING] = (
+        ApiAccessTokenRevocationKind.ALREADY_MISSING
+    )
+    access_token: ApiAccessToken
+
+
+ApiAccessTokenRevocationResult: TypeAlias = Annotated[
+    ApiAccessTokenRevoked | ApiAccessTokenAlreadyMissing,
     Field(discriminator="kind"),
 ]
