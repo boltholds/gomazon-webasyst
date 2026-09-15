@@ -37,6 +37,9 @@ class RightsEvaluator:
         self._app_semantics = app_semantics
         self._fallback_policy = fallback_policy
 
+    def global_admin_access(self, snapshot: RightsSnapshot) -> AppAccess:
+        return self.app_access(snapshot, self._app_semantics.global_control_app().app_id)
+
     def app_access(self, snapshot: RightsSnapshot, app_id: AppId) -> AppAccess:
         classification = self._app_semantics.classify_app(app_id)
         global_value = self._global_value(snapshot)
