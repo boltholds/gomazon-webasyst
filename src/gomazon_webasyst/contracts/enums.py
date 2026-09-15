@@ -326,6 +326,11 @@ class AccessMutationResultKind(EnumStr):
     MEMBERSHIP_REMOVED = "membership_removed"
     MEMBERSHIP_ALREADY_ABSENT = "membership_already_absent"
     MEMBERS_REPLACED = "members_replaced"
+    RIGHT_ASSIGNED = "right_assigned"
+    RIGHT_REVOKED = "right_revoked"
+    RIGHT_ALREADY_ABSENT = "right_already_absent"
+    APP_ACCESS_SET = "app_access_set"
+    GLOBAL_ADMIN_ACCESS_SET = "global_admin_access_set"
     REJECTED = "rejected"
 
 
@@ -334,3 +339,6 @@ class AccessMutationRejectReason(EnumStr):
     GROUP_NOT_FOUND = "group_not_found"
     CONTACT_NOT_FOUND = "contact_not_found"
     CONTACT_NOT_USER = "contact_not_user"
+    RESERVED_RIGHT = "reserved_right"
+    ZERO_VALUE = "zero_value"
+    GLOBAL_CONTROL_APP = "global_control_app"
