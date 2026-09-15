@@ -16,6 +16,7 @@ Authoritative companion artifacts:
 - Routing/dispatch plan: `docs/superpowers/plans/2026-09-14-routing-dispatch.md`
 - Auth/session design: `docs/superpowers/specs/2026-09-14-auth-session-design.md`
 - Persistent-login design: `docs/superpowers/specs/2026-09-14-persistent-login-design.md`
+- Access-control design: `docs/superpowers/specs/2026-09-15-access-control-design.md`
 - Official legacy documentation reference: `https://developers.webasyst.com/docs`
 
 ---
@@ -224,6 +225,30 @@ Date: 2026-09-14
 
 Do not add `remember: bool`, nullable remember fields, cookie types, or transport settings to `BackendPasswordCredentials`. Password authentication establishes a normal session only. Persistent issuance is an explicit `IssuePersistentCredential` operation invoked after successful authentication when the caller requests persistence. Restore results carry a typed `RefreshPersistentCredential | ClearPersistentCredential | KeepPersistentCredential` disposition; presentation maps that intent to cookies. The legacy `remember` cookie is only UI preference state and is not an authentication credential. If remember-me is globally disabled, persistent restore is not invoked and an existing `auth_token` is left untouched, matching 4.2.0.
 
+### ADR-026 — Access control preserves the numeric legacy ACL model instead of flattening it into RBAC
+Status: accepted
+Date: 2026-09-15
+
+Framework access control is a typed compatibility ACL over `wa_contact_rights`, `wa_group`, and `wa_user_groups`, not a new `Role -> Permission` schema. Right values remain integers because Webasyst semantics include personal assignments, group assignments, guests, numeric levels, `MAX(value)` aggregation, limited/full backend levels and application-defined numeric rights. Effective access is represented with typed variants such as `FiniteRight`, `UnlimitedRight`, `NoAppAccess`, `LimitedAppAccess`, `FullAppAccess`, and `GlobalAdminAccess`; bool `can_*` is not the canonical framework contract.
+
+### ADR-027 — Signed legacy principal identifiers are persistence details only
+Status: accepted
+Date: 2026-09-15
+
+Application contracts use explicit `UserTarget`, `GroupTarget`, and `GuestsTarget` variants. The legacy `wa_contact_rights.group_id` encoding (`user -> negative contact id`, `group -> positive group id`, `guests -> 0`) is translated only by the compatibility/infrastructure persistence adapter. Negative principal ids MUST NOT appear in application ports, use-case requests, or result contracts.
+
+### ADR-028 — ACL mutations use a dedicated transactional UoW and pure legacy mutation plans
+Status: accepted
+Date: 2026-09-15
+
+Multi-table ACL/group writes use an application-owned `AccessControlUnitOfWork` containing narrow group, membership, rights and subject ports. Webasyst-specific `backend` cleanup semantics are expressed by a pure `LegacyRightsMutationPolicy -> RightsMutationPlan`; repositories execute plans but do not duplicate business rules. Generic right assignment cannot mutate reserved `backend`; callers use explicit app/global access operations. Group deletion intentionally removes memberships, group-owned rights, and the group atomically, improving on 4.2.0's orphan-right behavior while preserving observable access semantics.
+
+### ADR-029 — Access-control administration is authorized inside the mutation transaction
+Status: accepted
+Date: 2026-09-15
+
+Every ACL/group/membership mutation receives the authenticated actor and checks an injected application-owned `AccessAdministrationPolicy` before writing. The first compatibility policy allows administration only to subjects with effective `GlobalAdminAccess`. Authorization is evaluated using the same `AccessControlUnitOfWork` transaction as the mutation so the decision and state change share one transactional view. Expected denial is a typed result; repositories are not security boundaries and presentation must not bypass use cases.
+
 ---
 
 ## Target dependency direction
@@ -248,18 +273,24 @@ contracts + application-owned ports
 ```text
 src/gomazon_webasyst/
   composition/
+    access_control.py
   contracts/
     contacts.py
     routing.py
     dispatch.py
     auth.py
     persistent_login.py
+    access_control.py
   application/
     contacts.py
     auth.py
     persistent_login.py
     persistent_values.py
     session_establishment.py
+    access_control.py
+    access_values.py
+    rights_evaluator.py
+    rights_mutation_policy.py
     ports/
       unit_of_work.py
       contacts.py
@@ -271,16 +302,27 @@ src/gomazon_webasyst/
       session_validation.py
       auth_session_registry.py
       persistent_credentials.py
+      access_control_uow.py
+      groups.py
+      memberships.py
+      rights.py
+      access_subjects.py
+      access_admin_policy.py
   infrastructure/
     persistence/sqlalchemy/
     auth/
       persistent_credentials.py
+    access_control/sqlalchemy/
     sessions/
   compatibility/webasyst/
     routing/
     dispatch/
     auth/
       persistent.py
+    access_control/
+      principals.py
+      evaluation.py
+      mutation.py
     service.py
   presentation/http/
     contacts.py
@@ -328,7 +370,31 @@ The first auth slice is backend password authentication plus session create/reso
 - legacy `auth_token` is stateless, deterministic, 30-day and compatibility-only; successful restore refreshes the same credential and invalid credentials are cleared by transport;
 - ordinary `remember=false` does not itself mean revoke; persistence issuance and revocation/clear are separate operations;
 - the legacy `remember` cookie is UI preference state and must not enter auth application contracts;
-- OTP, frontend confirmation/signup, permissions, OAuth/social/Webasyst ID, API OAuth2 tokens, opaque v2 persistence, and PHP-session-file interoperability are later slices.
+- OTP, frontend confirmation/signup, OAuth/social/Webasyst ID, API OAuth2 tokens, opaque v2 persistence, and PHP-session-file interoperability are later slices.
+
+---
+
+## Access-control compatibility rules
+
+- exact Webasyst 4.2.0 source is authoritative for rights/group behavior;
+- effective user rights aggregate personal, group and guest assignments using `MAX(value)` per right name;
+- `webasyst/backend > 0` yields effective global-admin access for non-Webasyst applications;
+- application `backend == 1` means limited access and `backend >= 2` means full/app-admin access;
+- full/global access yields typed unlimited named rights rather than a leaked `PHP_INT_MAX` sentinel;
+- without app backend access, named rights resolve to finite zero;
+- with limited access, exact named rights are evaluated first; an exact zero/falsy value for a dotted right may fall back to the corresponding `.all` right;
+- non-zero negative named-right values are preserved and do not trigger `.all` fallback;
+- `RightName` and `AppId` are open identifiers; closed access/result states use `EnumStr`;
+- generic named-right assignment cannot mutate reserved `backend`; app/global backend state uses dedicated operations;
+- setting global backend clears all target assignments first, matching `waContactRightsModel::save()`;
+- setting application backend to anything other than limited (`1`) clears that target+app scope first;
+- generic zero assignment is represented as explicit revoke/delete;
+- new membership writes require an existing contact with `is_user > 0`; legacy read paths tolerate older inconsistent rows;
+- `wa_group.cnt` is recomputed from memberships joined to contacts with `is_user > 0`;
+- group deletion intentionally removes group-owned rights as an integrity improvement over 4.2.0;
+- ACL mutation authorization is checked inside the same transaction as the write;
+- application installation/catalog validation is deferred until the application registry slice; callers must use installed/configured app ids in this slice;
+- no global/static rights cache is introduced in the first Python ACL slice.
 
 ---
 
@@ -339,7 +405,8 @@ The first auth slice is backend password authentication plus session create/reso
 - explicit transaction scopes;
 - use cases must run with fakes through DI;
 - concrete adapters require integration tests;
-- existing legacy tables are mapped rather than blindly recreated.
+- existing legacy tables are mapped rather than blindly recreated;
+- ACL/group writes spanning `wa_group`, `wa_user_groups`, `wa_contact_rights`, and ACL-relevant `wa_contact` reads use the dedicated access-control UoW.
 
 Initial examples:
 
@@ -359,19 +426,19 @@ Application/compatibility errors are framework-agnostic. Presentation translates
 ## Testing strategy
 
 ### Unit
-Use fakes for repositories/UoW/registries/policies. Core use cases and compatibility resolvers require no ASGI server or external DB.
+Use fakes for repositories/UoW/registries/policies. Core use cases and compatibility resolvers require no ASGI server or external DB. ACL evaluator, fallback policy, mutation planner, administration policy and group/membership/right use cases are pure/fake-testable.
 
 ### Architecture
-Prevent FastAPI/SQLAlchemy/drivers/concrete crypto/password algorithms from leaking into contracts/application. Enforce ADR-023 by rejecting unexpected `Optional`/`T | None` annotations outside genuine nullable schema/protocol boundaries. Persistent-login application code must not import legacy token-format classes or cookie/HTTP types.
+Prevent FastAPI/SQLAlchemy/drivers/concrete crypto/password algorithms from leaking into contracts/application. Enforce ADR-023 by rejecting unexpected `Optional`/`T | None` annotations outside genuine nullable schema/protocol boundaries. Persistent-login application code must not import legacy token-format classes or cookie/HTTP types. ACL application code must not import SQLAlchemy or Webasyst compatibility implementations, expose signed principal IDs, use bool-sentinel results, or handle reserved `backend` mutation rules outside the compatibility policy layer.
 
 ### Persistence contract
 Reusable behavioral tests run against concrete persistence adapters.
 
 ### Compatibility characterization
-Reference relevant Webasyst 4.2.0 methods/classes when behavior is subtle or documentation conflicts with source.
+Reference relevant Webasyst 4.2.0 methods/classes when behavior is subtle or documentation conflicts with source. ACL characterization covers effective `MAX` aggregation, global/app backend overrides, `.all` fallback, principal encoding, mutation cleanup, zero-as-delete and group-count semantics.
 
 ### Integration
-Cover DB wiring, ASGI compatibility flow, auth/session composition, and persistent-login issuance/restore. CI runs the full suite on Python 3.12.
+Cover DB wiring, ASGI compatibility flow, auth/session composition, persistent-login issuance/restore, and SQLite ACL/group vertical flows. CI runs the full suite on Python 3.12.
 
 ---
 
@@ -399,6 +466,9 @@ Cover DB wiring, ASGI compatibility flow, auth/session composition, and persiste
 20. Add/supersede numbered ADRs; do not silently rewrite architectural history.
 21. Do not claim Webasyst compatibility without characterization tests.
 22. Keep native Python endpoints distinguishable from compatibility endpoints until parity is proven.
+23. Keep signed Webasyst ACL principal encoding inside compatibility/infrastructure adapters; application code uses typed principals only.
+24. Treat ACL `backend` mutation as reserved structured behavior handled by app/global access operations and the legacy mutation planner, not a generic named right.
+25. Authorize ACL/group/membership mutations through application use cases inside the access-control UoW; never call ACL repositories directly from presentation.
 
 ---
 
@@ -414,5 +484,6 @@ The foundation is considered proven when CI confirms:
 - contact slice passes unit/architecture/persistence/integration/HTTP tests;
 - routing/dispatch slice passes contract/pattern/parser/resolver/registry/strategy/ASGI tests;
 - auth/session slice passes contract/policy/directory/password/session/persistence/integration tests;
-- persistent-login slice, when implemented, passes strategy/issuer/session-establishment/restore/characterization/integration tests;
+- persistent-login slice passes strategy/issuer/session-establishment/restore/characterization/integration tests;
+- access-control slice, when implemented, passes contracts/evaluator/fallback/mutation-policy/authorization/group/membership/persistence/integration/characterization tests;
 - every new architectural decision is reflected here.
