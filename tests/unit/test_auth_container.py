@@ -10,26 +10,32 @@ async def noop_close():
 
 def test_container_exposes_auth_session_use_cases_as_first_class_dependencies():
     engine = SimpleNamespace(dispose=noop_close)
+    authenticate = object()
+    resolve = object()
+    logout = object()
+    issue_persistent = object()
+    restore_persistent = object()
+    revoke_persistent = object()
     container = Container(
         settings=Settings(database_url="sqlite+aiosqlite:///:memory:"),
         engine=engine,
         get_contact=object(),
         create_contact=object(),
         update_contact=object(),
-        authenticate_backend_password=object(),
-        resolve_backend_session=object(),
-        logout_backend_session=object(),
-        issue_persistent_credential=object(),
-        restore_backend_session_from_persistent_credential=object(),
-        revoke_persistent_credential=object(),
+        authenticate_backend_password=authenticate,
+        resolve_backend_session=resolve,
+        logout_backend_session=logout,
+        issue_persistent_credential=issue_persistent,
+        restore_backend_session_from_persistent_credential=restore_persistent,
+        revoke_persistent_credential=revoke_persistent,
     )
 
-    assert container.authenticate_backend_password is not None
-    assert container.resolve_backend_session is not None
-    assert container.logout_backend_session is not None
-    assert container.issue_persistent_credential is not None
-    assert container.restore_backend_session_from_persistent_credential is not None
-    assert container.revoke_persistent_credential is not None
+    assert container.authenticate_backend_password is authenticate
+    assert container.resolve_backend_session is resolve
+    assert container.logout_backend_session is logout
+    assert container.issue_persistent_credential is issue_persistent
+    assert container.restore_backend_session_from_persistent_credential is restore_persistent
+    assert container.revoke_persistent_credential is revoke_persistent
 
 
 def test_auth_composition_accepts_explicit_session_validation_policy():
