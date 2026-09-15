@@ -34,6 +34,12 @@ from gomazon_webasyst.application.persistent_login import (
 )
 from gomazon_webasyst.composition.access_control import create_access_control_use_cases
 from gomazon_webasyst.composition.auth import create_auth_use_cases
+from gomazon_webasyst.composition.session_state_providers import (
+    SessionStateProviderRegistry,
+    StateProviderName,
+    create_default_session_state_provider_registry,
+    resolve_session_state_store,
+)
 from gomazon_webasyst.composition.settings import Settings
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.factory import (
     create_engine,
@@ -78,10 +84,25 @@ class Container:
 
 
 def create_container(settings: Settings) -> Container:
+    return create_container_with_session_state_registry(
+        settings,
+        session_state_registry=create_default_session_state_provider_registry(),
+    )
+
+
+def create_container_with_session_state_registry(
+    settings: Settings,
+    *,
+    session_state_registry: SessionStateProviderRegistry,
+) -> Container:
+    session_state = resolve_session_state_store(
+        session_state_registry,
+        StateProviderName(settings.session_state_provider),
+    )
     engine = create_engine(settings)
     uow_factory = create_uow_factory(engine)
     session_factory = create_session_factory(engine)
-    auth = create_auth_use_cases(session_factory)
+    auth = create_auth_use_cases(session_factory, session_state=session_state)
     access = create_access_control_use_cases(session_factory)
     return Container(
         settings=settings,
