@@ -19,11 +19,17 @@ def test_container_exposes_auth_session_use_cases_as_first_class_dependencies():
         authenticate_backend_password=object(),
         resolve_backend_session=object(),
         logout_backend_session=object(),
+        issue_persistent_credential=object(),
+        restore_backend_session_from_persistent_credential=object(),
+        revoke_persistent_credential=object(),
     )
 
     assert container.authenticate_backend_password is not None
     assert container.resolve_backend_session is not None
     assert container.logout_backend_session is not None
+    assert container.issue_persistent_credential is not None
+    assert container.restore_backend_session_from_persistent_credential is not None
+    assert container.revoke_persistent_credential is not None
 
 
 def test_auth_composition_accepts_explicit_session_validation_policy():
