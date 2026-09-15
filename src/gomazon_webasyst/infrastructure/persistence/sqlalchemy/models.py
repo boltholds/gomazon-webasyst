@@ -93,3 +93,36 @@ class WaContactAuthRow(Base):
     login_datetime: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_datetime: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+class WaContactRightRow(Base):
+    __tablename__ = "wa_contact_rights"
+    __table_args__ = (
+        Index("wa_contact_rights_name_value", "name", "value", "group_id", "app_id"),
+    )
+
+    group_id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
+    app_id: Mapped[str] = mapped_column(String(32), primary_key=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(64), primary_key=True, nullable=False)
+    value: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class WaGroupRow(Base):
+    __tablename__ = "wa_group"
+    __table_args__ = (Index("wa_group_name", "name"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    cnt: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    icon: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sort: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    type: Mapped[str] = mapped_column(String(16), nullable=False, server_default=text("'group'"))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class WaUserGroupRow(Base):
+    __tablename__ = "wa_user_groups"
+
+    contact_id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
+    group_id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
+    datetime: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
