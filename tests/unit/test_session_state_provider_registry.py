@@ -9,7 +9,11 @@ from gomazon_webasyst.composition.session_state_providers import (
     ProviderUnknown,
     SessionStateProviderRegistry,
     StateProviderName,
+    UnknownSessionStateProviderError,
+    create_default_session_state_provider_registry,
+    resolve_session_state_store,
 )
+from gomazon_webasyst.infrastructure.sessions.memory import InMemorySessionStateStore
 
 
 def test_state_provider_name_rejects_empty_value() -> None:
@@ -50,3 +54,40 @@ def test_registry_registers_resolves_and_rejects_duplicate_without_none() -> Non
     assert resolved.factory is first_factory
     assert isinstance(missing, ProviderUnknown)
     assert missing.name == StateProviderName("redis")
+
+
+def test_default_registry_resolves_memory_factory() -> None:
+    registry = create_default_session_state_provider_registry()
+    result = registry.resolve(StateProviderName("memory"))
+
+    assert isinstance(result, ProviderResolved)
+    assert isinstance(result.factory.create(), InMemorySessionStateStore)
+
+
+def test_resolve_session_state_store_uses_registered_factory_once() -> None:
+    class RecordingFactory:
+        def __init__(self) -> None:
+            self.calls = 0
+            self.store = InMemorySessionStateStore()
+
+        def create(self):
+            self.calls += 1
+            return self.store
+
+    factory = RecordingFactory()
+    registry = SessionStateProviderRegistry()
+    registry.register(StateProviderName("custom"), factory)
+
+    store = resolve_session_state_store(registry, StateProviderName("custom"))
+
+    assert store is factory.store
+    assert factory.calls == 1
+
+
+def test_resolving_unknown_provider_fails_at_composition_boundary() -> None:
+    registry = create_default_session_state_provider_registry()
+
+    with pytest.raises(UnknownSessionStateProviderError) as exc_info:
+        resolve_session_state_store(registry, StateProviderName("redis"))
+
+    assert exc_info.value.provider == StateProviderName("redis")
