@@ -249,3 +249,46 @@ class PersistentLoginResultKind(EnumStr):
 class PersistentLoginRejectReason(EnumStr):
     CREDENTIAL_REJECTED = "credential_rejected"
     SESSION_UNAVAILABLE = "session_unavailable"
+
+
+class GroupType(EnumStr):
+    GROUP = "group"
+    LOCATION = "location"
+
+
+class GroupResolutionKind(EnumStr):
+    RESOLVED = "resolved"
+    MISSING = "missing"
+
+
+class AppAccessKind(EnumStr):
+    NONE = "none"
+    LIMITED = "limited"
+    FULL = "full"
+    GLOBAL_ADMIN = "global_admin"
+
+
+class EffectiveRightKind(EnumStr):
+    FINITE = "finite"
+    UNLIMITED = "unlimited"
+
+
+class UnlimitedRightReason(EnumStr):
+    GLOBAL_ADMIN = "global_admin"
+    APP_FULL_ACCESS = "app_full_access"
+
+
+class RightsSnapshotKind(EnumStr):
+    FINITE = "finite"
+    UNLIMITED = "unlimited"
+
+
+class AppAccessMode(EnumStr):
+    NONE = "none"
+    LIMITED = "limited"
+    FULL = "full"
+
+
+class GlobalAdminMode(EnumStr):
+    ENABLED = "enabled"
+    DISABLED = "disabled"
