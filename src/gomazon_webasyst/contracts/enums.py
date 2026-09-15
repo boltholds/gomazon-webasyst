@@ -298,3 +298,14 @@ class RightsMutationRejectReason(EnumStr):
     ZERO_VALUE = "zero_value"
     RESERVED_RIGHT = "reserved_right"
     GLOBAL_CONTROL_APP = "global_control_app"
+
+
+class AccessReadResultKind(EnumStr):
+    RESOLVED = "resolved"
+    REJECTED = "rejected"
+
+
+class AccessReadRejectReason(EnumStr):
+    SUBJECT_NOT_FOUND = "subject_not_found"
+    SUBJECT_NOT_USER = "subject_not_user"
+    GROUP_NOT_FOUND = "group_not_found"
