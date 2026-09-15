@@ -315,3 +315,22 @@ class AccessAdministrationDenyReason(EnumStr):
     ACTOR_NOT_FOUND = "actor_not_found"
     ACTOR_NOT_USER = "actor_not_user"
     NOT_GLOBAL_ADMIN = "not_global_admin"
+
+
+class AccessMutationResultKind(EnumStr):
+    GROUP_CREATED = "group_created"
+    GROUP_UPDATED = "group_updated"
+    GROUP_DELETED = "group_deleted"
+    MEMBERSHIP_ADDED = "membership_added"
+    MEMBERSHIP_ALREADY_PRESENT = "membership_already_present"
+    MEMBERSHIP_REMOVED = "membership_removed"
+    MEMBERSHIP_ALREADY_ABSENT = "membership_already_absent"
+    MEMBERS_REPLACED = "members_replaced"
+    REJECTED = "rejected"
+
+
+class AccessMutationRejectReason(EnumStr):
+    ACCESS_DENIED = "access_denied"
+    GROUP_NOT_FOUND = "group_not_found"
+    CONTACT_NOT_FOUND = "contact_not_found"
+    CONTACT_NOT_USER = "contact_not_user"
