@@ -10,7 +10,7 @@ from gomazon_webasyst.application.persistent_values import (
 )
 from gomazon_webasyst.application.ports.auth_subjects import AuthSubjectStore
 from gomazon_webasyst.application.ports.credential_tokens import CredentialVersionTokenFactory
-from gomazon_webasyst.contracts.auth import SubjectResolutionError
+from gomazon_webasyst.contracts.auth import AuthIdentity, SubjectResolutionError
 from gomazon_webasyst.contracts.enums import (
     PersistentCredentialRejectReason,
     SubjectResolutionErrorType,
@@ -124,7 +124,7 @@ class LegacyAuthTokenIssuer:
         self._token_factory = token_factory
         self._lifetime = lifetime
 
-    async def issue(self, identity) -> PersistentCredentialIssueResult:
+    async def issue(self, identity: AuthIdentity) -> PersistentCredentialIssueResult:
         return PersistentCredentialIssued(
             credential=PersistentCredential(self._token_factory.create(identity)),
             lifetime=self._lifetime,
