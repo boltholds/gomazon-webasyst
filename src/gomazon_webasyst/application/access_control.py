@@ -10,6 +10,7 @@ from gomazon_webasyst.application.access_values import (
     UserTarget,
 )
 from gomazon_webasyst.application.ports.access_admin_policy import (
+    AccessAdministrationAuthorized,
     AccessAdministrationDenied,
     AccessAdministrationPolicy,
 )
@@ -71,6 +72,7 @@ class AccessSnapshotLoaded:
 
 
 AccessSnapshotLoadResult = AccessSnapshotLoaded | AccessReadRejected
+MutationAuthorizationResult = AccessAdministrationAuthorized | AccessMutationRejected
 
 
 async def load_access_snapshot(
@@ -96,11 +98,11 @@ async def _authorize_mutation(
     policy: AccessAdministrationPolicy,
     actor: AuthenticatedSubject,
     uow: AccessControlUnitOfWork,
-) -> AccessMutationRejected | None:
+) -> MutationAuthorizationResult:
     decision = await policy.authorize(actor, uow)
     if isinstance(decision, AccessAdministrationDenied):
         return AccessMutationRejected(reason=AccessMutationRejectReason.ACCESS_DENIED)
-    return None
+    return decision
 
 
 class GetGroup:
@@ -240,9 +242,9 @@ class CreateGroup:
         data: GroupCreate,
     ) -> GroupCreated | AccessMutationRejected:
         async with self._uow_factory() as uow:
-            denied = await _authorize_mutation(self._admin_policy, actor, uow)
-            if denied is not None:
-                return denied
+            authorization = await _authorize_mutation(self._admin_policy, actor, uow)
+            if isinstance(authorization, AccessMutationRejected):
+                return authorization
             group = await uow.groups.create(data)
             await uow.commit()
             return GroupCreated(group=group)
@@ -264,9 +266,9 @@ class UpdateGroup:
         data: GroupUpdate,
     ) -> GroupUpdated | AccessMutationRejected:
         async with self._uow_factory() as uow:
-            denied = await _authorize_mutation(self._admin_policy, actor, uow)
-            if denied is not None:
-                return denied
+            authorization = await _authorize_mutation(self._admin_policy, actor, uow)
+            if isinstance(authorization, AccessMutationRejected):
+                return authorization
             updated = await uow.groups.update(group_id, data)
             if isinstance(updated, GroupMissing):
                 return AccessMutationRejected(reason=AccessMutationRejectReason.GROUP_NOT_FOUND)
@@ -289,9 +291,9 @@ class DeleteGroup:
         group_id: GroupId,
     ) -> GroupDeleted | AccessMutationRejected:
         async with self._uow_factory() as uow:
-            denied = await _authorize_mutation(self._admin_policy, actor, uow)
-            if denied is not None:
-                return denied
+            authorization = await _authorize_mutation(self._admin_policy, actor, uow)
+            if isinstance(authorization, AccessMutationRejected):
+                return authorization
             resolved = await uow.groups.get(group_id)
             if isinstance(resolved, GroupMissing):
                 return AccessMutationRejected(reason=AccessMutationRejectReason.GROUP_NOT_FOUND)
@@ -322,9 +324,9 @@ class AddGroupMember:
         membership: GroupMembership,
     ) -> GroupMembershipAdded | GroupMembershipAlreadyPresent | AccessMutationRejected:
         async with self._uow_factory() as uow:
-            denied = await _authorize_mutation(self._admin_policy, actor, uow)
-            if denied is not None:
-                return denied
+            authorization = await _authorize_mutation(self._admin_policy, actor, uow)
+            if isinstance(authorization, AccessMutationRejected):
+                return authorization
             group = await uow.groups.get(membership.group_id)
             if isinstance(group, GroupMissing):
                 return AccessMutationRejected(reason=AccessMutationRejectReason.GROUP_NOT_FOUND)
@@ -365,9 +367,9 @@ class RemoveGroupMember:
         membership: GroupMembership,
     ) -> GroupMembershipRemoved | GroupMembershipAlreadyAbsent | AccessMutationRejected:
         async with self._uow_factory() as uow:
-            denied = await _authorize_mutation(self._admin_policy, actor, uow)
-            if denied is not None:
-                return denied
+            authorization = await _authorize_mutation(self._admin_policy, actor, uow)
+            if isinstance(authorization, AccessMutationRejected):
+                return authorization
             group = await uow.groups.get(membership.group_id)
             if isinstance(group, GroupMissing):
                 return AccessMutationRejected(reason=AccessMutationRejectReason.GROUP_NOT_FOUND)
@@ -404,9 +406,9 @@ class ReplaceGroupMembers:
         contact_ids: tuple[int, ...],
     ) -> GroupMembersReplaced | AccessMutationRejected:
         async with self._uow_factory() as uow:
-            denied = await _authorize_mutation(self._admin_policy, actor, uow)
-            if denied is not None:
-                return denied
+            authorization = await _authorize_mutation(self._admin_policy, actor, uow)
+            if isinstance(authorization, AccessMutationRejected):
+                return authorization
             group = await uow.groups.get(group_id)
             if isinstance(group, GroupMissing):
                 return AccessMutationRejected(reason=AccessMutationRejectReason.GROUP_NOT_FOUND)
