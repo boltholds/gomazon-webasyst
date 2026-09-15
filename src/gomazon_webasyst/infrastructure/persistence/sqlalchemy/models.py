@@ -126,3 +126,28 @@ class WaUserGroupRow(Base):
     contact_id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
     group_id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
     datetime: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class WaApiAuthCodeRow(Base):
+    __tablename__ = "wa_api_auth_codes"
+
+    code: Mapped[str] = mapped_column(String(32), primary_key=True, nullable=False)
+    contact_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    client_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    scope: Mapped[str] = mapped_column(Text, nullable=False)
+    expires: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+class WaApiTokenRow(Base):
+    __tablename__ = "wa_api_tokens"
+    __table_args__ = (
+        Index("contact_client", "contact_id", "client_id", unique=True),
+    )
+
+    contact_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    client_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    token: Mapped[str] = mapped_column(String(32), primary_key=True, nullable=False)
+    scope: Mapped[str] = mapped_column(Text, nullable=False)
+    create_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    last_use_datetime: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    expires: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
