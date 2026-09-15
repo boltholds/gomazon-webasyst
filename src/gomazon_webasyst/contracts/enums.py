@@ -309,3 +309,9 @@ class AccessReadRejectReason(EnumStr):
     SUBJECT_NOT_FOUND = "subject_not_found"
     SUBJECT_NOT_USER = "subject_not_user"
     GROUP_NOT_FOUND = "group_not_found"
+
+
+class AccessAdministrationDenyReason(EnumStr):
+    ACTOR_NOT_FOUND = "actor_not_found"
+    ACTOR_NOT_USER = "actor_not_user"
+    NOT_GLOBAL_ADMIN = "not_global_admin"
