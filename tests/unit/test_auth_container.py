@@ -61,6 +61,21 @@ def test_container_exposes_auth_session_use_cases_as_first_class_dependencies():
     assert container.revoke_persistent_credential is revoke_persistent
 
 
+def test_auth_composition_reuses_supplied_session_state_store():
+    from gomazon_webasyst.composition.auth import create_auth_use_cases
+
+    session_state = object()
+    auth = create_auth_use_cases(object(), session_state=session_state)
+
+    assert auth.resolve_backend_session._session_state is session_state
+    assert auth.logout_backend_session._session_state is session_state
+    assert auth.authenticate_backend_password._session_establisher._session_state is session_state
+    assert (
+        auth.restore_backend_session_from_persistent_credential._session_establisher._session_state
+        is session_state
+    )
+
+
 def test_auth_composition_accepts_explicit_session_validation_policy():
     from gomazon_webasyst.application.ports.session_validation import SessionValidationDecision
     from gomazon_webasyst.composition.auth import create_auth_use_cases
@@ -70,6 +85,10 @@ def test_auth_composition_accepts_explicit_session_validation_policy():
             return SessionValidationDecision.TRUST_STORED
 
     policy = TrustStoredPolicy()
-    auth = create_auth_use_cases(object(), validation_policy=policy)
+    auth = create_auth_use_cases(
+        object(),
+        session_state=object(),
+        validation_policy=policy,
+    )
 
     assert auth.resolve_backend_session._validation_policy is policy
