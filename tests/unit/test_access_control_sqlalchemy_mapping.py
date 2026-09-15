@@ -1,3 +1,4 @@
+import pytest
 from sqlalchemy import inspect
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -34,13 +35,11 @@ def test_legacy_nullable_columns_remain_nullable_only_at_orm_boundary() -> None:
     assert not WaContactRightRow.__table__.c.value.nullable
 
 
-async def _table_names() -> set[str]:
+@pytest.mark.asyncio
+async def test_metadata_contains_acl_tables() -> None:
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
-        return set(await connection.run_sync(lambda sync: inspect(sync).get_table_names()))
-
-
-def test_metadata_contains_acl_tables(event_loop) -> None:
-    names = event_loop.run_until_complete(_table_names())
+        names = set(await connection.run_sync(lambda sync: inspect(sync).get_table_names()))
+    await engine.dispose()
     assert {"wa_group", "wa_user_groups", "wa_contact_rights"} <= names
