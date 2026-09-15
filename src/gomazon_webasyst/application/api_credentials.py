@@ -2,6 +2,7 @@ from collections.abc import Callable
 from datetime import datetime
 
 from gomazon_webasyst.application.api_credential_values import (
+    ApiAccessToken,
     ApiClientId,
     ApiScope,
     AuthorizationCode,
@@ -21,12 +22,29 @@ from gomazon_webasyst.application.ports.api_credential_policies import (
 )
 from gomazon_webasyst.application.ports.api_credential_uow import ApiCredentialUnitOfWorkFactory
 from gomazon_webasyst.application.ports.api_credentials import (
+    ApiTokenAlreadyMissing,
+    ApiTokenRevoked,
+    ApiTokenTouchMissing,
+    ApiTokenTouched,
     AuthorizationCodeAlreadyMissing,
     AuthorizationCodeCreateCollision,
     AuthorizationCodeFound,
     AuthorizationCodeMissing,
 )
 from gomazon_webasyst.contracts.api_credentials import (
+    ApiAccessTokenAlreadyMissing,
+    ApiAccessTokenIssueRejected,
+    ApiAccessTokenIssueResult,
+    ApiAccessTokenIssued,
+    ApiAccessTokenResolveRejected,
+    ApiAccessTokenResolveResult,
+    ApiAccessTokenResolved,
+    ApiAccessTokenRevocationResult,
+    ApiAccessTokenRevoked,
+    ApiTokenExpiresAt,
+    ApiTokenLastUsedAt,
+    ApiTokenMissing,
+    ApiTokenResolved,
     AuthorizationCodeExchangeRejected,
     AuthorizationCodeExchangeResult,
     AuthorizationCodeExchanged,
@@ -37,6 +55,8 @@ from gomazon_webasyst.contracts.api_credentials import (
 )
 from gomazon_webasyst.contracts.auth import AuthenticatedSubject
 from gomazon_webasyst.contracts.enums import (
+    ApiAccessTokenIssueRejectReason,
+    ApiAccessTokenResolveRejectReason,
     AuthorizationCodeExchangeRejectReason,
     AuthorizationCodeIssueRejectReason,
 )
@@ -150,3 +170,98 @@ class ExchangeAuthorizationCode:
                 access_token=issued.token,
                 scope=issued.scope,
             )
+
+
+class IssueImplicitApiAccessToken:
+    def __init__(
+        self,
+        *,
+        uow_factory: ApiCredentialUnitOfWorkFactory,
+        token_issuer: ApiTokenIssuer,
+    ) -> None:
+        self._uow_factory = uow_factory
+        self._token_issuer = token_issuer
+
+    async def __call__(
+        self,
+        subject: AuthenticatedSubject,
+        client_id: ApiClientId,
+        scope: ApiScope,
+    ) -> ApiAccessTokenIssueResult:
+        async with self._uow_factory() as uow:
+            issued = await self._token_issuer.issue(subject.id, client_id, scope, uow)
+            if isinstance(issued, ApiTokenIssueCollision):
+                return ApiAccessTokenIssueRejected(
+                    reason=ApiAccessTokenIssueRejectReason.TOKEN_COLLISION
+                )
+            if isinstance(issued, ApiTokenIssueConcurrentStateChanged):
+                return ApiAccessTokenIssueRejected(
+                    reason=ApiAccessTokenIssueRejectReason.CONCURRENT_STATE_CHANGED
+                )
+            if not isinstance(issued, ApiTokenIssued):
+                raise AssertionError("unsupported api token issue result")
+            await uow.commit()
+            return ApiAccessTokenIssued(
+                access_token=issued.token,
+                scope=issued.scope,
+            )
+
+
+class ResolveApiAccessToken:
+    def __init__(
+        self,
+        *,
+        uow_factory: ApiCredentialUnitOfWorkFactory,
+        clock: Callable[[], datetime],
+    ) -> None:
+        self._uow_factory = uow_factory
+        self._clock = clock
+
+    async def __call__(self, token: ApiAccessToken) -> ApiAccessTokenResolveResult:
+        async with self._uow_factory() as uow:
+            resolved = await uow.tokens.resolve(token)
+            if isinstance(resolved, ApiTokenMissing):
+                return ApiAccessTokenResolveRejected(
+                    reason=ApiAccessTokenResolveRejectReason.MISSING
+                )
+            if not isinstance(resolved, ApiTokenResolved):
+                raise AssertionError("unsupported api token resolution")
+
+            record = resolved.record
+            now = self._clock()
+            if isinstance(record.expiry, ApiTokenExpiresAt) and record.expiry.at < now:
+                return ApiAccessTokenResolveRejected(
+                    reason=ApiAccessTokenResolveRejectReason.EXPIRED
+                )
+
+            touched = await uow.tokens.touch_last_use(token, now)
+            if isinstance(touched, ApiTokenTouchMissing):
+                return ApiAccessTokenResolveRejected(
+                    reason=ApiAccessTokenResolveRejectReason.CONCURRENT_STATE_CHANGED
+                )
+            if not isinstance(touched, ApiTokenTouched):
+                raise AssertionError("unsupported api token touch result")
+
+            await uow.commit()
+            return ApiAccessTokenResolved(
+                access_token=record.token,
+                contact_id=record.contact_id,
+                client_id=record.client_id,
+                scope=record.scope,
+                last_use=ApiTokenLastUsedAt(at=now),
+            )
+
+
+class RevokeApiAccessToken:
+    def __init__(self, *, uow_factory: ApiCredentialUnitOfWorkFactory) -> None:
+        self._uow_factory = uow_factory
+
+    async def __call__(self, token: ApiAccessToken) -> ApiAccessTokenRevocationResult:
+        async with self._uow_factory() as uow:
+            revoked = await uow.tokens.revoke(token)
+            if isinstance(revoked, ApiTokenAlreadyMissing):
+                return ApiAccessTokenAlreadyMissing(access_token=token)
+            if not isinstance(revoked, ApiTokenRevoked):
+                raise AssertionError("unsupported api token revocation result")
+            await uow.commit()
+            return ApiAccessTokenRevoked(access_token=token)
