@@ -27,7 +27,7 @@ class CustomIssuer:
 
 
 def test_default_auth_composition_exposes_persistent_login_use_cases():
-    auth = create_auth_use_cases(object())
+    auth = create_auth_use_cases(object(), session_state=object())
 
     assert isinstance(auth.issue_persistent_credential, IssuePersistentCredential)
     assert isinstance(
@@ -45,7 +45,7 @@ def test_default_auth_composition_exposes_persistent_login_use_cases():
 
 
 def test_password_and_persistent_restore_share_one_session_establisher():
-    auth = create_auth_use_cases(object())
+    auth = create_auth_use_cases(object(), session_state=object())
 
     assert (
         auth.authenticate_backend_password._session_establisher
@@ -56,12 +56,16 @@ def test_password_and_persistent_restore_share_one_session_establisher():
 def test_custom_persistent_resolver_and_issuer_are_injected_explicitly():
     resolver = CustomResolver()
     issuer = CustomIssuer()
+    session_state = object()
 
     auth = create_auth_use_cases_with_persistent_credentials(
         object(),
+        session_state=session_state,
         persistent_resolver=resolver,
         persistent_issuer=issuer,
     )
 
     assert auth.restore_backend_session_from_persistent_credential._resolver is resolver
     assert auth.issue_persistent_credential._issuer is issuer
+    assert auth.resolve_backend_session._session_state is session_state
+    assert auth.logout_backend_session._session_state is session_state
