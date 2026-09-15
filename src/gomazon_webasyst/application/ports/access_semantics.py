@@ -31,6 +31,8 @@ RightFallbackDecision: TypeAlias = RightFallbackAvailable | RightFallbackUnavail
 
 
 class AccessSemantics(Protocol):
+    def global_control_app(self) -> GlobalControlApp: ...
+
     def classify_app(self, app_id: AppId) -> AppClassification: ...
 
 
