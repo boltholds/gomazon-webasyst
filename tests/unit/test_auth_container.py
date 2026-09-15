@@ -8,6 +8,28 @@ async def noop_close():
     return None
 
 
+def _access_control_fields() -> dict[str, object]:
+    return {
+        "get_group": object(),
+        "list_groups": object(),
+        "list_user_groups": object(),
+        "list_group_members": object(),
+        "get_effective_right": object(),
+        "get_app_access": object(),
+        "get_rights_snapshot": object(),
+        "create_group": object(),
+        "update_group": object(),
+        "delete_group": object(),
+        "add_group_member": object(),
+        "remove_group_member": object(),
+        "replace_group_members": object(),
+        "assign_right": object(),
+        "revoke_right": object(),
+        "set_app_access": object(),
+        "set_global_admin_access": object(),
+    }
+
+
 def test_container_exposes_auth_session_use_cases_as_first_class_dependencies():
     engine = SimpleNamespace(dispose=noop_close)
     authenticate = object()
@@ -28,6 +50,7 @@ def test_container_exposes_auth_session_use_cases_as_first_class_dependencies():
         issue_persistent_credential=issue_persistent,
         restore_backend_session_from_persistent_credential=restore_persistent,
         revoke_persistent_credential=revoke_persistent,
+        **_access_control_fields(),
     )
 
     assert container.authenticate_backend_password is authenticate
