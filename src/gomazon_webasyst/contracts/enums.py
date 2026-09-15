@@ -195,3 +195,57 @@ class RegistryRevocationKind(EnumStr):
 class LogoutStatus(EnumStr):
     REVOKED = "revoked"
     ALREADY_MISSING = "already_missing"
+
+
+class PersistentCredentialDispositionKind(EnumStr):
+    REFRESH = "refresh"
+    CLEAR = "clear"
+    KEEP = "keep"
+
+
+class PersistentStrategyResultKind(EnumStr):
+    RESOLVED = "resolved"
+    NOT_APPLICABLE = "not_applicable"
+    REJECTED = "rejected"
+
+
+class PersistentCredentialResolutionKind(EnumStr):
+    RESOLVED = "resolved"
+    REJECTED = "rejected"
+
+
+class PersistentCredentialRejectReason(EnumStr):
+    MALFORMED = "malformed"
+    UNSUPPORTED = "unsupported"
+    INVALID = "invalid"
+    SUBJECT_NOT_FOUND = "subject_not_found"
+    SUBJECT_DISABLED = "subject_disabled"
+
+
+class PersistentCredentialIssueKind(EnumStr):
+    ISSUED = "issued"
+    REJECTED = "rejected"
+
+
+class PersistentCredentialIssueRejectReason(EnumStr):
+    SUBJECT_NOT_FOUND = "subject_not_found"
+    SUBJECT_DISABLED = "subject_disabled"
+
+
+class BackendSessionEstablishmentKind(EnumStr):
+    ESTABLISHED = "established"
+    REJECTED = "rejected"
+
+
+class BackendSessionEstablishmentRejectReason(EnumStr):
+    SESSION_UNAVAILABLE = "session_unavailable"
+
+
+class PersistentLoginResultKind(EnumStr):
+    RESTORED = "restored"
+    REJECTED = "rejected"
+
+
+class PersistentLoginRejectReason(EnumStr):
+    CREDENTIAL_REJECTED = "credential_rejected"
+    SESSION_UNAVAILABLE = "session_unavailable"
