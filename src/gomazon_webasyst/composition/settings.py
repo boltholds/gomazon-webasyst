@@ -10,3 +10,4 @@ class Settings(BaseSettings):
     app_name: str = "gomazon-webasyst"
     database_backend: Literal["sqlalchemy"] = "sqlalchemy"
     database_url: str
+    session_state_provider: str = "memory"
