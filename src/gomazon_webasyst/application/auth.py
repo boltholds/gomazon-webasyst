@@ -11,8 +11,8 @@ from gomazon_webasyst.application.ports.session_validation import (
     SessionValidationPolicy,
     StrictSessionValidationPolicy,
 )
+from gomazon_webasyst.application.session_establishment import BackendSessionEstablisher
 from gomazon_webasyst.contracts.auth import (
-    AuthSessionRegistration,
     AuthenticatedSubject,
     AuthenticationRejected,
     AuthenticationResult,
@@ -24,9 +24,6 @@ from gomazon_webasyst.contracts.auth import (
     PasswordVerificationError,
     RegistryMissing,
     RegistryTouchMissing,
-    SessionCreateRequest,
-    SessionCreated,
-    SessionCreationError,
     SessionResolutionError,
     SessionResolutionResult,
     SessionResolved,
@@ -41,6 +38,7 @@ from gomazon_webasyst.contracts.enums import (
     SessionStateErrorType,
     SubjectResolutionErrorType,
 )
+from gomazon_webasyst.contracts.persistent_login import BackendSessionEstablishmentRejected
 
 
 class AuthenticateBackendPassword:
@@ -50,16 +48,12 @@ class AuthenticateBackendPassword:
         planner: LoginPlanner,
         identity_directory: IdentityDirectory,
         password_verifier: PasswordVerifier,
-        token_factory: CredentialVersionTokenFactory,
-        session_state: SessionStateStore,
-        session_registry: AuthSessionRegistry,
+        session_establisher: BackendSessionEstablisher,
     ) -> None:
         self._planner = planner
         self._identity_directory = identity_directory
         self._password_verifier = password_verifier
-        self._token_factory = token_factory
-        self._session_state = session_state
-        self._session_registry = session_registry
+        self._session_establisher = session_establisher
 
     async def __call__(self, credentials: BackendPasswordCredentials) -> AuthenticationResult:
         plan_result = self._planner.plan(credentials.identifier, credentials.login_context)
@@ -81,31 +75,17 @@ class AuthenticateBackendPassword:
         if isinstance(password_result, PasswordVerificationError):
             return AuthenticationRejected(type=AuthenticationRejectType.INVALID_CREDENTIALS)
 
-        subject = AuthenticatedSubject(id=identity.id, login=identity.login)
-        token = self._token_factory.create(identity)
-        created = await self._session_state.create(
-            SessionCreateRequest(
-                subject=subject,
-                credential_token=token,
-                metadata=credentials.session_metadata,
-            )
+        established = await self._session_establisher.establish(
+            identity,
+            credentials.session_metadata,
         )
-        if isinstance(created, SessionCreationError):
+        if isinstance(established, BackendSessionEstablishmentRejected):
             return AuthenticationRejected(type=AuthenticationRejectType.SESSION_UNAVAILABLE)
-        assert isinstance(created, SessionCreated)
 
-        registration = AuthSessionRegistration(
-            key=created.state.key,
-            credential_token=token,
-            user_agent=credentials.session_metadata.user_agent,
+        return AuthenticationSucceeded(
+            subject=established.subject,
+            session_key=established.session_key,
         )
-        try:
-            await self._session_registry.register(registration)
-        except Exception:
-            await self._session_state.revoke(created.state.key)
-            raise
-
-        return AuthenticationSucceeded(subject=subject, session_key=created.state.key)
 
 
 class ResolveBackendSession:
