@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 
 from gomazon_webasyst.application.contacts import CreateContact, GetContact, UpdateContact
@@ -13,6 +15,17 @@ class FakeEngine:
         self.disposed += 1
 
 
+def fake_auth_use_cases() -> SimpleNamespace:
+    return SimpleNamespace(
+        authenticate_backend_password=object(),
+        resolve_backend_session=object(),
+        logout_backend_session=object(),
+        issue_persistent_credential=object(),
+        restore_backend_session_from_persistent_credential=object(),
+        revoke_persistent_credential=object(),
+    )
+
+
 def test_create_container_wires_all_contact_use_cases_to_one_uow_factory(monkeypatch) -> None:
     engine = FakeEngine()
     uow_factory = object()
@@ -22,11 +35,7 @@ def test_create_container_wires_all_contact_use_cases_to_one_uow_factory(monkeyp
     monkeypatch.setattr(
         container_module,
         "create_auth_use_cases",
-        lambda selected: type("Auth", (), {
-            "authenticate_backend_password": object(),
-            "resolve_backend_session": object(),
-            "logout_backend_session": object(),
-        })(),
+        lambda selected: fake_auth_use_cases(),
     )
 
     container = container_module.create_container(
@@ -50,12 +59,10 @@ async def test_container_closes_persistence_resource(monkeypatch) -> None:
     monkeypatch.setattr(
         container_module,
         "create_auth_use_cases",
-        lambda selected: type("Auth", (), {
-            "authenticate_backend_password": object(),
-            "resolve_backend_session": object(),
-            "logout_backend_session": object(),
-        })(),
+        lambda selected: fake_auth_use_cases(),
     )
-    container = container_module.create_container(Settings(database_url="sqlite+aiosqlite:///:memory:"))
+    container = container_module.create_container(
+        Settings(database_url="sqlite+aiosqlite:///:memory:")
+    )
     await container.close()
     assert engine.disposed == 1
