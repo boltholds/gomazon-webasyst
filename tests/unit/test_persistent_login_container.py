@@ -1,3 +1,8 @@
+from gomazon_webasyst.application.persistent_login import (
+    IssuePersistentCredential,
+    RestoreBackendSessionFromPersistentCredential,
+    RevokePersistentCredential,
+)
 from gomazon_webasyst.compatibility.webasyst.auth.persistent import (
     LegacyAuthTokenIssuer,
     LegacyAuthTokenStrategy,
@@ -24,9 +29,12 @@ class CustomIssuer:
 def test_default_auth_composition_exposes_persistent_login_use_cases():
     auth = create_auth_use_cases(object())
 
-    assert auth.issue_persistent_credential is not None
-    assert auth.restore_backend_session_from_persistent_credential is not None
-    assert auth.revoke_persistent_credential is not None
+    assert isinstance(auth.issue_persistent_credential, IssuePersistentCredential)
+    assert isinstance(
+        auth.restore_backend_session_from_persistent_credential,
+        RestoreBackendSessionFromPersistentCredential,
+    )
+    assert isinstance(auth.revoke_persistent_credential, RevokePersistentCredential)
 
     resolver = auth.restore_backend_session_from_persistent_credential._resolver
     issuer = auth.issue_persistent_credential._issuer
