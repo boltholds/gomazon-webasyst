@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import TypeAlias
+from typing import Protocol, TypeAlias
 
 from gomazon_webasyst.application.access_values import (
     AccessTarget,
@@ -7,6 +7,7 @@ from gomazon_webasyst.application.access_values import (
     PermissionKey,
     RightValue,
 )
+from gomazon_webasyst.application.rights_mutation_policy import RightsMutationPlan
 
 
 @dataclass(slots=True, frozen=True)
@@ -37,3 +38,25 @@ RightAssignment: TypeAlias = (
 @dataclass(slots=True, frozen=True)
 class RightsSnapshot:
     assignments: tuple[RightAssignment, ...]
+
+
+@dataclass(slots=True, frozen=True)
+class RightsPlanApplied:
+    operation_count: int
+
+
+@dataclass(slots=True, frozen=True)
+class RightsDeleted:
+    target: AccessTarget
+    deleted_count: int
+
+
+class RightsRepository(Protocol):
+    async def load_for_targets(
+        self,
+        targets: tuple[AccessTarget, ...],
+    ) -> RightsSnapshot: ...
+
+    async def execute_plan(self, plan: RightsMutationPlan) -> RightsPlanApplied: ...
+
+    async def delete_all_for_target(self, target: AccessTarget) -> RightsDeleted: ...
