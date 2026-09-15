@@ -8,7 +8,9 @@ from gomazon_webasyst.contracts.enums import (
     AccessReadRejectReason,
     AccessReadResultKind,
     AppAccessKind,
+    AppAccessMode,
     EffectiveRightKind,
+    GlobalAdminMode,
     GroupResolutionKind,
     GroupType,
     RightsSnapshotKind,
@@ -292,3 +294,43 @@ class GroupMembersReplaced(BaseModel):
     added_contact_ids: tuple[int, ...]
     removed_contact_ids: tuple[int, ...]
     member_count: Annotated[int, Field(ge=0)]
+
+
+class RightAssigned(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessMutationResultKind.RIGHT_ASSIGNED] = AccessMutationResultKind.RIGHT_ASSIGNED
+    app_id: str
+    name: str
+    value: int
+
+
+class RightRevoked(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessMutationResultKind.RIGHT_REVOKED] = AccessMutationResultKind.RIGHT_REVOKED
+    app_id: str
+    name: str
+
+
+class RightAlreadyAbsent(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessMutationResultKind.RIGHT_ALREADY_ABSENT] = AccessMutationResultKind.RIGHT_ALREADY_ABSENT
+    app_id: str
+    name: str
+
+
+class AppAccessSet(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessMutationResultKind.APP_ACCESS_SET] = AccessMutationResultKind.APP_ACCESS_SET
+    app_id: str
+    mode: AppAccessMode
+
+
+class GlobalAdminAccessSet(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[AccessMutationResultKind.GLOBAL_ADMIN_ACCESS_SET] = AccessMutationResultKind.GLOBAL_ADMIN_ACCESS_SET
+    mode: GlobalAdminMode
