@@ -3,6 +3,7 @@ from datetime import timedelta
 import pytest
 from pydantic import TypeAdapter
 
+from gomazon_webasyst.application.auth_values import AuthSessionKey, SessionId
 from gomazon_webasyst.application.persistent_values import (
     PersistentCredential,
     PersistentCredentialLifetime,
@@ -50,6 +51,7 @@ IDENTITY = AuthIdentity(
     create_datetime="2026-01-01T00:00:00",
 )
 SUBJECT = AuthenticatedSubject(id=42, login="admin")
+SESSION_KEY = AuthSessionKey(contact_id=42, session_id=SessionId("session"))
 
 
 def test_persistent_values_are_frozen_hashable():
@@ -110,7 +112,7 @@ def test_issue_and_session_establishment_results_are_explicit_variants():
     issue_rejected = PersistentCredentialIssueRejected(
         reason=PersistentCredentialIssueRejectReason.SUBJECT_DISABLED
     )
-    established = BackendSessionEstablished(subject=SUBJECT, session_key=(42, "session"))
+    established = BackendSessionEstablished(subject=SUBJECT, session_key=SESSION_KEY)
     establishment_rejected = BackendSessionEstablishmentRejected(
         reason=BackendSessionEstablishmentRejectReason.SESSION_UNAVAILABLE
     )
@@ -124,7 +126,7 @@ def test_issue_and_session_establishment_results_are_explicit_variants():
 def test_restore_result_is_discriminated_without_optional_fields():
     restored = PersistentLoginRestored(
         subject=SUBJECT,
-        session_key=(42, "session"),
+        session_key=SESSION_KEY,
         credential_disposition=RefreshPersistentCredential(
             credential=PersistentCredential("token"),
             lifetime=PersistentCredentialLifetime(timedelta(days=30)),
