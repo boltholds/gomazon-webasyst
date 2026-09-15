@@ -30,6 +30,16 @@ def _access_control_fields() -> dict[str, object]:
     }
 
 
+def _api_credential_fields() -> dict[str, object]:
+    return {
+        "issue_authorization_code": object(),
+        "exchange_authorization_code": object(),
+        "issue_implicit_api_access_token": object(),
+        "resolve_api_access_token": object(),
+        "revoke_api_access_token": object(),
+    }
+
+
 def test_container_exposes_auth_session_use_cases_as_first_class_dependencies():
     engine = SimpleNamespace(dispose=noop_close)
     authenticate = object()
@@ -50,6 +60,7 @@ def test_container_exposes_auth_session_use_cases_as_first_class_dependencies():
         issue_persistent_credential=issue_persistent,
         restore_backend_session_from_persistent_credential=restore_persistent,
         revoke_persistent_credential=revoke_persistent,
+        **_api_credential_fields(),
         **_access_control_fields(),
     )
 
