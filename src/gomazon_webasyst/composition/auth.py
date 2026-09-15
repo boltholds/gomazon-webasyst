@@ -40,7 +40,6 @@ from gomazon_webasyst.infrastructure.auth.identity_directory import create_sqlal
 from gomazon_webasyst.infrastructure.auth.persistent_credentials import OrderedPersistentCredentialResolver
 from gomazon_webasyst.infrastructure.auth.session_registry import SQLAlchemyAuthSessionRegistry
 from gomazon_webasyst.infrastructure.auth.subjects import SQLAlchemyAuthSubjectStore
-from gomazon_webasyst.infrastructure.sessions.memory import InMemorySessionStateStore
 
 
 @dataclass(slots=True, frozen=True)
@@ -68,6 +67,7 @@ class _AuthFoundation:
 def _create_auth_foundation(
     session_factory: async_sessionmaker[AsyncSession],
     *,
+    session_state: SessionStateStore,
     phone_prefix_policy: LegacyPhonePrefixPolicy,
 ) -> _AuthFoundation:
     planner = create_webasyst_login_policy_set()
@@ -78,7 +78,6 @@ def _create_auth_foundation(
     subjects = SQLAlchemyAuthSubjectStore(session_factory)
     verifier = LegacyMd5PasswordVerifier()
     token_factory = LegacyCredentialVersionTokenFactory()
-    session_state = InMemorySessionStateStore()
     registry = SQLAlchemyAuthSessionRegistry(session_factory)
     establisher = BackendSessionEstablisher(
         session_state=session_state,
@@ -139,11 +138,13 @@ def _assemble_auth_use_cases(
 def create_auth_use_cases(
     session_factory: async_sessionmaker[AsyncSession],
     *,
+    session_state: SessionStateStore,
     phone_prefix_policy: LegacyPhonePrefixPolicy = LegacyPhonePrefixPolicy(),
     validation_policy: SessionValidationPolicy = StrictSessionValidationPolicy(),
 ) -> AuthUseCases:
     foundation = _create_auth_foundation(
         session_factory,
+        session_state=session_state,
         phone_prefix_policy=phone_prefix_policy,
     )
     legacy_strategy = LegacyAuthTokenStrategy(
@@ -163,6 +164,7 @@ def create_auth_use_cases(
 def create_auth_use_cases_with_persistent_credentials(
     session_factory: async_sessionmaker[AsyncSession],
     *,
+    session_state: SessionStateStore,
     persistent_resolver: PersistentCredentialResolver,
     persistent_issuer: PersistentCredentialIssuer,
     phone_prefix_policy: LegacyPhonePrefixPolicy = LegacyPhonePrefixPolicy(),
@@ -170,6 +172,7 @@ def create_auth_use_cases_with_persistent_credentials(
 ) -> AuthUseCases:
     foundation = _create_auth_foundation(
         session_factory,
+        session_state=session_state,
         phone_prefix_policy=phone_prefix_policy,
     )
     return _assemble_auth_use_cases(
