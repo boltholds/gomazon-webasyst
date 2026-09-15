@@ -1,263 +1,119 @@
 # Persistent Login / Remember-Me Compatibility Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+Status: implemented and verified on `feature/persistent-login`
 
 **Goal:** Add Webasyst 4.2.0-compatible backend persistent login using the legacy `auth_token` format behind an extensible strategy/issuer bridge, reusing the existing typed auth/session foundation.
 
 **Architecture:** A raw `PersistentCredential` is accepted through an ordered `PersistentCredentialStrategy` chain and restored through `RestoreBackendSessionFromPersistentCredential`. Credential issuance is a separate `IssuePersistentCredential` operation using an injected `PersistentCredentialIssuer`. Password login and persistent restore share one `BackendSessionEstablisher`, while application results carry transport-neutral `refresh / clear / keep` dispositions and never expose cookie/HTTP types.
 
-**Tech Stack:** Python 3.12+, Pydantic v2, SQLAlchemy 2 async, asyncmy, aiosqlite, pytest; FastAPI/Starlette only at presentation boundaries.
-
 **Spec:** `docs/superpowers/specs/2026-09-14-persistent-login-design.md`
 
-## Global Constraints
+## Global constraints
 
-- Webasyst 4.2.0 source is authoritative over newer documentation when behavior conflicts.
-- No ordinary persistent-login result uses `None`, `Optional`, bool sentinels, empty strings, or exception-as-branch semantics.
-- Serialized discriminator values derive from `EnumStr`; Pydantic discriminators use `Literal[EnumMember]`.
+- Webasyst 4.2.0 source is authoritative when behavior conflicts with newer documentation.
+- Ordinary persistent-login outcomes never use `None`, `Optional`, bool sentinels, empty strings, or exception-as-branch semantics.
+- Serialized discriminator values derive from `EnumStr`.
 - `PersistentCredential` and `PersistentCredentialLifetime` are immutable `@dataclass(slots=True, frozen=True)` VOs.
-- Persistent credential acceptance uses an ordered strategy chain; issuance is a separate injected port.
-- Application code must not import `hashlib`, SQLAlchemy, FastAPI/Starlette, cookie types, or Webasyst compatibility implementations.
+- Persistent credential acceptance uses an ordered strategy chain; issuance is a separately injected port.
+- Application code does not import `hashlib`, SQLAlchemy, FastAPI/Starlette, cookie types, or Webasyst compatibility implementations.
 - Legacy `auth_token` mechanics stay in `compatibility/webasyst/auth` and use constant-time comparison.
-- No new persistent-token database table or schema migration is introduced.
-- `remember` UI preference is not authentication state and is not represented in persistent-login application contracts.
-- Global remember-me disablement is represented by not invoking restore; it is not a `CLEAR` result.
-- Ordinary password login with remember=false does not revoke an existing persistent credential.
-- Production login/cookie HTTP routes are out of scope for this slice.
+- No persistent-token table or schema migration is introduced.
+- `remember` UI preference is not authentication state and does not enter password-auth contracts.
+- Global remember-me disablement means restore is not invoked; it is not modeled as `CLEAR`.
+- Password login without persistent issuance does not revoke an existing persistent credential.
+- Production login/cookie HTTP routes remain out of scope.
 
----
+## Completed tasks
 
-### Task 1: Persistent value objects and explicit result contracts
+### Task 1 — Persistent VOs and explicit result contracts
 
-**Files:**
-- Create: `src/gomazon_webasyst/application/persistent_values.py`
-- Create: `src/gomazon_webasyst/contracts/persistent_login.py`
-- Modify: `src/gomazon_webasyst/contracts/enums.py`
-- Test: `tests/unit/test_persistent_login_contracts.py`
-- Modify: `tests/architecture/test_no_optional_result_contracts.py`
+- [x] Added `PersistentCredential` and `PersistentCredentialLifetime` immutable VOs.
+- [x] Added typed strategy, resolution, issuance, session-establishment, restore, and transport-disposition unions.
+- [x] Added closed `EnumStr` discriminator/reason domains.
+- [x] Added contract tests proving frozen value semantics, raw-string discriminator validation, and explicit negative variants.
+- [x] Existing Optional/sentinel architecture guard remains green.
 
-**Interfaces:**
-- Produces `PersistentCredential(value: str)` and `PersistentCredentialLifetime(value: timedelta)` immutable VOs.
-- Produces strategy, resolver, issue, restore, session-establishment, and transport-disposition result unions.
-- Produces closed `EnumStr` domains for result discriminators and rejection reasons.
-- Later tasks consume these contracts without introducing nullable control fields.
+### Task 2 — Strategy resolver and issuer ports
 
-- [ ] **Step 1: Write failing contract tests** proving both VOs are frozen/hashable, all negative outcomes are explicit variants, raw discriminator strings validate, JSON serialization preserves string values, and no new result annotation contains `| None`.
+- [x] Added `PersistentCredentialStrategy`, `PersistentCredentialResolver`, and `PersistentCredentialIssuer` application-owned ports.
+- [x] Added `OrderedPersistentCredentialResolver`.
+- [x] `NotApplicable` continues the chain, `Resolved` returns, `Rejected` is terminal, and all-skipped maps to typed `UNSUPPORTED + CLEAR`.
+- [x] Tests prove a future prefixed strategy can be registered without changing resolver/use-case code.
 
-```python
-from datetime import timedelta
+### Task 3 — Webasyst 4.2.0 legacy `auth_token` compatibility
 
+- [x] Added compatibility-private legacy token parser/VO.
+- [x] Characterized exact `waAuth::getToken()` formula and contact-id placement between 15-character hash fragments.
+- [x] Added exact 30-day lifetime (`2592000` seconds) through a typed lifetime VO.
+- [x] Added `LegacyAuthTokenStrategy` and `LegacyAuthTokenIssuer`.
+- [x] Token comparison uses `hmac.compare_digest`.
+- [x] Malformed, stale, missing-subject and disabled-subject credentials return typed rejection + `CLEAR`.
+- [x] Successful legacy restore returns `REFRESH` with the same credential for another 30 days.
+- [x] MD5 token generation remains delegated to the existing compatibility token factory; the formula is not duplicated in application code.
 
-def test_persistent_values_are_frozen_hashable():
-    credential = PersistentCredential("abc")
-    lifetime = PersistentCredentialLifetime(timedelta(days=30))
-    assert {credential}
-    assert {lifetime}
+### Task 4 — Shared backend session establishment
 
+- [x] Added `BackendSessionEstablisher`.
+- [x] Password auth now delegates normal session creation/registration to the shared establisher.
+- [x] Persistent restore uses the same establisher instance in composition.
+- [x] Session creation errors become typed `SESSION_UNAVAILABLE`.
+- [x] Registry infrastructure failure compensates by revoking freshly-created session state and re-raises the infrastructure exception.
+- [x] Existing password-auth external behavior remains unchanged.
 
-def test_restore_result_is_discriminated_without_optional_fields():
-    result = PersistentLoginRejected(
-        reason=PersistentLoginRejectReason.CREDENTIAL_REJECTED,
-        credential_disposition=ClearPersistentCredential(),
-    )
-    assert result.kind is PersistentLoginResultKind.REJECTED
-```
+### Task 5 — Persistent issuance and restore use cases
 
-- [ ] **Step 2: Run the contract tests and verify RED** because the persistent-login contract layer does not yet exist.
+- [x] Added `IssuePersistentCredential`.
+- [x] Added `RestoreBackendSessionFromPersistentCredential`.
+- [x] Issue resolves the current subject before delegating to the configured issuer.
+- [x] Rejected credential preserves its `CLEAR` disposition and never calls the session establisher.
+- [x] Valid credential + successful session returns `PersistentLoginRestored` with resolver disposition.
+- [x] Valid credential + session-unavailable returns typed rejection + `KEEP`.
+- [x] Application use cases never inspect legacy token shape.
 
-Run: `python -m pytest tests/unit/test_persistent_login_contracts.py tests/architecture/test_no_optional_result_contracts.py -v`
+### Task 6 — Persistent revoke and logout separation
 
-- [ ] **Step 3: Implement the minimal VOs, enums and Pydantic unions**. Use these concrete public names:
+- [x] Added transport-neutral `RevokePersistentCredential`, returning `ClearPersistentCredential`.
+- [x] Existing `LogoutBackendSession` remains session-only and accepts only `SessionId`.
+- [x] No storage dependency was added for legacy persistent revoke because the legacy credential is stateless.
 
-```text
-PersistentStrategyResolved(identity, disposition)
-PersistentStrategyNotApplicable
-PersistentStrategyRejected(reason, disposition)
-PersistentCredentialResolved(identity, disposition)
-PersistentCredentialRejected(reason, disposition)
-PersistentCredentialIssued(credential, lifetime)
-PersistentCredentialIssueRejected(reason)
-RefreshPersistentCredential(credential, lifetime)
-ClearPersistentCredential
-KeepPersistentCredential
-BackendSessionEstablished(subject, session_key)
-BackendSessionEstablishmentRejected(reason)
-PersistentLoginRestored(subject, session_key, credential_disposition)
-PersistentLoginRejected(reason, credential_disposition)
-```
+### Task 7 — Composition
 
-- [ ] **Step 4: Re-run contract + architecture tests GREEN**.
-- [ ] **Step 5: Commit** `feat: add persistent login typed contracts`.
+- [x] `AuthUseCases` and the main container expose issue/restore/revoke persistent-login operations.
+- [x] Default composition accepts exactly one terminal legacy strategy through `OrderedPersistentCredentialResolver` and uses `LegacyAuthTokenIssuer` for issuance.
+- [x] Password auth and persistent restore share one `BackendSessionEstablisher`, `SessionStateStore`, `AuthSessionRegistry`, `AuthSubjectStore`, and credential-version token factory.
+- [x] Added explicit `create_auth_use_cases_with_persistent_credentials(...)` for custom resolver/issuer injection.
+- [x] Custom resolver/issuer injection uses required arguments rather than nullable defaults.
 
-### Task 2: Persistent strategy resolver and issuer ports
+### Task 8 — End-to-end and architecture verification
 
-**Files:**
-- Create: `src/gomazon_webasyst/application/ports/persistent_credentials.py`
-- Create: `src/gomazon_webasyst/infrastructure/auth/persistent_credentials.py`
-- Test: `tests/unit/test_persistent_credential_resolver.py`
+- [x] Added SQLite E2E: seed backend user -> password login -> issue legacy credential -> logout normal session -> restore new normal session -> mutate login/password -> old credential rejects with `CLEAR`.
+- [x] Added persistent-login dependency guard: application persistent-login/session-establishment code cannot import transport, DB, concrete hash, or Webasyst codec modules.
+- [x] Existing project-wide Optional/sentinel guard remains green.
+- [x] E2E mutation avoids nullable ORM lookup control flow by using an explicit SQL update statement.
+- [x] Quality pass removed non-semantic `is not None` wiring assertions from new container tests.
 
-**Interfaces:**
-- `PersistentCredentialStrategy.resolve(PersistentCredential) -> PersistentCredentialStrategyResult`.
-- `PersistentCredentialResolver.resolve(PersistentCredential) -> PersistentCredentialResolution`.
-- `PersistentCredentialIssuer.issue(AuthIdentity) -> PersistentCredentialIssueResult`.
-- `OrderedPersistentCredentialResolver(strategies: tuple[PersistentCredentialStrategy, ...])` implements the resolver port.
+## Verification evidence
 
-- [ ] **Step 1: Write failing resolver tests** for ordered first-success, terminal rejection, skipping `NotApplicable`, explicit unsupported rejection after all strategies skip, and extension with a fake `opaque_v2` strategy without changing resolver/use-case code.
-- [ ] **Step 2: Run RED**.
+Final code-bearing verification SHA before this status-only update: `2a0e8bafe3c44e804dec9e6bc261844192051ad1`.
 
-Run: `python -m pytest tests/unit/test_persistent_credential_resolver.py -v`
+GitHub Actions, Python 3.12.14:
 
-- [ ] **Step 3: Implement the ports and ordered resolver**. The resolver must branch only on typed strategy variants; it must not inspect credential format itself.
-- [ ] **Step 4: Run GREEN + architecture guard**.
-- [ ] **Step 5: Commit** `feat: add persistent credential strategy resolver`.
+- [x] `python -m compileall -q src tests` — success.
+- [x] `python -m pytest -v` — **180 passed, 0 failed, 0 skipped**.
+- [x] Architecture dependency guard — passed.
+- [x] Optional/sentinel contract guard — passed.
+- [x] Persistent-login SQLite E2E — passed.
+- [x] Exact Webasyst legacy token characterization — passed.
 
-### Task 3: Source-backed legacy `auth_token` parser, strategy and issuer
+Repository scope review against `main`:
 
-**Files:**
-- Create: `src/gomazon_webasyst/compatibility/webasyst/auth/persistent.py`
-- Modify: `src/gomazon_webasyst/compatibility/webasyst/auth/tokens.py` only if a reusable wrapper around the existing token factory is needed; do not duplicate the MD5 formula.
-- Test: `tests/compatibility/test_persistent_auth_characterization.py`
-- Test: `tests/unit/test_legacy_persistent_credential.py`
+- [x] no production login/cookie HTTP route or middleware added;
+- [x] no persistent token DB table, Alembic migration, or other schema change added;
+- [x] no permissions/RBAC implementation added;
+- [x] no OAuth/social/Webasyst ID/API OAuth2 implementation added;
+- [x] no opaque-v2 storage implementation added;
+- [x] no `remember` field added to `BackendPasswordCredentials`;
+- [x] legacy token mechanics remain compatibility-only;
+- [x] application contracts remain explicit typed variants without Optional sentinels.
 
-**Interfaces:**
-- Compatibility-private `LegacyAuthTokenCredential(contact_id: int, credential: PersistentCredential)` VO.
-- `LegacyAuthTokenParser.parse(PersistentCredential) -> LegacyTokenParseResult` with `LegacyTokenParsed | LegacyTokenMalformed`.
-- `LegacyAuthTokenStrategy(subject_store, token_factory, lifetime)` implements `PersistentCredentialStrategy`.
-- `LegacyAuthTokenIssuer(token_factory, lifetime)` implements `PersistentCredentialIssuer`.
-- Legacy lifetime is `PersistentCredentialLifetime(timedelta(days=30))`.
-
-- [ ] **Step 1: Write source-characterization tests** for the exact 4.2.0 formula/shape, 15-char prefix/suffix id extraction, 30-day issuance/refresh, same-value renewal, invalid/stale clear, logout/clearAuth credential clearing intent, and distinct `remember` UI-cookie semantics.
-- [ ] **Step 2: Write failing unit tests** for malformed token parsing, missing/disabled subject rejection, stale token rejection, successful resolution, exact legacy issuance, and same credential returned in refresh disposition.
-- [ ] **Step 3: Run RED**.
-
-Run: `python -m pytest tests/compatibility/test_persistent_auth_characterization.py tests/unit/test_legacy_persistent_credential.py -v`
-
-- [ ] **Step 4: Implement parser/strategy/issuer**. Parsing accepts only `^[0-9a-fA-F]{15}[0-9]+[0-9a-fA-F]{15}$`. The middle decimal digits become `contact_id`. Compare supplied and expected token with `hmac.compare_digest`. Do not log the credential value.
-- [ ] **Step 5: Run GREEN + architecture tests** proving compatibility classes do not leak into application imports.
-- [ ] **Step 6: Commit** `feat: add legacy auth token persistent strategy`.
-
-### Task 4: Extract shared backend session establishment
-
-**Files:**
-- Create: `src/gomazon_webasyst/application/session_establishment.py`
-- Modify: `src/gomazon_webasyst/application/auth.py`
-- Test: `tests/unit/test_session_establishment.py`
-- Modify: `tests/unit/test_auth_use_cases.py`
-
-**Interfaces:**
-- `BackendSessionEstablisher(session_state, session_registry, token_factory)`.
-- Call signature: `await establish(identity: AuthIdentity, metadata: SessionMetadata) -> BackendSessionEstablishmentResult`.
-- On success returns `BackendSessionEstablished(subject, session_key)`.
-- On `SessionCreationError` returns `BackendSessionEstablishmentRejected(reason=SESSION_UNAVAILABLE)`.
-- If registry registration raises an infrastructure exception, revoke freshly-created state and re-raise.
-- `AuthenticateBackendPassword` consumes the establisher instead of directly coordinating state + registry + token creation.
-
-- [ ] **Step 1: Write failing establisher tests** for success, session-create rejection, and compensation on registry exception.
-- [ ] **Step 2: Run RED**.
-- [ ] **Step 3: Implement `BackendSessionEstablisher`** using the exact existing `SessionStateStore`, `AuthSessionRegistry`, `CredentialVersionTokenFactory`, `SessionCreateRequest`, and `AuthSessionRegistration` contracts.
-- [ ] **Step 4: Refactor `AuthenticateBackendPassword`** to call the establisher and map its typed result back to the existing `AuthenticationResult` without changing public password-auth behavior.
-- [ ] **Step 5: Run session-establishment tests + all existing auth tests GREEN**.
-- [ ] **Step 6: Commit** `refactor: share backend session establishment`.
-
-### Task 5: Issue and restore persistent login use cases
-
-**Files:**
-- Create: `src/gomazon_webasyst/application/persistent_login.py`
-- Test: `tests/unit/test_persistent_login_use_cases.py`
-
-**Interfaces:**
-- `IssuePersistentCredential(subject_store, issuer)` callable with `AuthenticatedSubject` and returning `PersistentCredentialIssueResult`.
-- `RestoreBackendSessionFromPersistentCredential(resolver, establisher)` callable with `PersistentLoginRequest` and returning `PersistentLoginResult`.
-- `PersistentLoginRequest` contains only `credential: PersistentCredential` and `session_metadata: SessionMetadata`.
-
-- [ ] **Step 1: Write failing issuance tests** for missing subject, disabled subject, and successful issuance. No invocation represents “do not issue”; there is no remember bool.
-- [ ] **Step 2: Write failing restore tests** for credential rejection -> clear, successful resolve + session establish -> refresh, and session establishment rejection -> keep.
-- [ ] **Step 3: Run RED**.
-
-Run: `python -m pytest tests/unit/test_persistent_login_use_cases.py -v`
-
-- [ ] **Step 4: Implement issue/restore use cases**. Restore must not inspect legacy token shape or credential scheme; it delegates entirely to the resolver and establisher.
-- [ ] **Step 5: Run GREEN + architecture guard**.
-- [ ] **Step 6: Commit** `feat: add persistent login application use cases`.
-
-### Task 6: Persistent credential revocation intent and logout separation
-
-**Files:**
-- Modify: `src/gomazon_webasyst/application/persistent_login.py`
-- Test: `tests/unit/test_persistent_login_use_cases.py`
-- Modify: `tests/unit/test_auth_use_cases.py`
-
-**Interfaces:**
-- Add `RevokePersistentCredential` as a transport-neutral operation returning `ClearPersistentCredential`.
-- Existing `LogoutBackendSession` remains session-only and does not accept persistent credentials or cookie state.
-- Presentation may later execute both logout + persistent revoke when implementing Webasyst `clearAuth()` parity.
-
-- [ ] **Step 1: Write failing tests** proving session logout remains independent and explicit persistent revoke returns a clear directive.
-- [ ] **Step 2: Run RED**.
-- [ ] **Step 3: Implement the minimal revoke operation** without storage I/O because the legacy credential is stateless.
-- [ ] **Step 4: Run GREEN**.
-- [ ] **Step 5: Commit** `feat: separate persistent credential revocation intent`.
-
-### Task 7: Composition wiring and exact initial compatibility configuration
-
-**Files:**
-- Modify: `src/gomazon_webasyst/composition/auth.py`
-- Modify: `src/gomazon_webasyst/composition/container.py`
-- Test: `tests/unit/test_auth_container.py`
-- Test: `tests/unit/test_persistent_login_container.py`
-
-**Interfaces:**
-- Extend `AuthUseCases` with `issue_persistent_credential`, `restore_backend_session_from_persistent_credential`, and `revoke_persistent_credential`.
-- Composition creates one shared `BackendSessionEstablisher` for password auth and persistent restore.
-- Initial accepted resolver chain is exactly `(LegacyAuthTokenStrategy(...),)`.
-- Initial issuer is exactly `LegacyAuthTokenIssuer(...)`.
-- `SessionStateStore`, `AuthSessionRegistry`, `AuthSubjectStore`, and `CredentialVersionTokenFactory` instances are shared with existing auth use cases.
-
-- [ ] **Step 1: Write failing composition tests** proving the new use cases are wired, password/restore share the same session infrastructure, and a custom resolver/issuer can be injected without modifying use cases.
-- [ ] **Step 2: Run RED**.
-- [ ] **Step 3: Extend composition with explicit persistent strategy/issuer dependencies**. Keep defaults in compatibility factory helpers; no global discovery.
-- [ ] **Step 4: Run GREEN + existing container tests**.
-- [ ] **Step 5: Commit** `feat: wire persistent login compatibility`.
-
-### Task 8: SQLite end-to-end restore/invalidation flow
-
-**Files:**
-- Create: `tests/integration/test_persistent_login_flow.py`
-- Modify: `tests/architecture/test_dependency_boundaries.py`
-- Modify: `tests/architecture/test_no_optional_result_contracts.py`
-
-**Interfaces:** Uses the real SQLite-backed `AuthSubjectStore` + `AuthSessionRegistry`, in-memory session state, legacy strategy/issuer and production application use cases.
-
-- [ ] **Step 1: Write failing E2E test**: seed backend user -> issue legacy credential -> restore session -> verify new `AuthSessionKey` active -> mutate password/login -> restore old credential -> explicit rejected + clear directive.
-- [ ] **Step 2: Add architecture assertions** that application persistent-login/session-establishment code imports no `hashlib`, SQLAlchemy, FastAPI/Starlette, cookie libraries or `compatibility.webasyst.auth.persistent`, and that no operation/lookup contract returns `Optional` sentinels.
-- [ ] **Step 3: Run RED where appropriate**.
-- [ ] **Step 4: Make only wiring/adapter corrections needed for the E2E path**; do not add a persistent-token table or HTTP route.
-- [ ] **Step 5: Run integration + architecture GREEN**.
-- [ ] **Step 6: Run full verification**:
-
-```bash
-python -m pytest -v
-python -m compileall -q src tests
-```
-
-- [ ] **Step 7: Compare `main...feature/persistent-login`** and confirm no production cookie/login route, persistence migration, permissions, OAuth or opaque-v2 storage slipped into scope.
-- [ ] **Step 8: Record exact local/CI counts in this plan and update `AGENTS.md` only if implementation reveals a new architectural decision beyond ADR-024/025**.
-- [ ] **Step 9: Commit** `test: verify persistent login compatibility flow`.
-
-## Verification
-
-Before integration:
-
-- full local `python -m pytest -v` has zero failures;
-- `python -m compileall -q src tests` exits 0;
-- GitHub Actions passes on Python 3.12 with `aiosqlite` and `asyncmy` installed;
-- architecture guard rejects new `Optional`/`T | None` sentinel contracts;
-- application persistent-login code imports no Webasyst legacy token class/codec;
-- no password-auth request gains a `remember` field;
-- no persistent token DB schema/table is introduced;
-- legacy token comparison is constant-time;
-- successful restore creates a fresh normal session and refreshes the same legacy credential for 30 days;
-- invalid/stale legacy credential produces a clear directive;
-- session-establishment rejection keeps a valid persistent credential;
-- remember-me disabled is modeled by not calling restore, not by returning clear;
-- ordinary password login without persistent issuance does not revoke an existing persistent credential.
+The CI workflow now includes the compile step permanently before pytest so future branches verify syntax for the complete `src` and `tests` trees as part of normal CI.
