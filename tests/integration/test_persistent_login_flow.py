@@ -7,6 +7,7 @@ import pytest
 pytest.importorskip("aiosqlite")
 
 from pydantic import SecretStr
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from gomazon_webasyst.application.persistent_values import PersistentCredential
@@ -81,10 +82,14 @@ async def test_issue_restore_and_credential_invalidation_end_to_end(tmp_path: Pa
     assert restored.credential_disposition.credential == legacy_credential
 
     async with sessions() as session:
-        row = await session.get(WaContactRow, 42)
-        assert row is not None
-        row.login = "renamed-admin"
-        row.password = md5(b"changed-secret").hexdigest()
+        await session.execute(
+            update(WaContactRow)
+            .where(WaContactRow.id == 42)
+            .values(
+                login="renamed-admin",
+                password=md5(b"changed-secret").hexdigest(),
+            )
+        )
         await session.commit()
 
     rejected = await container.restore_backend_session_from_persistent_credential(
