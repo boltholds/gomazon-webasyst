@@ -256,6 +256,30 @@ Date: 2026-09-15
 
 `SessionStateStore` remains the domain-specific application-owned port for session create/resolve/revoke semantics. Concrete runtime storage is selected only in composition through an extensible `SessionStateProviderRegistry` keyed by open `StateProviderName` values and factories implementing `SessionStateStoreFactory`. One application container resolves exactly one store instance and shares it across password authentication, session resolution/logout, and persistent-login restoration; providers MUST NOT create a new store per request or use-case call. The default provider is in-process memory, but Redis, KeyDB/Dragonfly, Supabase/Postgres, or other adapters may be registered without changing application use cases or adding central backend conditionals. Future provider implementations must satisfy the same `SessionStateStore` behavioral contract. For Supabase, durable Postgres state is authoritative; Realtime may propagate revocation/invalidation or cache synchronization but is not itself the source of truth.
 
+### ADR-031 — Webasyst API OAuth credentials preserve the existing legacy tables
+Status: accepted
+Date: 2026-09-15
+
+The compatibility implementation maps `wa_api_auth_codes` and `wa_api_tokens` directly; these tables remain authoritative for the Webasyst 4.2.0 API credential slice. No replacement OAuth schema or migration is introduced. SQLAlchemy rows remain infrastructure-private and application code consumes typed credential records through `AuthorizationCodeRepository`, `ApiTokenRepository`, and `ApiCredentialUnitOfWork`.
+
+### ADR-032 — Reusable authorization codes and subject/client token reuse are compatibility policies
+Status: accepted
+Date: 2026-09-15
+
+Webasyst 4.2.0 authorization codes remain reusable until their 180-second expiry because the legacy token controller does not consume them after exchange. This is represented by injected `AuthorizationCodeExchangePolicy`; a stricter future mode may consume codes without changing repositories/use cases. Likewise, the legacy rule that one access token is reused for `(contact_id, client_id)` and only its scope is updated is isolated behind `ApiTokenIssuePolicy` and the shared `ApiTokenIssuer`, not hard-coded into transport or persistence interfaces.
+
+### ADR-033 — Nullable legacy token columns normalize to explicit application state
+Status: accepted
+Date: 2026-09-15
+
+`wa_api_tokens.last_use_datetime` and `wa_api_tokens.expires` are genuinely nullable ORM fields. SQL adapters immediately normalize them to `ApiTokenNeverUsed | ApiTokenLastUsedAt` and `ApiTokenNeverExpires | ApiTokenExpiresAt`. `None` must not escape the persistence boundary or become an application result/state sentinel.
+
+### ADR-034 — API credential core is separate from API transport and authorization
+Status: accepted
+Date: 2026-09-15
+
+The credential core owns authorization-code issue/exchange, implicit token issue, token resolution/touch and revoke. Bearer/query token extraction, OAuth redirect/consent endpoints, installed-app filtering, ACL/scope authorization, API method dispatch, JSON/XML legacy envelopes and HTTP error mapping are a later presentation/API-framework slice. No FastAPI/Starlette dependency belongs in API credential application code.
+
 ---
 
 ## Target dependency direction
@@ -377,7 +401,23 @@ The first auth slice is backend password authentication plus session create/reso
 - legacy `auth_token` is stateless, deterministic, 30-day and compatibility-only; successful restore refreshes the same credential and invalid credentials are cleared by transport;
 - ordinary `remember=false` does not itself mean revoke; persistence issuance and revocation/clear are separate operations;
 - the legacy `remember` cookie is UI preference state and must not enter auth application contracts;
-- OTP, frontend confirmation/signup, OAuth/social/Webasyst ID, API OAuth2 tokens, opaque v2 persistence, and PHP-session-file interoperability are later slices.
+- OTP, frontend confirmation/signup, OAuth/social/Webasyst ID, opaque v2 persistence, and PHP-session-file interoperability are later slices.
+
+---
+
+## API credential compatibility rules
+
+- `wa_api_auth_codes` and `wa_api_tokens` are mapped as existing legacy storage, not redesigned;
+- compatibility-generated codes/tokens are 32 lowercase hexadecimal characters using secure Python entropy;
+- authorization-code lifetime is exactly 180 seconds by default;
+- code expiry follows the characterized legacy comparison: expired only when `expires < now`, so the exact boundary remains valid;
+- successful Webasyst-compatible code exchange keeps the code reusable until expiry;
+- one token is reused for `(contact_id, client_id)`; changed scope updates that token instead of rotating it;
+- newly created compatibility tokens use the explicit never-expires state corresponding to SQL `NULL`;
+- successful token resolution updates `last_use_datetime` transactionally;
+- token/code collisions and expected concurrent state changes are typed outcomes;
+- raw scope CSV encoding stays in the Webasyst compatibility adapter;
+- HTTP token extraction, consent/redirect flows and API method authorization are not part of this credential slice.
 
 ---
 
@@ -413,7 +453,8 @@ The first auth slice is backend password authentication plus session create/reso
 - use cases must run with fakes through DI;
 - concrete adapters require integration tests;
 - existing legacy tables are mapped rather than blindly recreated;
-- ACL/group writes spanning `wa_group`, `wa_user_groups`, `wa_contact_rights`, and ACL-relevant `wa_contact` reads use the dedicated access-control UoW.
+- ACL/group writes spanning `wa_group`, `wa_user_groups`, `wa_contact_rights`, and ACL-relevant `wa_contact` reads use the dedicated access-control UoW;
+- API credential writes spanning authorization-code exchange and token issue/reuse use the dedicated API credential UoW.
 
 Initial examples:
 
@@ -433,19 +474,19 @@ Application/compatibility errors are framework-agnostic. Presentation translates
 ## Testing strategy
 
 ### Unit
-Use fakes for repositories/UoW/registries/policies. Core use cases and compatibility resolvers require no ASGI server or external DB. ACL evaluator, fallback policy, mutation planner, administration policy and group/membership/right use cases are pure/fake-testable.
+Use fakes for repositories/UoW/registries/policies. Core use cases and compatibility resolvers require no ASGI server or external DB. ACL evaluator, fallback policy, mutation planner, administration policy and group/membership/right use cases are pure/fake-testable. API credential issue/exchange/resolve/revoke and token reuse policies are also fake-testable without HTTP or an external database.
 
 ### Architecture
-Prevent FastAPI/SQLAlchemy/drivers/concrete crypto/password algorithms from leaking into contracts/application. Enforce ADR-023 by rejecting unexpected `Optional`/`T | None` annotations outside genuine nullable schema/protocol boundaries. Persistent-login application code must not import legacy token-format classes or cookie/HTTP types. ACL application code must not import SQLAlchemy or Webasyst compatibility implementations, expose signed principal IDs, use bool-sentinel results, or handle reserved `backend` mutation rules outside the compatibility policy layer.
+Prevent FastAPI/SQLAlchemy/drivers/concrete crypto/password algorithms from leaking into contracts/application. Enforce ADR-023 by rejecting unexpected `Optional`/`T | None` annotations outside genuine nullable schema/protocol boundaries. Persistent-login application code must not import legacy token-format classes or cookie/HTTP types. ACL application code must not import SQLAlchemy or Webasyst compatibility implementations, expose signed principal IDs, use bool-sentinel results, or handle reserved `backend` mutation rules outside the compatibility policy layer. API credential application code must not import FastAPI, Starlette, SQLAlchemy, `secrets`, Webasyst compatibility implementations, or raw legacy OAuth table names.
 
 ### Persistence contract
 Reusable behavioral tests run against concrete persistence adapters.
 
 ### Compatibility characterization
-Reference relevant Webasyst 4.2.0 methods/classes when behavior is subtle or documentation conflicts with source. ACL characterization covers effective `MAX` aggregation, global/app backend overrides, `.all` fallback, principal encoding, mutation cleanup, zero-as-delete and group-count semantics.
+Reference relevant Webasyst 4.2.0 methods/classes when behavior is subtle or documentation conflicts with source. ACL characterization covers effective `MAX` aggregation, global/app backend overrides, `.all` fallback, principal encoding, mutation cleanup, zero-as-delete and group-count semantics. API credential characterization covers table shape, 180-second code lifetime, reusable code exchange and subject/client token reuse.
 
 ### Integration
-Cover DB wiring, ASGI compatibility flow, auth/session composition, persistent-login issuance/restore, and SQLite ACL/group vertical flows. CI runs the full suite on Python 3.12.
+Cover DB wiring, ASGI compatibility flow, auth/session composition, persistent-login issuance/restore, SQLite ACL/group vertical flows, and the SQLite API credential flow from code issue through exchange/reuse/resolve/revoke. CI runs the full suite on Python 3.12.
 
 ---
 
@@ -476,6 +517,7 @@ Cover DB wiring, ASGI compatibility flow, auth/session composition, persistent-l
 23. Keep signed Webasyst ACL principal encoding inside compatibility/infrastructure adapters; application code uses typed principals only.
 24. Treat ACL `backend` mutation as reserved structured behavior handled by app/global access operations and the legacy mutation planner, not a generic named right.
 25. Authorize ACL/group/membership mutations through application use cases inside the access-control UoW; never call ACL repositories directly from presentation.
+26. Keep API credential storage/policy separate from API HTTP transport and method authorization; presentation must consume the credential use cases rather than query OAuth tables directly.
 
 ---
 
@@ -492,5 +534,7 @@ The foundation is considered proven when CI confirms:
 - routing/dispatch slice passes contract/pattern/parser/resolver/registry/strategy/ASGI tests;
 - auth/session slice passes contract/policy/directory/password/session/persistence/integration tests;
 - persistent-login slice passes strategy/issuer/session-establishment/restore/characterization/integration tests;
-- access-control slice, when implemented, passes contracts/evaluator/fallback/mutation-policy/authorization/group/membership/persistence/integration/characterization tests;
+- access-control slice passes contracts/evaluator/fallback/mutation-policy/authorization/group/membership/persistence/integration/characterization tests;
+- runtime session-state provider selection passes registry/composition/architecture tests;
+- API credential core passes contracts/policy/repository/UoW/issue/exchange/resolve/revoke/characterization/SQLite vertical-flow tests;
 - every new architectural decision is reflected here.
