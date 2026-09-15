@@ -1,12 +1,14 @@
 from dataclasses import dataclass
 
 from gomazon_webasyst.application.access_values import (
+    AccessTarget,
     AppId,
     GroupId,
     GroupMembership,
     GroupTarget,
     GuestsTarget,
     PermissionKey,
+    RightValue,
     UserTarget,
 )
 from gomazon_webasyst.application.ports.access_admin_policy import (
@@ -29,15 +31,22 @@ from gomazon_webasyst.application.ports.memberships import (
     MembershipAlreadyPresent,
     MembershipRemoved,
 )
-from gomazon_webasyst.application.ports.rights import RightsSnapshot
+from gomazon_webasyst.application.ports.rights import NamedRightAssignment, RightsSnapshot
 from gomazon_webasyst.application.rights_evaluator import RightsEvaluator
+from gomazon_webasyst.application.rights_mutation_policy import (
+    RightsMutationPlanned,
+    RightsMutationPolicy,
+    RightsMutationRejected,
+)
 from gomazon_webasyst.contracts.access_control import (
     AccessMutationRejected,
     AccessReadRejected,
     AppAccessResolved,
     AppAccessResult,
+    AppAccessSet,
     EffectiveRightResolved,
     EffectiveRightResult,
+    GlobalAdminAccessSet,
     GroupCreate,
     GroupCreated,
     GroupDeleted,
@@ -54,6 +63,9 @@ from gomazon_webasyst.contracts.access_control import (
     GroupResolution,
     GroupUpdate,
     GroupUpdated,
+    RightAlreadyAbsent,
+    RightAssigned,
+    RightRevoked,
     RightsSnapshotQueryResult,
     RightsSnapshotResolved,
     UserGroupsResolved,
@@ -63,6 +75,9 @@ from gomazon_webasyst.contracts.auth import AuthenticatedSubject
 from gomazon_webasyst.contracts.enums import (
     AccessMutationRejectReason,
     AccessReadRejectReason,
+    AppAccessMode,
+    GlobalAdminMode,
+    RightsMutationRejectReason,
 )
 
 
@@ -71,8 +86,14 @@ class AccessSnapshotLoaded:
     snapshot: RightsSnapshot
 
 
+@dataclass(slots=True, frozen=True)
+class AccessTargetValid:
+    pass
+
+
 AccessSnapshotLoadResult = AccessSnapshotLoaded | AccessReadRejected
 MutationAuthorizationResult = AccessAdministrationAuthorized | AccessMutationRejected
+AccessTargetValidationResult = AccessTargetValid | AccessMutationRejected
 
 
 async def load_access_snapshot(
@@ -103,6 +124,33 @@ async def _authorize_mutation(
     if isinstance(decision, AccessAdministrationDenied):
         return AccessMutationRejected(reason=AccessMutationRejectReason.ACCESS_DENIED)
     return decision
+
+
+async def _validate_access_target(
+    uow: AccessControlUnitOfWork,
+    target: AccessTarget,
+) -> AccessTargetValidationResult:
+    if isinstance(target, UserTarget):
+        subject = await uow.subjects.resolve(target.contact_id)
+        if isinstance(subject, AccessSubjectMissing):
+            return AccessMutationRejected(reason=AccessMutationRejectReason.CONTACT_NOT_FOUND)
+        if isinstance(subject, AccessSubjectNotUser):
+            return AccessMutationRejected(reason=AccessMutationRejectReason.CONTACT_NOT_USER)
+        return AccessTargetValid()
+    if isinstance(target, GroupTarget):
+        group = await uow.groups.get(target.group_id)
+        if isinstance(group, GroupMissing):
+            return AccessMutationRejected(reason=AccessMutationRejectReason.GROUP_NOT_FOUND)
+    return AccessTargetValid()
+
+
+def _map_planner_rejection(result: RightsMutationRejected) -> AccessMutationRejected:
+    mapping = {
+        RightsMutationRejectReason.ZERO_VALUE: AccessMutationRejectReason.ZERO_VALUE,
+        RightsMutationRejectReason.RESERVED_RIGHT: AccessMutationRejectReason.RESERVED_RIGHT,
+        RightsMutationRejectReason.GLOBAL_CONTROL_APP: AccessMutationRejectReason.GLOBAL_CONTROL_APP,
+    }
+    return AccessMutationRejected(reason=mapping[result.reason])
 
 
 class GetGroup:
@@ -444,3 +492,151 @@ class ReplaceGroupMembers:
                 removed_contact_ids=tuple(item.contact_id for item in removed),
                 member_count=count.count,
             )
+
+
+class AssignRight:
+    def __init__(
+        self,
+        uow_factory: AccessControlUnitOfWorkFactory,
+        admin_policy: AccessAdministrationPolicy,
+        mutation_policy: RightsMutationPolicy,
+    ) -> None:
+        self._uow_factory = uow_factory
+        self._admin_policy = admin_policy
+        self._mutation_policy = mutation_policy
+
+    async def __call__(
+        self,
+        actor: AuthenticatedSubject,
+        target: AccessTarget,
+        key: PermissionKey,
+        value: RightValue,
+    ) -> RightAssigned | AccessMutationRejected:
+        async with self._uow_factory() as uow:
+            authorization = await _authorize_mutation(self._admin_policy, actor, uow)
+            if isinstance(authorization, AccessMutationRejected):
+                return authorization
+            target_validation = await _validate_access_target(uow, target)
+            if isinstance(target_validation, AccessMutationRejected):
+                return target_validation
+
+            planned = self._mutation_policy.plan_named_assign(target, key, value)
+            if isinstance(planned, RightsMutationRejected):
+                return _map_planner_rejection(planned)
+            assert isinstance(planned, RightsMutationPlanned)
+            await uow.rights.execute_plan(planned.plan)
+            await uow.commit()
+            return RightAssigned(app_id=key.app_id.value, name=key.name.value, value=value.value)
+
+
+class RevokeRight:
+    def __init__(
+        self,
+        uow_factory: AccessControlUnitOfWorkFactory,
+        admin_policy: AccessAdministrationPolicy,
+        mutation_policy: RightsMutationPolicy,
+    ) -> None:
+        self._uow_factory = uow_factory
+        self._admin_policy = admin_policy
+        self._mutation_policy = mutation_policy
+
+    async def __call__(
+        self,
+        actor: AuthenticatedSubject,
+        target: AccessTarget,
+        key: PermissionKey,
+    ) -> RightRevoked | RightAlreadyAbsent | AccessMutationRejected:
+        async with self._uow_factory() as uow:
+            authorization = await _authorize_mutation(self._admin_policy, actor, uow)
+            if isinstance(authorization, AccessMutationRejected):
+                return authorization
+            target_validation = await _validate_access_target(uow, target)
+            if isinstance(target_validation, AccessMutationRejected):
+                return target_validation
+
+            snapshot = await uow.rights.load_for_targets((target,))
+            exact_assignment_exists = any(
+                isinstance(assignment, NamedRightAssignment)
+                and assignment.target == target
+                and assignment.key == key
+                for assignment in snapshot.assignments
+            )
+            if not exact_assignment_exists:
+                return RightAlreadyAbsent(app_id=key.app_id.value, name=key.name.value)
+
+            planned = self._mutation_policy.plan_named_revoke(target, key)
+            if isinstance(planned, RightsMutationRejected):
+                return _map_planner_rejection(planned)
+            assert isinstance(planned, RightsMutationPlanned)
+            await uow.rights.execute_plan(planned.plan)
+            await uow.commit()
+            return RightRevoked(app_id=key.app_id.value, name=key.name.value)
+
+
+class SetAppAccess:
+    def __init__(
+        self,
+        uow_factory: AccessControlUnitOfWorkFactory,
+        admin_policy: AccessAdministrationPolicy,
+        mutation_policy: RightsMutationPolicy,
+    ) -> None:
+        self._uow_factory = uow_factory
+        self._admin_policy = admin_policy
+        self._mutation_policy = mutation_policy
+
+    async def __call__(
+        self,
+        actor: AuthenticatedSubject,
+        target: AccessTarget,
+        app_id: AppId,
+        mode: AppAccessMode,
+    ) -> AppAccessSet | AccessMutationRejected:
+        async with self._uow_factory() as uow:
+            authorization = await _authorize_mutation(self._admin_policy, actor, uow)
+            if isinstance(authorization, AccessMutationRejected):
+                return authorization
+            target_validation = await _validate_access_target(uow, target)
+            if isinstance(target_validation, AccessMutationRejected):
+                return target_validation
+
+            planned = self._mutation_policy.plan_app_access(target, app_id, mode)
+            if isinstance(planned, RightsMutationRejected):
+                return _map_planner_rejection(planned)
+            assert isinstance(planned, RightsMutationPlanned)
+            await uow.rights.execute_plan(planned.plan)
+            await uow.commit()
+            return AppAccessSet(app_id=app_id.value, mode=mode)
+
+
+class SetGlobalAdminAccess:
+    def __init__(
+        self,
+        uow_factory: AccessControlUnitOfWorkFactory,
+        admin_policy: AccessAdministrationPolicy,
+        mutation_policy: RightsMutationPolicy,
+    ) -> None:
+        self._uow_factory = uow_factory
+        self._admin_policy = admin_policy
+        self._mutation_policy = mutation_policy
+
+    async def __call__(
+        self,
+        actor: AuthenticatedSubject,
+        target: AccessTarget,
+        mode: GlobalAdminMode,
+    ) -> GlobalAdminAccessSet | AccessMutationRejected:
+        async with self._uow_factory() as uow:
+            authorization = await _authorize_mutation(self._admin_policy, actor, uow)
+            if isinstance(authorization, AccessMutationRejected):
+                return authorization
+            target_validation = await _validate_access_target(uow, target)
+            if isinstance(target_validation, AccessMutationRejected):
+                return target_validation
+
+            planned = self._mutation_policy.plan_global_access(target, mode)
+            if isinstance(planned, RightsMutationRejected):
+                return _map_planner_rejection(planned)
+            assert isinstance(planned, RightsMutationPlanned)
+            await uow.rights.execute_plan(planned.plan)
+            await uow.commit()
+            return GlobalAdminAccessSet(mode=mode)
