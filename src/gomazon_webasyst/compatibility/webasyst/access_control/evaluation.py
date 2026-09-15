@@ -13,6 +13,9 @@ _GLOBAL_CONTROL_APP = AppId("webasyst")
 
 
 class WebasystAccessSemantics:
+    def global_control_app(self) -> GlobalControlApp:
+        return GlobalControlApp(_GLOBAL_CONTROL_APP)
+
     def classify_app(self, app_id: AppId) -> AppClassification:
         if app_id == _GLOBAL_CONTROL_APP:
             return GlobalControlApp(app_id)
