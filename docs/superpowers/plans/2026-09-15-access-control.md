@@ -10,6 +10,25 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-15-access-control-design.md`
 
+## Implementation Status
+
+Tasks 1–10 were implemented TDD-first on `feature/access-control` and passed the full branch verification before this documentation-only completion commit.
+
+Verification evidence:
+
+- functional implementation head: `ae450bdfd921fef4bf5206bfc45f926b5305bfc4`;
+- GitHub Actions run: `34984645388`, job `104433502888`;
+- Python: 3.12.14;
+- `python -m compileall -q src tests`: success;
+- `python -m pytest -v`: **246 passed, 0 failed, 0 skipped**;
+- architecture guards passed, including ADR-023 Optional/nullability enforcement and ACL dependency/storage-boundary guards;
+- SQLite vertical flow passed for effective MAX rights, membership/count mutations, app/global access transitions, named right assign/revoke, group-right cleanup, and denied mutation;
+- `main...feature/access-control` review at functional head: **68 commits ahead / 0 behind** and changes were limited to ACL contracts/application/compatibility/infrastructure/composition, legacy ORM mappings, tests, and ACL docs;
+- review found no HTTP ACL endpoints, new RBAC tables, Team location persistence, app catalog, OAuth/API-scope changes, permission cache, or unrelated refactors;
+- implementation introduced no architectural decision beyond ADR-026…029.
+
+The unchecked boxes below are the original execution checklist retained as the historical plan; the implementation status above is the authoritative completion record.
+
 ## Global Constraints
 
 - Exact supplied Webasyst Framework 4.2.0 source is authoritative.
@@ -258,7 +277,7 @@ python -m pytest -v
 ```
 
 - [ ] **Step 7: Compare `main...feature/access-control`** and confirm no HTTP endpoints, new RBAC tables, Team location persistence, app catalog, OAuth/API scopes, permission cache, or unrelated refactors entered the slice.
-- [ ] **Step 8: Record exact verification evidence in this plan and update `AGENTS.md` only if implementation reveals an architectural decision beyond ADR-026…029**.
+- [ ] **Step 8: Record exact verification evidence in this plan and update `AGENTS.md` only if implementation reveals a new architectural decision beyond ADR-026…029**.
 - [ ] **Step 9: Commit** `test: verify access control vertical flow`.
 
 ## Verification Checklist
