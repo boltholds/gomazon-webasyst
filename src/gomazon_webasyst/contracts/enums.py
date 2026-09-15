@@ -292,3 +292,9 @@ class AppAccessMode(EnumStr):
 class GlobalAdminMode(EnumStr):
     ENABLED = "enabled"
     DISABLED = "disabled"
+
+
+class RightsMutationRejectReason(EnumStr):
+    ZERO_VALUE = "zero_value"
+    RESERVED_RIGHT = "reserved_right"
+    GLOBAL_CONTROL_APP = "global_control_app"
