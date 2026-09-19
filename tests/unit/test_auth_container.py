@@ -54,6 +54,7 @@ def test_container_exposes_auth_session_use_cases_as_first_class_dependencies():
         get_contact=object(),
         create_contact=object(),
         update_contact=object(),
+        delete_contacts=object(),
         authenticate_backend_password=authenticate,
         resolve_backend_session=resolve,
         logout_backend_session=logout,
