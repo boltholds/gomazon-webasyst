@@ -46,6 +46,10 @@ from gomazon_webasyst.composition.api_execution import (
     create_default_api_execution_components,
 )
 from gomazon_webasyst.composition.auth import create_auth_use_cases
+from gomazon_webasyst.composition.backend_session_bridge import (
+    BackendSessionBridgeComponents,
+    create_backend_session_bridge_components,
+)
 from gomazon_webasyst.composition.session_state_providers import (
     SessionStateProviderRegistry,
     StateProviderName,
@@ -73,6 +77,7 @@ class Container:
     issue_persistent_credential: IssuePersistentCredential
     restore_backend_session_from_persistent_credential: RestoreBackendSessionFromPersistentCredential
     revoke_persistent_credential: RevokePersistentCredential
+    backend_session_bridge: BackendSessionBridgeComponents
     issue_authorization_code: IssueAuthorizationCode
     exchange_authorization_code: ExchangeAuthorizationCode
     issue_implicit_api_access_token: IssueImplicitApiAccessToken
@@ -121,6 +126,10 @@ def create_container_with_session_state_registry(
     uow_factory = create_uow_factory(engine)
     session_factory = create_session_factory(engine)
     auth = create_auth_use_cases(session_factory, session_state=session_state)
+    backend_session_bridge = create_backend_session_bridge_components(
+        auth,
+        settings,
+    )
     api_credentials = create_api_credential_use_cases(session_factory)
     access = create_access_control_use_cases(session_factory)
     api_execution = create_default_api_execution_components(
@@ -144,6 +153,7 @@ def create_container_with_session_state_registry(
             auth.restore_backend_session_from_persistent_credential
         ),
         revoke_persistent_credential=auth.revoke_persistent_credential,
+        backend_session_bridge=backend_session_bridge,
         issue_authorization_code=api_credentials.issue_authorization_code,
         exchange_authorization_code=api_credentials.exchange_authorization_code,
         issue_implicit_api_access_token=api_credentials.issue_implicit_api_access_token,
