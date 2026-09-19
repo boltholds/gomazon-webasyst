@@ -63,6 +63,25 @@ def test_three_route_forms_normalize_to_same_method_target() -> None:
     ]
 
 
+def test_server_http_authorization_fallback_reaches_pipeline() -> None:
+    parts = components()
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def add_server_authorization(request, call_next):
+        request.scope["HTTP_AUTHORIZATION"] = "Bearer server-token"
+        return await call_next(request)
+
+    app.include_router(create_legacy_api_router(parts))
+    client = TestClient(app)
+
+    response = client.get("/api.php/shop/ping")
+
+    assert response.status_code == 200
+    assert len(parts.pipeline.requests) == 1
+    assert parts.pipeline.requests[0].access_token.value == "server-token"
+
+
 def test_missing_token_returns_legacy_token_required_error() -> None:
     client, _ = client_for(components())
     response = client.get("/api.php?app=shop&method=ping")
