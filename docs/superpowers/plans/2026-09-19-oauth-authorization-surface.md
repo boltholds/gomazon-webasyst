@@ -1,6 +1,6 @@
 # OAuth Authorization Surface Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Implement the Webasyst 4.2.0-compatible OAuth authorization surface for `/api.php/auth`, `/api.php/token`, and `/api.php/revoke` on top of the existing backend-session bridge, ACL, API credential core, and API response infrastructure.
 
@@ -97,7 +97,7 @@
   - `RevokeTargetProvided(token: ApiAccessToken)`;
   - `RevokeTargetMissing`.
 
-- [ ] **Step 1: Write failing Entity/VO tests**
+- [x] **Step 1: Write failing Entity/VO tests**
 
 ```python
 def test_consent_application_identity_is_app_id() -> None:
@@ -116,17 +116,17 @@ def test_requested_scope_preserves_order_and_deduplicates() -> None:
     assert scope.apps == (AppId("shop"), AppId("crm"))
 ```
 
-- [ ] **Step 2: Write failing discriminator/serialization tests**
+- [x] **Step 2: Write failing discriminator/serialization tests**
 
 Use `TypeAdapter` to assert raw strings such as `"code"`, `"token"`, `"approve"`, and `"missing"` parse into the matching `EnumStr`/discriminated variants and serialize back as strings.
 
 Assert all Pydantic OAuth result contracts are frozen and contain no `NoneType` fields.
 
-- [ ] **Step 3: Write failing taxonomy/dependency guard**
+- [x] **Step 3: Write failing taxonomy/dependency guard**
 
 Assert every non-`__init__.py` module below `application/oauth_authorization` is under `entities/`, `vo/`, `services/`, or `composites/`, and reject imports of FastAPI, Starlette, SQLAlchemy and `gomazon_webasyst.compatibility`.
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 ```bash
 python -m pytest   tests/unit/test_oauth_authorization_contracts.py   tests/architecture/test_oauth_authorization_taxonomy.py   tests/architecture/test_no_optional_result_contracts.py -v
@@ -134,17 +134,17 @@ python -m pytest   tests/unit/test_oauth_authorization_contracts.py   tests/arch
 
 Expected: FAIL because OAuth application packages/contracts do not yet exist.
 
-- [ ] **Step 5: Implement minimal taxonomy foundation**
+- [x] **Step 5: Implement minimal taxonomy foundation**
 
 Use frozen/slotted dataclasses for internal Entity/VO/request types and frozen Pydantic models for serialized result contracts. Do not add HTTP/query/form concepts here.
 
-- [ ] **Step 6: Run GREEN**
+- [x] **Step 6: Run GREEN**
 
 Run the Step 4 command.
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/oauth_authorization   src/gomazon_webasyst/contracts/oauth_authorization.py   src/gomazon_webasyst/contracts/enums.py   tests/unit/test_oauth_authorization_contracts.py   tests/architecture/test_oauth_authorization_taxonomy.py   tests/architecture/test_no_optional_result_contracts.py
@@ -171,7 +171,7 @@ git commit -m "feat: add oauth authorization contracts"
 - `LegacyOAuthConsentAccessService` uses existing `AccessControlUnitOfWorkFactory` + `RightsEvaluator`.
 - It evaluates the actual subject as backend user and ordinary app backend access; unlike `LegacyApiAppAccessService`, it has no unconditional `AppId("webasyst")` grant.
 
-- [ ] **Step 1: Write failing catalog tests**
+- [x] **Step 1: Write failing catalog tests**
 
 ```python
 def test_catalog_resolves_registered_entity_and_reports_missing() -> None:
@@ -185,7 +185,7 @@ def test_catalog_resolves_registered_entity_and_reports_missing() -> None:
 
 Pin duplicate registration rejection.
 
-- [ ] **Step 2: Write failing consent access tests**
+- [x] **Step 2: Write failing consent access tests**
 
 Pin:
 - missing subject -> denied;
@@ -194,7 +194,7 @@ Pin:
 - normal app with limited/full/global access -> granted;
 - `webasyst` with no backend right -> denied, proving no API-execution special case leaks in.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 ```bash
 python -m pytest   tests/unit/test_oauth_consent_catalog.py   tests/unit/test_oauth_consent_access.py -v
@@ -202,11 +202,11 @@ python -m pytest   tests/unit/test_oauth_consent_catalog.py   tests/unit/test_oa
 
 Expected: FAIL because ports/adapters do not exist.
 
-- [ ] **Step 4: Implement catalog and access policy**
+- [x] **Step 4: Implement catalog and access policy**
 
 Reuse `create_webasyst_rights_evaluator()`; do not duplicate rights math.
 
-- [ ] **Step 5: Run GREEN + existing access tests**
+- [x] **Step 5: Run GREEN + existing access tests**
 
 ```bash
 python -m pytest   tests/unit/test_oauth_consent_catalog.py   tests/unit/test_oauth_consent_access.py   tests/unit/test_access_control_reads.py -v
@@ -214,7 +214,7 @@ python -m pytest   tests/unit/test_oauth_consent_catalog.py   tests/unit/test_oa
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/ports/oauth_consent_apps.py   src/gomazon_webasyst/application/ports/oauth_consent_access.py   src/gomazon_webasyst/infrastructure/oauth_authorization   src/gomazon_webasyst/compatibility/webasyst/oauth   tests/unit/test_oauth_consent_catalog.py   tests/unit/test_oauth_consent_access.py
@@ -241,7 +241,7 @@ git commit -m "feat: add oauth consent catalog and access policy"
   5. granted -> append app id/entity.
 - Empty survivors return explicit `OAuthEffectiveScopeEmpty`, not invalid `ApiScope`.
 
-- [ ] **Step 1: Write failing mixed-scope test for Review Focus #3**
+- [x] **Step 1: Write failing mixed-scope test for Review Focus #3**
 
 ```python
 @pytest.mark.asyncio
@@ -270,27 +270,27 @@ async def test_scope_filter_preserves_survivor_order_and_hides_denied_apps() -> 
     assert result.applications == (SHOP, TASKS)
 ```
 
-- [ ] **Step 2: Write empty-effective-scope test**
+- [x] **Step 2: Write empty-effective-scope test**
 
 All missing/denied requested apps -> `OAuthEffectiveScopeEmpty`; no `ApiScope` constructor is invoked with an empty tuple.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Run: `python -m pytest tests/unit/test_oauth_consent_scope_service.py -v`
 
 Expected: FAIL because Service does not exist.
 
-- [ ] **Step 4: Implement minimal scope Service**
+- [x] **Step 4: Implement minimal scope Service**
 
 No HTML/client/redirect logic.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 Run the Step 3 command.
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/oauth_authorization/services/scope.py   tests/unit/test_oauth_consent_scope_service.py
@@ -319,11 +319,11 @@ git commit -m "feat: add oauth consent scope filtering"
   - issued token -> `OAuthImplicitTokenGranted`;
   - collision/concurrent issue rejection -> `OAuthAuthorizationGrantUnavailable`.
 
-- [ ] **Step 1: Write failing consent preparation tests**
+- [x] **Step 1: Write failing consent preparation tests**
 
 Pin successful `ConsentRequired` exact applications/scope and invalid-scope short circuit.
 
-- [ ] **Step 2: Write failing approval tests**
+- [x] **Step 2: Write failing approval tests**
 
 ```python
 @pytest.mark.asyncio
@@ -341,27 +341,27 @@ async def test_code_approval_uses_effective_scope_only() -> None:
 
 Also pin implicit token issuer.
 
-- [ ] **Step 3: Write failing authenticated-deny and issuer-rejection tests**
+- [x] **Step 3: Write failing authenticated-deny and issuer-rejection tests**
 
 DENY must not invoke either issuer. Credential issue rejection maps to `GRANT_UNAVAILABLE`.
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 Run: `python -m pytest tests/unit/test_oauth_authorization_flow.py -v`
 
 Expected: FAIL because Composite does not exist.
 
-- [ ] **Step 5: Implement orchestration only**
+- [x] **Step 5: Implement orchestration only**
 
 No redirect string construction, CSRF, HTML or HTTP status in application Composite.
 
-- [ ] **Step 6: Run GREEN**
+- [x] **Step 6: Run GREEN**
 
 Run the Step 4 command.
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/oauth_authorization/composites/authorization.py   tests/unit/test_oauth_authorization_flow.py
@@ -408,11 +408,11 @@ git commit -m "feat: add oauth authorization composite"
 - Cancel selects token behavior only when `raw_response_type == "token"`; missing/`"code"`/unknown values use the code-style branch exactly like the outer PHP dispatcher.
 - `LegacyOAuthDenyService.deny(request) -> OAuthDenyRedirect | OAuthDenyHtmlError`.
 
-- [ ] **Step 1: Write failing request-validation characterization tests**
+- [x] **Step 1: Write failing request-validation characterization tests**
 
 Pin PHP-falsy required inputs, code redirect optional, token redirect required, ordered deduped scope.
 
-- [ ] **Step 2: Write redirect tests for Review Focus #1**
+- [x] **Step 2: Write redirect tests for Review Focus #1**
 
 ```python
 def test_code_redirect_appends_query_without_reencoding_existing_uri() -> None:
@@ -423,11 +423,11 @@ def test_code_redirect_appends_query_without_reencoding_existing_uri() -> None:
 
 Use the exact source-characterized concatenation rules; add error query and token fragment cases. The tests must document any unusual placement relative to an existing fragment rather than “fixing” it.
 
-- [ ] **Step 3: Write cancel-before-auth tests for Review Focus #2**
+- [x] **Step 3: Write cancel-before-auth tests for Review Focus #2**
 
 Raw cancel response_type `"token"` -> fragment redirect. Missing/`"code"`/unknown response type + redirect -> query redirect. Missing/`"code"`/unknown without redirect -> `access_denied`/403 framework error. Assert Service has no strict authorization-request/current-subject/CSRF dependency.
 
-- [ ] **Step 4: Write CSRF tests**
+- [x] **Step 4: Write CSRF tests**
 
 Pin:
 - no cookie -> issue new token;
@@ -436,11 +436,11 @@ Pin:
 - missing/mismatched/falsy -> rejected;
 - generator collision is irrelevant because token has no registry.
 
-- [ ] **Step 5: Write authenticated deny tests**
+- [x] **Step 5: Write authenticated deny tests**
 
 Pin distinction from outer cancel: CODE without redirect returns HTML error state, not framework 403.
 
-- [ ] **Step 6: Run RED**
+- [x] **Step 6: Run RED**
 
 ```bash
 python -m pytest   tests/compatibility/test_legacy_oauth_auth_characterization.py   tests/unit/test_legacy_oauth_auth_services.py -v
@@ -448,17 +448,17 @@ python -m pytest   tests/compatibility/test_legacy_oauth_auth_characterization.p
 
 Expected: FAIL because compatibility Services do not exist.
 
-- [ ] **Step 7: Implement minimal services and legacy redirect policy**
+- [x] **Step 7: Implement minimal services and legacy redirect policy**
 
 Do not place login/session/cookie mutation logic here.
 
-- [ ] **Step 8: Run GREEN**
+- [x] **Step 8: Run GREEN**
 
 Run the Step 6 command.
 
 Expected: PASS.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/ports/oauth_redirect_policy.py   src/gomazon_webasyst/compatibility/webasyst/oauth   tests/compatibility/test_legacy_oauth_auth_characterization.py   tests/unit/test_legacy_oauth_auth_services.py
@@ -483,7 +483,7 @@ git commit -m "feat: add legacy oauth authorization compatibility"
 - Consent controls produce distinct `approve`, deny/default submit, and `logout` actions.
 - No JavaScript is required.
 
-- [ ] **Step 1: Write failing HTML-escaping tests**
+- [x] **Step 1: Write failing HTML-escaping tests**
 
 ```python
 def test_consent_renderer_escapes_client_and_app_names() -> None:
@@ -500,27 +500,27 @@ def test_consent_renderer_escapes_client_and_app_names() -> None:
     assert "&lt;b&gt;Shop&lt;/b&gt;" in html
 ```
 
-- [ ] **Step 2: Write form-state tests**
+- [x] **Step 2: Write form-state tests**
 
 Assert POST method, explicit action, CSRF hidden field, login identifier/password inputs, remember control, approve/deny/logout names.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Run: `python -m pytest tests/unit/test_legacy_oauth_html_renderer.py -v`
 
 Expected: FAIL.
 
-- [ ] **Step 4: Implement renderer using stdlib only**
+- [x] **Step 4: Implement renderer using stdlib only**
 
 Use string composition over escaped values. No Jinja/Smarty dependency is added in this slice.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 Run the Step 3 command.
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/gomazon_webasyst/compatibility/webasyst/oauth/services/html_renderer.py   tests/unit/test_legacy_oauth_html_renderer.py
@@ -551,15 +551,15 @@ git commit -m "feat: add oauth compatibility html renderer"
 - `OAuthControllerPayloadResponse(status_code=200, payload, format)`.
 - Serializer uses existing `LegacyJsonApiFormatter`/`LegacyXmlApiFormatter` directly; no `LegacyApiResponseRenderer`, so JSONP cannot activate.
 
-- [ ] **Step 1: Write POST-only request tests**
+- [x] **Step 1: Write POST-only request tests**
 
 Put valid protocol values in query with empty form -> invalid_request. Put form values -> parsed.
 
-- [ ] **Step 2: Write grant/error mapping tests**
+- [x] **Step 2: Write grant/error mapping tests**
 
 Pin unsupported_grant_type vs invalid_request vs invalid_grant and success-only access_token field.
 
-- [ ] **Step 3: Write format/JSONP Review Focus #5 tests**
+- [x] **Step 3: Write format/JSONP Review Focus #5 tests**
 
 ```python
 def test_callback_does_not_enable_jsonp_for_token_controller() -> None:
@@ -573,7 +573,7 @@ def test_callback_does_not_enable_jsonp_for_token_controller() -> None:
 
 A query callback must never be consumed by this service.
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 ```bash
 python -m pytest   tests/compatibility/test_legacy_oauth_token_characterization.py   tests/unit/test_legacy_oauth_token_controller.py -v
@@ -581,17 +581,17 @@ python -m pytest   tests/compatibility/test_legacy_oauth_token_characterization.
 
 Expected: FAIL.
 
-- [ ] **Step 5: Implement token Services/response Composite**
+- [x] **Step 5: Implement token Services/response Composite**
 
 Keep all ordinary controller outcomes at status 200.
 
-- [ ] **Step 6: Run GREEN**
+- [x] **Step 6: Run GREEN**
 
 Run the Step 4 command.
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/gomazon_webasyst/compatibility/webasyst/oauth/services/controller_format.py   src/gomazon_webasyst/compatibility/webasyst/oauth/services/token_controller.py   src/gomazon_webasyst/compatibility/webasyst/oauth/composites   tests/compatibility/test_legacy_oauth_token_characterization.py   tests/unit/test_legacy_oauth_token_controller.py
@@ -619,11 +619,11 @@ git commit -m "feat: add legacy oauth token controller"
   - target provided -> invoke revoke use case, return the exact target token on both revoked/already-missing result.
 - Authentication token extraction itself reuses existing `LegacyApiCredentialExtractionService`.
 
-- [ ] **Step 1: Write failing revoke-auth sequencing test**
+- [x] **Step 1: Write failing revoke-auth sequencing test**
 
 Assert `resolve token -> activity` and rejection short-circuits activity.
 
-- [ ] **Step 2: Write target extraction tests for Review Focus #4**
+- [x] **Step 2: Write target extraction tests for Review Focus #4**
 
 ```python
 def test_request_token_shadows_bearer_and_becomes_revoke_target() -> None:
@@ -643,11 +643,11 @@ def test_request_token_shadows_bearer_and_becomes_revoke_target() -> None:
 
 Also pin form empty shadows query -> target missing while header may authenticate.
 
-- [ ] **Step 3: Write header-only no-op controller test**
+- [x] **Step 3: Write header-only no-op controller test**
 
 Authenticated Bearer token + `RevokeTargetMissing` -> no revoke call and payload `{"access_token": ""}`.
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 ```bash
 python -m pytest   tests/unit/test_oauth_revoke_authentication_flow.py   tests/compatibility/test_legacy_oauth_revoke_characterization.py   tests/unit/test_legacy_oauth_revoke_controller.py -v
@@ -655,17 +655,17 @@ python -m pytest   tests/unit/test_oauth_revoke_authentication_flow.py   tests/c
 
 Expected: FAIL.
 
-- [ ] **Step 5: Implement Composite and target/controller Services**
+- [x] **Step 5: Implement Composite and target/controller Services**
 
 Do not create empty `ApiAccessToken`.
 
-- [ ] **Step 6: Run GREEN**
+- [x] **Step 6: Run GREEN**
 
 Run the Step 4 command.
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/oauth_authorization/composites/revoke_authentication.py   src/gomazon_webasyst/compatibility/webasyst/oauth/services/revoke_target.py   src/gomazon_webasyst/compatibility/webasyst/oauth/services/revoke_controller.py   tests/unit/test_oauth_revoke_authentication_flow.py   tests/compatibility/test_legacy_oauth_revoke_characterization.py   tests/unit/test_legacy_oauth_revoke_controller.py
@@ -714,31 +714,31 @@ git commit -m "feat: add legacy oauth revoke flow"
   - `LegacyUnregisteredRedirectPolicy`.
 - `Container.oauth_authorization: OAuthAuthorizationComponents`.
 
-- [ ] **Step 1: Write failing composition reuse tests**
+- [x] **Step 1: Write failing composition reuse tests**
 
 Assert exact identity reuse for backend session bridge and all API credential use cases; do not create second credential cores.
 
-- [ ] **Step 2: Write default-policy tests**
+- [x] **Step 2: Write default-policy tests**
 
 Default catalog empty; redirect policy legacy-unregistered; shared precondition object is `container.api_execution.preconditions`.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Run: `python -m pytest tests/unit/test_oauth_authorization_container.py tests/unit/test_container.py -v`
 
 Expected: FAIL.
 
-- [ ] **Step 4: Implement composition/container wiring**
+- [x] **Step 4: Implement composition/container wiring**
 
 Do not mount HTTP routes in this task.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 Run the Step 3 command.
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/gomazon_webasyst/composition/oauth_authorization.py   src/gomazon_webasyst/composition/container.py   tests/unit/test_oauth_authorization_container.py   tests/unit/test_container.py
@@ -772,15 +772,15 @@ git commit -m "feat: compose oauth authorization surface"
   10. approve/deny -> application/compatibility result -> redirect/code/error.
 - CSRF cookie transport is presentation-only; default cookie name `_csrf`, path `/`, SameSite=Lax, Secure uses `backend_auth_cookie_secure`, HttpOnly=false because double-submit/browser form compatibility needs form access only from server-rendered value, not JS.
 
-- [ ] **Step 1: Write failing cancel-before-auth HTTP test for Review Focus #2**
+- [x] **Step 1: Write failing cancel-before-auth HTTP test for Review Focus #2**
 
 Use spies for current-subject, CSRF and full authorization-request parser that fail if called. POST `cancel=1` with missing `client_id`/`scope`, invalid cookies and invalid CSRF must still return the legacy cancel redirect/error.
 
-- [ ] **Step 2: Write login/current-subject HTTP tests**
+- [x] **Step 2: Write login/current-subject HTTP tests**
 
 GET unauthenticated, even with incomplete/invalid OAuth query fields, -> login page + CSRF cookie. POST valid password + matching CSRF -> session cookie + redirect to the same OAuth URL; only the subsequent authenticated request performs full OAuth validation/consent. Invalid login remains login page and never issues grant.
 
-- [ ] **Step 3: Write consent/grant/deny/logout tests**
+- [x] **Step 3: Write consent/grant/deny/logout tests**
 
 Pin:
 - authenticated GET consent;
@@ -790,27 +790,27 @@ Pin:
 - authenticated deny code/token;
 - authenticated logout clears `gomazon_session`/`auth_token` and redirects same auth URL.
 
-- [ ] **Step 4: Write API disabled/HTTPS tests**
+- [x] **Step 4: Write API disabled/HTTPS tests**
 
 These execute before cancel/login/consent.
 
-- [ ] **Step 5: Run RED**
+- [x] **Step 5: Run RED**
 
 Run: `python -m pytest tests/unit/test_legacy_oauth_auth_http.py -v`
 
 Expected: FAIL because router does not exist.
 
-- [ ] **Step 6: Implement /auth presentation**
+- [x] **Step 6: Implement /auth presentation**
 
 Keep business rules delegated; presentation only sequences transport-aware branches described above.
 
-- [ ] **Step 7: Run GREEN**
+- [x] **Step 7: Run GREEN**
 
 Run the Step 5 command.
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/gomazon_webasyst/presentation/http/legacy_oauth.py   tests/unit/test_legacy_oauth_auth_http.py
@@ -850,11 +850,11 @@ git commit -m "feat: add legacy oauth authorization http flow"
   2. `create_legacy_oauth_router(container.oauth_authorization)`;
   3. `create_legacy_api_router(container.api_execution)`.
 
-- [ ] **Step 1: Write token HTTP tests**
+- [x] **Step 1: Write token HTTP tests**
 
 Pin success/error JSON/XML, POST-only protocol parameter behavior, GET with no POST protocol fields -> HTTP-200 invalid_request instead of 405, invalid format JSON error, callback ignored, all controller payload outcomes status 200.
 
-- [ ] **Step 2: Write revoke HTTP tests**
+- [x] **Step 2: Write revoke HTTP tests**
 
 Pin:
 - request token revokes;
@@ -864,11 +864,11 @@ Pin:
 - request token precedence over Bearer;
 - callback is ignored only after authentication succeeds and controller response rendering begins.
 
-- [ ] **Step 3: Write static-route precedence test**
+- [x] **Step 3: Write static-route precedence test**
 
 Use a method-registry spy that raises if called. Requests to auth/token/revoke must never hit generic method execution router.
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 ```bash
 python -m pytest   tests/unit/test_legacy_oauth_token_revoke_http.py   tests/unit/test_oauth_route_precedence.py   tests/unit/test_legacy_api_http_adapter.py -v
@@ -876,17 +876,17 @@ python -m pytest   tests/unit/test_legacy_oauth_token_revoke_http.py   tests/uni
 
 Expected: FAIL.
 
-- [ ] **Step 5: Implement token/revoke routes and main mount order**
+- [x] **Step 5: Implement token/revoke routes and main mount order**
 
 Existing generic reserved-endpoint rejection remains unchanged as a defensive fallback.
 
-- [ ] **Step 6: Run GREEN**
+- [x] **Step 6: Run GREEN**
 
 Run the Step 4 command.
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/gomazon_webasyst/presentation/http/legacy_oauth.py   src/gomazon_webasyst/main.py   tests/unit/test_legacy_oauth_token_revoke_http.py   tests/unit/test_oauth_route_precedence.py   tests/unit/test_legacy_api_http_adapter.py
@@ -896,7 +896,7 @@ git commit -m "feat: mount legacy oauth token and revoke routes"
 ### Task 12: Real SQLite end-to-end OAuth browser/API loop
 
 **Files:**
-- Create: `tests/integration/test_oauth_authorization_surface_flow.py`
+- Create: `tests/integration/test_oauth_authorization_flow.py`
 
 **Interfaces:**
 - Real Container + SQLite legacy tables + in-memory session store.
@@ -907,7 +907,7 @@ git commit -m "feat: mount legacy oauth token and revoke routes"
   - no rights for `crm`.
 - Register consent apps SHOP and CRM.
 
-- [ ] **Step 1: Write code-grant browser flow**
+- [x] **Step 1: Write code-grant browser flow**
 
 1. GET `/api.php/auth?client_id=client&client_name=Demo&response_type=code&scope=shop,crm&redirect_uri=https://client.test/cb`.
 2. Assert login HTML + CSRF.
@@ -919,32 +919,32 @@ git commit -m "feat: mount legacy oauth token and revoke routes"
 8. Assert JSON access_token.
 9. Verify stored token scope contains only SHOP.
 
-- [ ] **Step 2: Write revoke normal path**
+- [x] **Step 2: Write revoke normal path**
 
 Use returned token as request-level `access_token`; revoke; verify token no longer resolves from persistence.
 
-- [ ] **Step 3: Write header-only revoke quirk path**
+- [x] **Step 3: Write header-only revoke quirk path**
 
 Issue/reuse token again, call revoke with Bearer header only, assert response access_token empty and token still resolves in persistence.
 
-- [ ] **Step 4: Write implicit token browser flow**
+- [x] **Step 4: Write implicit token browser flow**
 
 Login/consent with `response_type=token`; approve; assert fragment `#access_token=`.
 
-- [ ] **Step 5: Write cancel and code-display flows**
+- [x] **Step 5: Write cancel and code-display flows**
 
 Pin unauthenticated cancel before CSRF and code approval without redirect URI showing HTML code.
 
-- [ ] **Step 6: Run RED/GREEN**
+- [x] **Step 6: Run RED/GREEN**
 
-Run: `python -m pytest tests/integration/test_oauth_authorization_surface_flow.py -v`
+Run: `python -m pytest tests/integration/test_oauth_authorization_flow.py -v`
 
 Expected after implementation: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
-git add tests/integration/test_oauth_authorization_surface_flow.py
+git add tests/integration/test_oauth_authorization_flow.py
 git commit -m "test: verify oauth authorization surface flow"
 ```
 
@@ -960,7 +960,7 @@ git commit -m "test: verify oauth authorization surface flow"
 **Interfaces:**
 - No runtime interface; pins architecture and records verification.
 
-- [ ] **Step 1: Add application boundary guards**
+- [x] **Step 1: Add application boundary guards**
 
 Reject below `application/oauth_authorization`:
 - FastAPI/Starlette;
@@ -971,7 +971,7 @@ Reject below `application/oauth_authorization`:
 - `set_cookie`/`delete_cookie`;
 - dynamic import helpers.
 
-- [ ] **Step 2: Add scope guards**
+- [x] **Step 2: Add scope guards**
 
 Reject on the feature diff:
 - `token-headless`;
@@ -981,19 +981,19 @@ Reject on the feature diff:
 - new OAuth client persistence tables/models;
 - PHP session decoding.
 
-- [ ] **Step 3: Add route-order guard**
+- [x] **Step 3: Add route-order guard**
 
 Parse/read `main.py` and assert OAuth router include appears before generic legacy API router include.
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 ```bash
-python -m pytest   tests/unit/test_oauth_authorization_contracts.py   tests/unit/test_oauth_consent_catalog.py   tests/unit/test_oauth_consent_access.py   tests/unit/test_oauth_consent_scope_service.py   tests/unit/test_oauth_authorization_flow.py   tests/unit/test_legacy_oauth_auth_services.py   tests/unit/test_legacy_oauth_html_renderer.py   tests/unit/test_legacy_oauth_token_controller.py   tests/unit/test_oauth_revoke_authentication_flow.py   tests/unit/test_legacy_oauth_revoke_controller.py   tests/unit/test_oauth_authorization_container.py   tests/unit/test_legacy_oauth_auth_http.py   tests/unit/test_legacy_oauth_token_revoke_http.py   tests/unit/test_oauth_route_precedence.py   tests/compatibility/test_legacy_oauth_auth_characterization.py   tests/compatibility/test_legacy_oauth_token_characterization.py   tests/compatibility/test_legacy_oauth_revoke_characterization.py   tests/integration/test_oauth_authorization_surface_flow.py   tests/architecture/test_oauth_authorization_taxonomy.py   tests/architecture/test_oauth_authorization_boundaries.py   tests/architecture/test_no_optional_result_contracts.py -v
+python -m pytest   tests/unit/test_oauth_authorization_contracts.py   tests/unit/test_oauth_consent_catalog.py   tests/unit/test_oauth_consent_access.py   tests/unit/test_oauth_consent_scope_service.py   tests/unit/test_oauth_authorization_flow.py   tests/unit/test_legacy_oauth_auth_services.py   tests/unit/test_legacy_oauth_html_renderer.py   tests/unit/test_legacy_oauth_token_controller.py   tests/unit/test_oauth_revoke_authentication_flow.py   tests/unit/test_legacy_oauth_revoke_controller.py   tests/unit/test_oauth_authorization_container.py   tests/unit/test_legacy_oauth_auth_http.py   tests/unit/test_legacy_oauth_token_revoke_http.py   tests/unit/test_oauth_route_precedence.py   tests/compatibility/test_legacy_oauth_auth_characterization.py   tests/compatibility/test_legacy_oauth_token_characterization.py   tests/compatibility/test_legacy_oauth_revoke_characterization.py   tests/integration/test_oauth_authorization_flow.py   tests/architecture/test_oauth_authorization_taxonomy.py   tests/architecture/test_oauth_authorization_boundaries.py   tests/architecture/test_no_optional_result_contracts.py -v
 ```
 
 Expected: PASS.
 
-- [ ] **Step 5: Run complete verification**
+- [x] **Step 5: Run complete verification**
 
 ```bash
 python -m compileall -q src tests
@@ -1002,7 +1002,7 @@ python -m pytest -v
 
 Expected: compile success and zero failures.
 
-- [ ] **Step 6: Inspect diff against main**
+- [x] **Step 6: Inspect diff against main**
 
 ```bash
 git diff --name-only main...feature/oauth-authorization-surface
@@ -1011,7 +1011,7 @@ git diff --stat main...feature/oauth-authorization-surface
 
 Confirm no out-of-scope token-headless/client-registry/PKCE/refresh-token/PHP-session implementation entered the branch.
 
-- [ ] **Step 7: Update implementation status**
+- [x] **Step 7: Update implementation status**
 
 Append exact:
 - final feature SHA;
@@ -1020,7 +1020,7 @@ Append exact:
 - confirmation that all three OAuth routes are mounted before method catch-all;
 - confirmation that header-only revoke quirk and HTTP-200 token/revoke semantics are covered.
 
-- [ ] **Step 8: Commit completion record**
+- [x] **Step 8: Commit completion record**
 
 ```bash
 git add tests/architecture/test_oauth_authorization_boundaries.py   tests/architecture/test_dependency_boundaries.py   tests/architecture/test_no_optional_result_contracts.py   docs/superpowers/plans/2026-09-19-oauth-authorization-surface.md   AGENTS.md
@@ -1047,3 +1047,30 @@ Before integration, the branch tip must prove:
 - token/revoke ignore JSONP callback;
 - OAuth static routes precede generic method catch-all;
 - token-headless, client registration, PKCE, refresh tokens, OIDC and PHP sessions remain absent.
+
+
+## Implementation Status
+
+Implemented and gap-audited on `feature/oauth-authorization-surface`.
+
+Code-bearing verification head: `7ae33d5b60a99011e469ece882072f5c43e25201`.
+
+Fresh GitHub Actions verification on that code-bearing head:
+
+- Python 3.12 compile source tree: **success**.
+- Full pytest suite: **581 passed, 0 failed, 0 skipped** (9 compatibility/deprecation warnings from the current Starlette/TestClient stack and cookie-test calls).
+- `/api.php/auth`, `/api.php/token`, and `/api.php/revoke` are mounted as static OAuth routes before the generic legacy API catch-all.
+- OAuth application code remains classified under Entity / VO / Services / Composite and has no FastAPI/Starlette, SQLAlchemy, HTML, cookie, or Webasyst compatibility dependencies.
+- No token-headless, OAuth client registry, PKCE, refresh-token, OIDC, or PHP-session implementation entered the runtime scope.
+
+Native execution began as a plan-vs-code gap audit because Tasks 1–8 were already present on the feature branch. Existing code was retained when it matched the accepted spec; TDD was used only for concrete gaps and Tasks 9–13.
+
+Additional gaps closed during execution:
+
+1. OAuth composition now exposes `LegacyOAuthTokenRequestService` and `LegacyOAuthRedirectService` explicitly instead of requiring HTTP presentation to construct hidden transport services.
+2. `/api.php/auth` preserves source-backed ordering: transport preconditions, outer cancel before session/auth/CSRF/full OAuth validation, backend login redirect to the exact same OAuth URL, then authenticated request/redirect validation, CSRF, logout, and consent decision.
+3. `/api.php/token` keeps protocol fields POST-only while accepting the legacy controller route on ordinary HTTP methods, returning HTTP-200 JSON/XML controller payloads and ignoring JSONP callback.
+4. `/api.php/revoke` performs outer token authentication before controller-level format handling and keeps authentication credential separate from request-level deletion target, including the header-only Bearer no-op deletion quirk.
+5. `main.py` mounts the OAuth router before the generic `/api.php/{api_path:path}` router.
+6. A real SQLite + ASGI vertical flow now covers backend login, filtered consent, authorization-code issuance, reusable code exchange, request-token revoke, implicit token grant, header-only revoke no-op, cancel, and code display without redirect.
+7. Architecture guards pin route ordering, prohibit transport/HTML/dynamic-loading leakage into OAuth application code, and reject out-of-scope OAuth protocols/persistence.
