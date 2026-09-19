@@ -23,6 +23,7 @@ Authoritative companion artifacts:
 - OAuth authorization surface design: `docs/superpowers/specs/2026-09-19-oauth-authorization-surface-design.md`
 - Installed application registry/discovery design: `docs/superpowers/specs/2026-09-19-installed-application-registry-discovery-design.md`
 - Installed application registry/discovery plan: `docs/superpowers/plans/2026-09-19-installed-application-registry-discovery.md`
+- Application runtime/events/plugins design: `docs/superpowers/specs/2026-09-19-application-runtime-events-plugins-design.md`
 - Official legacy documentation reference: `https://developers.webasyst.com/docs`
 
 ---
@@ -360,6 +361,24 @@ Date: 2026-09-19
 Webasyst 4.2.0 `waSystem::getApps()` translates application/header-item names and caches loaded app info per locale, while also injecting a `build` value from `build.php`, debug time, or zero. The Python runtime intentionally constructs one shared installed-application snapshot per Container, so that canonical snapshot MUST NOT capture a request/user locale or cache-busting build value. `InstalledApplication` stores the raw manifest default name plus normalized static metadata; locale-specific names belong to a later consumer projection/localization boundary. Until that projection exists, OAuth consent may display the manifest default name and MUST NOT be described as having localized UI parity. Legacy build metadata is omitted until a concrete consumer requires it.
 
 
+### ADR-047 — Installed metadata and executable Python runtime are separate truths
+Status: accepted
+Date: 2026-09-19
+
+`InstalledApplicationCatalog` and the new `InstalledPluginCatalog` describe what the legacy Webasyst installation says is installed/enabled. They MUST NOT contain executable Python callables, service instances, dynamically imported classes, or request-time state. Executable behavior is declared separately through explicit immutable `ApplicationRuntimeModule` and `PluginRuntimeModule` values assembled in composition. An installed app/plugin is not executable in Python until its runtime module is explicitly linked; a runtime module for an app/plugin that is not installed/enabled is invalid composition.
+
+### ADR-048 — Event dispatch uses explicit handler definitions and preserves legacy ordering/first-result semantics
+Status: accepted
+Date: 2026-09-19
+
+PHP handler-file scanning, class-name derivation and `class_exists()` execution are replaced by an application-owned `EventHandlerRegistry` of explicit `EventHandlerDefinition` Entities. Event identity is `EventKey(AppId, EventName)`; source-app selection and event-name patterns use typed variants rather than magic `*` strings. Matching preserves Webasyst 4.2.0 bucket precedence: exact app/exact event -> exact app/masked event -> any app/exact event -> any app/masked event, with registration order preserved inside each bucket. Only the first non-empty result per application/plugin result owner is retained; a no-result outcome leaves that owner eligible. Handler failures are diagnosed and dispatch continues, matching legacy non-fatal handler behavior.
+
+### ADR-049 — Application runtime linking is a startup validation step, not a service locator or hot-loader
+Status: accepted
+Date: 2026-09-19
+
+A single `ApplicationRuntimeLinker` validates all Python runtime declarations against canonical installed application/plugin catalogs before populating the existing dispatch/API registries and the new event registry. Validation completes before live registries are mutated so duplicate/foreign registrations fail composition instead of leaving a partial runtime. Runtime modules are imported only through explicit Python composition code; request/app/plugin strings MUST NOT select modules or classes. The first runtime graph is immutable after startup; live plugin/app enable/disable, import scanning, PHP execution, cron scheduling and installer-driven hot reload are later slices.
+
 ---
 
 ## Target dependency direction
@@ -568,6 +587,25 @@ The first auth slice is backend password authentication plus session create/reso
 
 ---
 
+## Application runtime / events / plugins compatibility rules
+
+- installed app/plugin metadata and executable Python runtime declarations are separate; discovery never implies execution;
+- enabled plugins are discovered from `wa-config/apps/<app_id>/plugins.php` plus `wa-apps/<app_id>/plugins/<plugin_id>/lib/config/plugin.php`, using the restricted declarative PHP parser only;
+- missing plugin config is skipped and falsy plugin entries are disabled, matching characterized 4.2.0 behavior;
+- legacy plugin capability flags normalize implicit event declarations: `rights -> rights.config`, `frontend -> routing`, and event discovery may add `cron -> cron`;
+- plugin manifest handler declarations are migration inventory only; they MUST NOT dynamically import/execute PHP or Python classes;
+- Python application/plugin runtime modules explicitly declare API, dispatch and event contributions and are linked only during startup composition;
+- event identity is `EventKey(AppId, EventName)`; event source selectors and name patterns are typed variants, not `None` or magic sentinel fields;
+- event matching preserves legacy exact/masked source/name bucket order and registration order;
+- event dispatch retains only the first non-empty result per application/plugin owner while allowing later handlers after no-result outcomes;
+- handler exceptions are recorded as diagnostics and do not abort unrelated handlers by default;
+- compatibility result-key formatting and `array_keys` padding remain Webasyst adapters, not event-core rules;
+- raw PCRE event patterns are isolated behind a compatibility matcher boundary and MUST NOT become arbitrary unbounded regex evaluation in application code;
+- installed-but-unmigrated apps/plugins remain visible in catalogs but non-executable;
+- plugin install/update/uninstall, settings UI, templates/assets, widgets, cron execution, CLI execution and live runtime reload are out of the first runtime slice.
+
+---
+
 ## API execution compatibility rules
 
 - all new API Execution Core domain/application code is organized explicitly under Entity, VO, Services, or Composite;
@@ -689,6 +727,9 @@ Cover DB wiring, ASGI compatibility flow, auth/session composition, persistent-l
 29. Keep API transport normalization and JSON/XML/JSONP rendering outside application execution; handlers receive typed context/parameters, never HTTP/ORM objects.
 30. Resolve runtime-installed application identity/metadata through the canonical `InstalledApplicationCatalog`; do not introduce consumer-owned production app universes.
 31. Parse legacy PHP application configuration only through the restricted compatibility parser; never evaluate arbitrary PHP or derive executable Python imports from app/request strings.
+32. Keep installed app/plugin metadata separate from executable runtime modules; discovery MUST NOT auto-register handlers or Python imports.
+33. Link application/plugin runtime contributions only through the startup `ApplicationRuntimeLinker` after full validation against installed catalogs.
+34. Resolve events only through explicit `EventHandlerRegistry` definitions and preserve characterized handler ordering/first-result behavior; never scan/execute PHP handlers at request time.
 
 ---
 
