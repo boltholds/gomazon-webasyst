@@ -1,56 +1,79 @@
-from importlib import import_module
-
 import pytest
 
-from gomazon_webasyst.application.access_values import AppId
+from gomazon_webasyst.application.app_values import AppId
+from gomazon_webasyst.application.application_registry import (
+    ApplicationCatalog,
+    InstallationManifest,
+    InstalledApplication,
+    StaticApplicationRegistry,
+)
+from gomazon_webasyst.application.oauth_authorization.services.app_catalog import (
+    RegistryBackedOAuthConsentAppCatalog,
+)
+from gomazon_webasyst.application.ports.oauth_consent_apps import (
+    OAuthConsentApplicationMissing,
+    OAuthConsentApplicationResolved,
+)
+from gomazon_webasyst.contracts.applications import ApplicationDescriptor
 
 
-def _modules():
-    try:
-        entity = import_module(
-            "gomazon_webasyst.application.oauth_authorization.entities.consent_application"
-        )
-        client = import_module(
-            "gomazon_webasyst.application.oauth_authorization.vo.client"
-        )
-        ports = import_module(
-            "gomazon_webasyst.application.ports.oauth_consent_apps"
-        )
-        infra = import_module(
-            "gomazon_webasyst.infrastructure.oauth_authorization.app_catalog"
-        )
-        return entity, client, ports, infra
-    except ModuleNotFoundError as error:
-        pytest.fail(f"oauth consent catalog missing: {error}")
-
-
-def app(app_id: str, name: str):
-    entity, client, _, _ = _modules()
-    return entity.OAuthConsentApplication(
-        app_id=AppId(app_id),
-        display_name=client.OAuthAppDisplayName(name),
-        icon=client.OAuthAppIconReference(f"/{app_id}.png"),
+def _registry(
+    *,
+    enabled: tuple[str, ...] = ("shop",),
+    shop_icon: str = "/shop.png",
+) -> StaticApplicationRegistry:
+    return StaticApplicationRegistry(
+        ApplicationCatalog(
+            applications=(
+                ApplicationDescriptor(
+                    id=AppId("shop"),
+                    name="Shop",
+                    icon=shop_icon,
+                ),
+                ApplicationDescriptor(
+                    id=AppId("crm"),
+                    name="CRM",
+                    icon="/crm.png",
+                ),
+            ),
+        ),
+        InstallationManifest(
+            apps=tuple(
+                InstalledApplication(AppId(app_id))
+                for app_id in enabled
+            )
+        ),
     )
 
 
-def test_catalog_resolves_registered_entity_and_reports_missing() -> None:
-    _, _, ports, infra = _modules()
-    shop = app("shop", "Shop")
-    catalog = infra.InMemoryOAuthConsentAppCatalog((shop,))
+def test_catalog_projects_enabled_registry_application() -> None:
+    registry = _registry()
+    catalog = RegistryBackedOAuthConsentAppCatalog(registry)
 
     resolved = catalog.resolve(AppId("shop"))
-    missing = catalog.resolve(AppId("crm"))
 
-    assert isinstance(resolved, ports.OAuthConsentApplicationResolved)
-    assert resolved.application is shop
-    assert isinstance(missing, ports.OAuthConsentApplicationMissing)
-    assert missing.app_id == AppId("crm")
+    assert isinstance(resolved, OAuthConsentApplicationResolved)
+    assert resolved.application.app_id == AppId("shop")
+    assert resolved.application.display_name.value == "Shop"
+    assert resolved.application.icon.value == "/shop.png"
 
 
-def test_catalog_rejects_duplicate_app_identity() -> None:
-    _, _, _, infra = _modules()
-    first = app("shop", "Shop")
-    second = app("shop", "Other Shop")
+def test_catalog_hides_disabled_and_unknown_applications() -> None:
+    catalog = RegistryBackedOAuthConsentAppCatalog(_registry())
 
-    with pytest.raises(ValueError, match="duplicate"):
-        infra.InMemoryOAuthConsentAppCatalog((first, second))
+    disabled = catalog.resolve(AppId("crm"))
+    unknown = catalog.resolve(AppId("missing"))
+
+    assert isinstance(disabled, OAuthConsentApplicationMissing)
+    assert disabled.app_id == AppId("crm")
+    assert isinstance(unknown, OAuthConsentApplicationMissing)
+    assert unknown.app_id == AppId("missing")
+
+
+def test_enabled_consent_application_requires_real_icon_metadata() -> None:
+    catalog = RegistryBackedOAuthConsentAppCatalog(
+        _registry(shop_icon="")
+    )
+
+    with pytest.raises(ValueError, match="has no icon"):
+        catalog.resolve(AppId("shop"))
