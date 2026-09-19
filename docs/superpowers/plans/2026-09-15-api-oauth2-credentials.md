@@ -1,6 +1,6 @@
 # API OAuth2 Credential Core Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add a typed Webasyst 4.2.0-compatible authorization-code and API access-token core over `wa_api_auth_codes` and `wa_api_tokens`, ready for a later HTTP/API compatibility layer.
 
@@ -41,7 +41,7 @@
 - Produces explicit `ApiTokenNeverExpires | ApiTokenExpiresAt` and `ApiTokenNeverUsed | ApiTokenLastUsedAt` states.
 - Produces Pydantic stored records and discriminated issuance/resolution/revocation/exchange result variants.
 
-- [ ] **Step 1: Write failing value tests**
+- [x] **Step 1: Write failing value tests**
 
 ```python
 import pytest
@@ -65,23 +65,23 @@ def test_client_id_rejects_empty_value():
         ApiClientId("")
 ```
 
-- [ ] **Step 2: Write failing contract tests** proving expiry/last-use state is an explicit union and every expected negative result has a concrete variant.
+- [x] **Step 2: Write failing contract tests** proving expiry/last-use state is an explicit union and every expected negative result has a concrete variant.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Run: `python -m pytest tests/unit/test_api_credential_contracts.py tests/architecture/test_no_optional_result_contracts.py -v`
 Expected: FAIL for missing modules/types.
 
-- [ ] **Step 4: Implement minimal values/enums/contracts**
+- [x] **Step 4: Implement minimal values/enums/contracts**
 
 Use frozen/slotted dataclasses for internal immutable VOs and Pydantic discriminated models for cross-boundary stored records/results. Do not use `datetime | None` in application/contracts.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 Run: `python -m pytest tests/unit/test_api_credential_contracts.py tests/architecture/test_no_optional_result_contracts.py -v`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/api_credential_values.py src/gomazon_webasyst/contracts/api_credentials.py src/gomazon_webasyst/contracts/enums.py tests/unit/test_api_credential_contracts.py tests/architecture/test_no_optional_result_contracts.py
@@ -99,7 +99,7 @@ git commit -m "feat: add typed api credential contracts"
 - Adds ORM rows for `wa_api_auth_codes` and `wa_api_tokens` with exact legacy table/column names and nullability.
 - Pins code TTL=180 seconds, 32-char hex shape, unique `(contact_id, client_id)`, nullable token expiry/last-use, token reuse, and non-consuming code exchange.
 
-- [ ] **Step 1: Write source-characterization tests**
+- [x] **Step 1: Write source-characterization tests**
 
 Tests must pin these facts from the supplied 4.2.0 source:
 
@@ -115,23 +115,23 @@ successful exchange does not delete/consume code
 token creation reuses existing subject/client token and updates scope
 ```
 
-- [ ] **Step 2: Write failing ORM mapping tests** asserting table names, PKs, column lengths/nullability, and unique constraint; SQLite metadata must create both tables.
+- [x] **Step 2: Write failing ORM mapping tests** asserting table names, PKs, column lengths/nullability, and unique constraint; SQLite metadata must create both tables.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Run: `python -m pytest tests/compatibility/test_api_oauth2_characterization.py tests/unit/test_api_credential_sqlalchemy_mapping.py -v`
 Expected: characterization passes only where source fixture already supports it; mapping tests fail until ORM classes exist.
 
-- [ ] **Step 4: Add SQLAlchemy mappings**
+- [x] **Step 4: Add SQLAlchemy mappings**
 
 Genuine legacy nullable columns may use `datetime | None` only inside ORM row classes under ADR-023.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 Run: `python -m pytest tests/compatibility/test_api_oauth2_characterization.py tests/unit/test_api_credential_sqlalchemy_mapping.py -v`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/gomazon_webasyst/infrastructure/persistence/sqlalchemy/models.py tests/compatibility/test_api_oauth2_characterization.py tests/unit/test_api_credential_sqlalchemy_mapping.py
@@ -155,7 +155,7 @@ git commit -m "feat: map legacy api oauth credential tables"
 - `LegacyApiScopeCodec.encode/decode` converts `ApiScope` to/from comma-separated storage strings without leaking strings upward.
 - `WebasystApiCredentialGenerator` uses `secrets.token_hex(16)`.
 
-- [ ] **Step 1: Write failing policy/generator tests**
+- [x] **Step 1: Write failing policy/generator tests**
 
 ```python
 def test_webasyst_generator_emits_lowercase_32_hex_chars():
@@ -177,21 +177,21 @@ def test_webasyst_exchange_policy_keeps_code():
 
 Also test order-preserving scope round-trip and duplicate normalization.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `python -m pytest tests/unit/test_api_credential_policies.py -v`
 Expected: FAIL for missing ports/compatibility implementation.
 
-- [ ] **Step 3: Implement ports and Webasyst policies/codecs**
+- [x] **Step 3: Implement ports and Webasyst policies/codecs**
 
 Keep `secrets` import inside compatibility/infrastructure implementation; application ports contain no entropy implementation.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run: `python -m pytest tests/unit/test_api_credential_policies.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/ports/api_credential_generator.py src/gomazon_webasyst/application/ports/api_credential_policies.py src/gomazon_webasyst/compatibility/webasyst/api_credentials.py tests/unit/test_api_credential_policies.py
@@ -214,7 +214,7 @@ git commit -m "feat: add webasyst api credential policies"
 - `ApiCredentialUnitOfWork` exposes `authorization_codes`, `tokens`, `commit`, `rollback`, explicit active/inactive lifecycle state.
 - SQL adapters normalize legacy nullable expiry/last-use fields immediately.
 
-- [ ] **Step 1: Write failing SQLite repository tests**
+- [x] **Step 1: Write failing SQLite repository tests**
 
 Cover:
 
@@ -227,23 +227,23 @@ Cover:
 - revoke -> revoked then already-missing;
 - unique subject/client collision is normalized only when it is the known compatibility collision; unexpected DB errors propagate.
 
-- [ ] **Step 2: Write failing UoW lifecycle/rollback tests** matching the existing explicit active-state pattern.
+- [x] **Step 2: Write failing UoW lifecycle/rollback tests** matching the existing explicit active-state pattern.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Run: `python -m pytest tests/integration/test_sqlalchemy_api_credential_repositories.py tests/unit/test_api_credential_unit_of_work.py -v`
 Expected: FAIL for missing ports/adapters.
 
-- [ ] **Step 4: Implement repositories and UoW**
+- [x] **Step 4: Implement repositories and UoW**
 
 Repositories accept/return only application values/contracts. SQLAlchemy rows/statements never cross the infrastructure boundary.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 Run: `python -m pytest tests/integration/test_sqlalchemy_api_credential_repositories.py tests/unit/test_api_credential_unit_of_work.py -v`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/ports/api_credentials.py src/gomazon_webasyst/application/ports/api_credential_uow.py src/gomazon_webasyst/infrastructure/api_credentials/sqlalchemy/repositories.py src/gomazon_webasyst/infrastructure/api_credentials/sqlalchemy/unit_of_work.py tests/integration/test_sqlalchemy_api_credential_repositories.py tests/unit/test_api_credential_unit_of_work.py
@@ -262,7 +262,7 @@ git commit -m "feat: add api credential persistence adapters"
 - Missing token -> generate and create with `ApiTokenNeverExpires`.
 - Known collision after concurrent create -> reload subject/client token and apply requested scope; unexpected failures propagate.
 
-- [ ] **Step 1: Write failing reuse/update/create tests**
+- [x] **Step 1: Write failing reuse/update/create tests**
 
 ```python
 @pytest.mark.asyncio
@@ -280,19 +280,19 @@ async def test_existing_subject_client_token_is_reused_and_scope_updated():
 
 Also cover missing/create, same-scope/no-write, collision recovery.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `python -m pytest tests/unit/test_api_token_issuance.py -v`
 Expected: FAIL for missing issuer.
 
-- [ ] **Step 3: Implement minimal issuer** using repository result variants and generator port.
+- [x] **Step 3: Implement minimal issuer** using repository result variants and generator port.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Run: `python -m pytest tests/unit/test_api_token_issuance.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/api_token_issuance.py tests/unit/test_api_token_issuance.py
@@ -311,25 +311,25 @@ git commit -m "feat: add api token issue reuse service"
 - Issue input: authenticated subject id, client id, already-approved non-empty `ApiScope`.
 - Exchange rejects miss, client mismatch, expiry; valid exchange issues/reuses token and applies keep/consume disposition before commit.
 
-- [ ] **Step 1: Write failing issue tests** for exact generated code, 180-second expiry supplied by policy, persistence, commit, collision propagation/typed handling.
+- [x] **Step 1: Write failing issue tests** for exact generated code, 180-second expiry supplied by policy, persistence, commit, collision propagation/typed handling.
 
-- [ ] **Step 2: Write failing exchange tests** for missing, mismatch, expired, valid reusable-code path, and alternate `ConsumeAuthorizationCode` policy proving policy isolation.
+- [x] **Step 2: Write failing exchange tests** for missing, mismatch, expired, valid reusable-code path, and alternate `ConsumeAuthorizationCode` policy proving policy isolation.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Run: `python -m pytest tests/unit/test_api_authorization_code_use_cases.py -v`
 Expected: FAIL for missing use cases.
 
-- [ ] **Step 4: Implement use cases**
+- [x] **Step 4: Implement use cases**
 
 Do not perform app installation, consent, or ACL scope filtering here; inputs are already-approved scope.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 Run: `python -m pytest tests/unit/test_api_authorization_code_use_cases.py -v`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/api_credentials.py tests/unit/test_api_authorization_code_use_cases.py
@@ -347,25 +347,25 @@ git commit -m "feat: add authorization code credential flows"
 - `ResolveApiAccessToken` resolves exact token, rejects missing/expired, touches `last_use_datetime` on success, and returns typed contact/client/scope principal data.
 - `RevokeApiAccessToken` deletes exact token and returns revoked/already-missing.
 
-- [ ] **Step 1: Write failing implicit-issue tests** proving it shares Webasyst reuse behavior.
+- [x] **Step 1: Write failing implicit-issue tests** proving it shares Webasyst reuse behavior.
 
-- [ ] **Step 2: Write failing resolve tests** for unknown, never-expiring valid token, future expiry, expired token, and successful touch before commit.
+- [x] **Step 2: Write failing resolve tests** for unknown, never-expiring valid token, future expiry, expired token, and successful touch before commit.
 
-- [ ] **Step 3: Write failing revoke tests** for first revoke and idempotent already-missing result.
+- [x] **Step 3: Write failing revoke tests** for first revoke and idempotent already-missing result.
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 Run: `python -m pytest tests/unit/test_api_access_token_use_cases.py -v`
 Expected: FAIL for missing use cases.
 
-- [ ] **Step 5: Implement minimal use cases** with no transport parsing and no API method authorization.
+- [x] **Step 5: Implement minimal use cases** with no transport parsing and no API method authorization.
 
-- [ ] **Step 6: Run GREEN**
+- [x] **Step 6: Run GREEN**
 
 Run: `python -m pytest tests/unit/test_api_access_token_use_cases.py -v`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/api_credentials.py tests/unit/test_api_access_token_use_cases.py
@@ -385,25 +385,25 @@ git commit -m "feat: add api access token use cases"
 - `create_api_credential_use_cases(session_factory)` wires SQLAlchemy UoW + Webasyst compatibility generator/policies.
 - Main `Container` exposes all five use cases.
 
-- [ ] **Step 1: Write failing composition tests** asserting concrete compatibility policies are wired and the five use-case objects share the intended UoW factory/issuer dependencies.
+- [x] **Step 1: Write failing composition tests** asserting concrete compatibility policies are wired and the five use-case objects share the intended UoW factory/issuer dependencies.
 
-- [ ] **Step 2: Write failing container exposure test** using identity assertions rather than non-semantic `is not None` checks.
+- [x] **Step 2: Write failing container exposure test** using identity assertions rather than non-semantic `is not None` checks.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Run: `python -m pytest tests/unit/test_api_credential_container.py tests/unit/test_container.py -v`
 Expected: FAIL for missing composition/container fields.
 
-- [ ] **Step 4: Implement composition and container wiring**
+- [x] **Step 4: Implement composition and container wiring**
 
 No HTTP router is created. `create_container` only exposes application use cases.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 Run: `python -m pytest tests/unit/test_api_credential_container.py tests/unit/test_container.py -v`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/gomazon_webasyst/composition/api_credentials.py src/gomazon_webasyst/composition/container.py tests/unit/test_api_credential_container.py tests/unit/test_container.py
@@ -423,7 +423,7 @@ git commit -m "feat: wire api credential core"
 - Characterization proves code remains reusable until expiry under Webasyst policy.
 - Architecture guards keep SQLAlchemy/secrets/Webasyst storage strings out of application use cases.
 
-- [ ] **Step 1: Write SQLite E2E test**
+- [x] **Step 1: Write SQLite E2E test**
 
 Flow:
 
@@ -438,11 +438,11 @@ revoke token A -> revoked
 resolve token A -> explicit invalid/missing result
 ```
 
-- [ ] **Step 2: Add dependency guards**
+- [x] **Step 2: Add dependency guards**
 
 Application API credential files must not import FastAPI, Starlette, SQLAlchemy, `secrets`, or `gomazon_webasyst.compatibility`. Also assert raw table/storage names `wa_api_tokens`, `wa_api_auth_codes` do not occur in application modules.
 
-- [ ] **Step 3: Record ADRs in `AGENTS.md`**
+- [x] **Step 3: Record ADRs in `AGENTS.md`**
 
 Record:
 
@@ -452,7 +452,7 @@ Record:
 - nullable token expiry/last-use values are normalized to explicit states;
 - transport/API authorization is a later slice.
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 Run:
 
@@ -462,7 +462,7 @@ python -m pytest tests/unit/test_api_credential_contracts.py tests/unit/test_api
 
 Expected: PASS.
 
-- [ ] **Step 5: Run complete verification**
+- [x] **Step 5: Run complete verification**
 
 ```bash
 python -m compileall -q src tests
@@ -471,9 +471,23 @@ python -m pytest -v
 
 Expected: compile success and entire suite green.
 
-- [ ] **Step 6: Commit completion**
+- [x] **Step 6: Commit completion**
 
 ```bash
 git add tests/integration/test_api_credential_flow.py tests/architecture/test_dependency_boundaries.py tests/architecture/test_no_optional_result_contracts.py AGENTS.md
 git commit -m "test: verify api credential vertical flow"
 ```
+
+
+## Implementation Status
+
+Implemented on `feature/state-backends-api-oauth2`.
+
+Verification on branch head lineage:
+
+- GitHub Actions Python 3.12: **313 passed, 0 failed, 0 skipped**.
+- CI **Compile source tree** step: success.
+- Session-state backend selection is registry/factory based; auth composition no longer constructs the concrete memory store.
+- Default provider remains `memory`; custom providers can be registered without application-layer changes.
+- API OAuth2 credential core maps the existing `wa_api_auth_codes` and `wa_api_tokens` tables and exposes issue/exchange/implicit/resolve/revoke use cases without mounting HTTP OAuth routes.
+- Architecture and Optional/nullability guards pass.
