@@ -1,4 +1,31 @@
+from typing import Annotated, Literal, TypeAlias
+
 from pydantic import BaseModel, ConfigDict, Field
+
+from gomazon_webasyst.contracts.enums import TeamGroupDescriptionKind
+
+
+class TeamGroupDescriptionPresent(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[TeamGroupDescriptionKind.PRESENT] = (
+        TeamGroupDescriptionKind.PRESENT
+    )
+    value: str
+
+
+class TeamGroupDescriptionMissing(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal[TeamGroupDescriptionKind.MISSING] = (
+        TeamGroupDescriptionKind.MISSING
+    )
+
+
+TeamGroupDescription: TypeAlias = Annotated[
+    TeamGroupDescriptionPresent | TeamGroupDescriptionMissing,
+    Field(discriminator="kind"),
+]
 
 
 class TeamGroupRead(BaseModel):
@@ -8,7 +35,7 @@ class TeamGroupRead(BaseModel):
     name: str
     cnt: int = Field(ge=0)
     type: str
-    description: str | None
+    description: TeamGroupDescription
 
 
 class TeamGroupFilter(BaseModel):
