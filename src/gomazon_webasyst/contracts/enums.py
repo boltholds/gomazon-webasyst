@@ -538,3 +538,8 @@ class OAuthControllerErrorCode(EnumStr):
     INVALID_REQUEST = "invalid_request"
     UNSUPPORTED_GRANT_TYPE = "unsupported_grant_type"
     INVALID_GRANT = "invalid_grant"
+
+
+class InstalledApplicationLookupKind(EnumStr):
+    RESOLVED = "resolved"
+    MISSING = "missing"
