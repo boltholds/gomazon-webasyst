@@ -1,8 +1,14 @@
 from importlib import import_module
-from types import SimpleNamespace
 
 import pytest
 
+from gomazon_webasyst.application.app_values import AppId
+from gomazon_webasyst.application.oauth_authorization.services.app_catalog import (
+    RegistryBackedOAuthConsentAppCatalog,
+)
+from gomazon_webasyst.application.ports.oauth_consent_apps import (
+    OAuthConsentApplicationMissing,
+)
 from gomazon_webasyst.compatibility.webasyst.api.composites.response_renderer import (
     LegacyApiResponseRenderer,
 )
@@ -15,9 +21,14 @@ from gomazon_webasyst.compatibility.webasyst.api.services.preconditions import (
 from gomazon_webasyst.compatibility.webasyst.oauth.services.redirects import (
     LegacyUnregisteredRedirectPolicy,
 )
-from gomazon_webasyst.infrastructure.oauth_authorization.app_catalog import (
-    InMemoryOAuthConsentAppCatalog,
+from gomazon_webasyst.composition.applications import (
+    create_default_application_registry,
 )
+
+
+class ExplicitConsentCatalog:
+    def resolve(self, app_id):
+        return OAuthConsentApplicationMissing(app_id)
 
 
 def _module():
@@ -43,7 +54,7 @@ def dependencies():
         ),
         "credential_extractor": LegacyApiCredentialExtractionService(),
         "framework_response_renderer": LegacyApiResponseRenderer(),
-        "consent_catalog": InMemoryOAuthConsentAppCatalog(()),
+        "consent_catalog": ExplicitConsentCatalog(),
         "redirect_policy": LegacyUnregisteredRedirectPolicy(),
     }
 
@@ -81,25 +92,29 @@ def test_composition_reuses_existing_auth_and_credential_dependencies() -> None:
         parts.framework_response_renderer
         is deps["framework_response_renderer"]
     )
+    assert parts.consent_catalog is deps["consent_catalog"]
     assert parts.token_request_service is not None
     assert parts.redirect_service is not None
 
 
-def test_default_composition_uses_empty_catalog_and_legacy_redirect_policy() -> None:
+def test_default_composition_projects_consent_from_supplied_registry() -> None:
     m = _module()
     deps = dependencies()
     deps.pop("consent_catalog")
     deps.pop("redirect_policy")
+    registry = create_default_application_registry()
+
     parts = m.create_default_oauth_authorization_components(
         **deps,
+        application_registry=registry,
         csrf_generator=lambda: "csrf",
     )
 
-    missing = parts.consent_catalog.resolve(
-        __import__(
-            "gomazon_webasyst.application.access_values",
-            fromlist=["AppId"],
-        ).AppId("shop")
+    assert isinstance(
+        parts.consent_catalog,
+        RegistryBackedOAuthConsentAppCatalog,
     )
-    assert type(missing).__name__ == "OAuthConsentApplicationMissing"
+    assert parts.consent_catalog._registry is registry
+    missing = parts.consent_catalog.resolve(AppId("shop"))
+    assert isinstance(missing, OAuthConsentApplicationMissing)
     assert isinstance(parts.redirect_policy, LegacyUnregisteredRedirectPolicy)
