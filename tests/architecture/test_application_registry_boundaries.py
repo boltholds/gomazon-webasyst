@@ -82,3 +82,21 @@ def test_dispatch_handler_registry_has_no_installation_state() -> None:
     assert "ApplicationRegistry" in resolver
     assert "PluginEnabled" in resolver
     assert "ApplicationEnabled" in resolver
+
+
+def test_oauth_consent_catalog_is_registry_projection_only() -> None:
+    assert not Path(
+        "src/gomazon_webasyst/infrastructure/oauth_authorization/app_catalog.py"
+    ).exists()
+
+    projection = Path(
+        "src/gomazon_webasyst/application/oauth_authorization/services/app_catalog.py"
+    ).read_text(encoding="utf-8")
+    composition = Path(
+        "src/gomazon_webasyst/composition/oauth_authorization.py"
+    ).read_text(encoding="utf-8")
+
+    assert "ApplicationRegistry" in projection
+    assert "ApplicationEnabled" in projection
+    assert "InMemoryOAuthConsentAppCatalog" not in composition
+    assert "RegistryBackedOAuthConsentAppCatalog" in composition
