@@ -1,0 +1,1 @@
+"""Webasyst OAuth compatibility adapters."""
