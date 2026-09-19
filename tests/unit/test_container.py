@@ -19,6 +19,16 @@ class FakeEngine:
         self.disposed += 1
 
 
+
+def install_application_catalog_stub(monkeypatch) -> object:
+    catalog = object()
+    monkeypatch.setattr(
+        container_module,
+        "create_installed_application_catalog",
+        lambda settings: catalog,
+    )
+    return catalog
+
 def fake_auth_use_cases() -> SimpleNamespace:
     return SimpleNamespace(
         authenticate_backend_password=object(),
@@ -32,6 +42,7 @@ def fake_auth_use_cases() -> SimpleNamespace:
 
 def test_create_container_wires_all_contact_use_cases_to_one_uow_factory(monkeypatch) -> None:
     engine = FakeEngine()
+    install_application_catalog_stub(monkeypatch)
     uow_factory = object()
     observed_session_state: list[object] = []
     monkeypatch.setattr(container_module, "create_engine", lambda settings: engine)
@@ -60,6 +71,7 @@ def test_create_container_wires_all_contact_use_cases_to_one_uow_factory(monkeyp
 @pytest.mark.asyncio
 async def test_container_closes_persistence_resource(monkeypatch) -> None:
     engine = FakeEngine()
+    install_application_catalog_stub(monkeypatch)
     monkeypatch.setattr(container_module, "create_engine", lambda settings: engine)
     monkeypatch.setattr(container_module, "create_uow_factory", lambda selected: object())
     monkeypatch.setattr(container_module, "create_session_factory", lambda selected: object())
@@ -77,6 +89,7 @@ async def test_container_closes_persistence_resource(monkeypatch) -> None:
 
 def test_custom_session_state_registry_creates_one_store_and_passes_it_to_auth(monkeypatch) -> None:
     engine = FakeEngine()
+    install_application_catalog_stub(monkeypatch)
     session_state = object()
     auth_states: list[object] = []
 
