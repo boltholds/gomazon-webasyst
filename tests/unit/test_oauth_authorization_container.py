@@ -81,6 +81,8 @@ def test_composition_reuses_existing_auth_and_credential_dependencies() -> None:
         parts.framework_response_renderer
         is deps["framework_response_renderer"]
     )
+    assert parts.token_request_service is not None
+    assert parts.redirect_service is not None
 
 
 def test_default_composition_uses_empty_catalog_and_legacy_redirect_policy() -> None:
