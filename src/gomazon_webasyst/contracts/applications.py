@@ -83,6 +83,7 @@ class ApplicationDescriptor(BaseModel):
     capabilities: ApplicationCapabilities = Field(
         default_factory=ApplicationCapabilities
     )
+    framework_system: bool = False
     routing_parameters: tuple[ApplicationRoutingParameter, ...] = ()
     header_items: tuple[ApplicationHeaderItem, ...] = ()
 
