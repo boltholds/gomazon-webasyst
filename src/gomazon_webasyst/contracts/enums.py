@@ -483,3 +483,9 @@ class BackendLoginPersistenceStatus(EnumStr):
 
 class BackendLogoutKind(EnumStr):
     COMPLETED = "completed"
+
+
+class CookieSameSite(EnumStr):
+    LAX = "lax"
+    STRICT = "strict"
+    NONE = "none"
