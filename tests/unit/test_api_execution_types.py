@@ -1,5 +1,6 @@
 import json
 from dataclasses import FrozenInstanceError
+from types import MappingProxyType
 
 import pytest
 from pydantic import TypeAdapter
@@ -69,6 +70,12 @@ def test_request_parameters_preserve_sources_and_are_immutable() -> None:
     assert params.query["nested"] == {"items": (1, 2)}
     with pytest.raises(TypeError):
         params.query.values["id"] = "mutated"  # type: ignore[index]
+
+
+def test_parameter_map_accepts_generic_mapping_values() -> None:
+    nested = MappingProxyType({"id": 1})
+    params = ApiParameterMap({"nested": nested})
+    assert params["nested"] == {"id": 1}
 
 
 def test_invocation_composites_reuse_existing_credential_values() -> None:
