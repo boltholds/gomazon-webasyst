@@ -49,6 +49,20 @@ def _rejected(code, description, status, details):
     )
 
 
+def _query_parameters(request: Request) -> ApiParameterMap:
+    values: dict[str, object] = {}
+    for key, value in request.query_params.multi_items():
+        if key not in values:
+            values[key] = value
+            continue
+        existing = values[key]
+        if isinstance(existing, tuple):
+            values[key] = (*existing, value)
+        else:
+            values[key] = (existing, value)
+    return ApiParameterMap(values)
+
+
 async def _form_parameters(request: Request) -> ApiParameterMap:
     content_type = request.headers.get("content-type", "")
     if not content_type.startswith("application/x-www-form-urlencoded"):
@@ -61,7 +75,7 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
     router = APIRouter()
 
     async def execute(request: Request) -> Response:
-        query = ApiParameterMap(dict(request.query_params))
+        query = _query_parameters(request)
         form = await _form_parameters(request)
         authorization_value = request.headers.get("authorization")
         authorization = (
