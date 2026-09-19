@@ -1,5 +1,13 @@
 from pathlib import Path
 
+import pytest
+
+from gomazon_webasyst.compatibility.webasyst.application_registry.config_parser import (
+    LegacyPhpConfigError,
+    parse_php_return_value,
+)
+from gomazon_webasyst.compatibility.webasyst.application_registry.php_values import PhpArray
+
 
 RELEASE_SHA = "39c267a2fabfb0cd6d94f4dd86b23b4750328dd5"
 ROOT = Path(__file__).resolve().parents[2]
@@ -56,3 +64,19 @@ def test_security_fixture_contains_dynamic_expression_for_future_fail_closed_par
     text = (FIXTURE_DIR / "unsupported_dynamic.php").read_text(encoding="utf-8")
     assert "strtoupper(" in text
     assert "synthetic-security-case" in text
+
+
+@pytest.mark.parametrize(
+    "name",
+    sorted(SOURCE_REDUCED | {"apps_enabled_disabled.php", "app_icon_map.php"}),
+)
+def test_characterized_declarative_fixtures_parse_without_php_execution(name: str) -> None:
+    value = parse_php_return_value((FIXTURE_DIR / name).read_text(encoding="utf-8"))
+    assert isinstance(value, PhpArray)
+
+
+def test_characterized_dynamic_fixture_fails_closed() -> None:
+    with pytest.raises(LegacyPhpConfigError):
+        parse_php_return_value(
+            (FIXTURE_DIR / "unsupported_dynamic.php").read_text(encoding="utf-8")
+        )
