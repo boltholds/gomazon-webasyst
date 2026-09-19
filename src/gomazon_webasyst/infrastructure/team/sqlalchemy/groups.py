@@ -2,7 +2,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from gomazon_webasyst.application.team.ports import TeamGroupReader
-from gomazon_webasyst.contracts.team import TeamGroupRead
+from gomazon_webasyst.contracts.team import (
+    TeamGroupDescriptionMissing,
+    TeamGroupDescriptionPresent,
+    TeamGroupRead,
+)
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.models import WaGroupRow
 
 
@@ -24,7 +28,11 @@ class SQLAlchemyTeamGroupReader(TeamGroupReader):
                     name=row.name,
                     cnt=row.cnt,
                     type=row.type,
-                    description=row.description,
+                    description=(
+                        TeamGroupDescriptionPresent(value=row.description)
+                        if row.description is not None
+                        else TeamGroupDescriptionMissing()
+                    ),
                 )
                 for row in result.scalars()
             )
