@@ -20,6 +20,12 @@ from gomazon_webasyst.application.ports.access_control_uow import (
     AccessControlUnitOfWork,
     AccessControlUnitOfWorkFactory,
 )
+from gomazon_webasyst.application.ports.application_registry import (
+    ApplicationDisabled,
+    ApplicationEnabled,
+    ApplicationRegistry,
+    ApplicationUnknown,
+)
 from gomazon_webasyst.application.ports.access_subjects import (
     AccessSubjectMissing,
     AccessSubjectNotUser,
@@ -91,9 +97,15 @@ class AccessTargetValid:
     pass
 
 
+@dataclass(slots=True, frozen=True)
+class AccessApplicationValid:
+    pass
+
+
 AccessSnapshotLoadResult = AccessSnapshotLoaded | AccessReadRejected
 MutationAuthorizationResult = AccessAdministrationAuthorized | AccessMutationRejected
 AccessTargetValidationResult = AccessTargetValid | AccessMutationRejected
+AccessApplicationValidationResult = AccessApplicationValid | AccessMutationRejected
 
 
 async def load_access_snapshot(
@@ -142,6 +154,23 @@ async def _validate_access_target(
         if isinstance(group, GroupMissing):
             return AccessMutationRejected(reason=AccessMutationRejectReason.GROUP_NOT_FOUND)
     return AccessTargetValid()
+
+
+def _validate_application_for_mutation(
+    registry: ApplicationRegistry,
+    app_id: AppId,
+) -> AccessApplicationValidationResult:
+    resolution = registry.resolve_app(app_id)
+    if isinstance(resolution, ApplicationUnknown):
+        return AccessMutationRejected(
+            reason=AccessMutationRejectReason.APPLICATION_NOT_FOUND
+        )
+    if isinstance(resolution, ApplicationDisabled):
+        return AccessMutationRejected(
+            reason=AccessMutationRejectReason.APPLICATION_DISABLED
+        )
+    assert isinstance(resolution, ApplicationEnabled)
+    return AccessApplicationValid()
 
 
 def _map_planner_rejection(result: RightsMutationRejected) -> AccessMutationRejected:
@@ -500,10 +529,12 @@ class AssignRight:
         uow_factory: AccessControlUnitOfWorkFactory,
         admin_policy: AccessAdministrationPolicy,
         mutation_policy: RightsMutationPolicy,
+        application_registry: ApplicationRegistry,
     ) -> None:
         self._uow_factory = uow_factory
         self._admin_policy = admin_policy
         self._mutation_policy = mutation_policy
+        self._application_registry = application_registry
 
     async def __call__(
         self,
@@ -520,6 +551,13 @@ class AssignRight:
             if isinstance(target_validation, AccessMutationRejected):
                 return target_validation
 
+            application_validation = _validate_application_for_mutation(
+                self._application_registry,
+                key.app_id,
+            )
+            if isinstance(application_validation, AccessMutationRejected):
+                return application_validation
+
             planned = self._mutation_policy.plan_named_assign(target, key, value)
             if isinstance(planned, RightsMutationRejected):
                 return _map_planner_rejection(planned)
@@ -535,10 +573,12 @@ class RevokeRight:
         uow_factory: AccessControlUnitOfWorkFactory,
         admin_policy: AccessAdministrationPolicy,
         mutation_policy: RightsMutationPolicy,
+        application_registry: ApplicationRegistry,
     ) -> None:
         self._uow_factory = uow_factory
         self._admin_policy = admin_policy
         self._mutation_policy = mutation_policy
+        self._application_registry = application_registry
 
     async def __call__(
         self,
@@ -553,6 +593,13 @@ class RevokeRight:
             target_validation = await _validate_access_target(uow, target)
             if isinstance(target_validation, AccessMutationRejected):
                 return target_validation
+
+            application_validation = _validate_application_for_mutation(
+                self._application_registry,
+                key.app_id,
+            )
+            if isinstance(application_validation, AccessMutationRejected):
+                return application_validation
 
             snapshot = await uow.rights.load_for_targets((target,))
             exact_assignment_exists = any(
@@ -579,10 +626,12 @@ class SetAppAccess:
         uow_factory: AccessControlUnitOfWorkFactory,
         admin_policy: AccessAdministrationPolicy,
         mutation_policy: RightsMutationPolicy,
+        application_registry: ApplicationRegistry,
     ) -> None:
         self._uow_factory = uow_factory
         self._admin_policy = admin_policy
         self._mutation_policy = mutation_policy
+        self._application_registry = application_registry
 
     async def __call__(
         self,
@@ -598,6 +647,13 @@ class SetAppAccess:
             target_validation = await _validate_access_target(uow, target)
             if isinstance(target_validation, AccessMutationRejected):
                 return target_validation
+
+            application_validation = _validate_application_for_mutation(
+                self._application_registry,
+                app_id,
+            )
+            if isinstance(application_validation, AccessMutationRejected):
+                return application_validation
 
             planned = self._mutation_policy.plan_app_access(target, app_id, mode)
             if isinstance(planned, RightsMutationRejected):
