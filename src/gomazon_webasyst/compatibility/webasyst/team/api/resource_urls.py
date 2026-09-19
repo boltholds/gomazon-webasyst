@@ -13,14 +13,25 @@ class TeamUserResourceUrls:
     thumbs: dict[str, str]
 
 
+class LegacyTeamPhotoModeUnsupported(RuntimeError):
+    pass
+
+
 class LegacyTeamUserResourceUrlPolicy:
     _SIZES = (16, 32, 96, 144)
+
+    def __init__(self, *, mod_rewrite: bool = True) -> None:
+        self._mod_rewrite = mod_rewrite
 
     def project(
         self,
         user: TeamUser,
         origin: ApiRequestOrigin,
     ) -> TeamUserResourceUrls:
+        if not self._mod_rewrite:
+            raise LegacyTeamPhotoModeUnsupported(
+                "Team contact photo projection currently requires Webasyst mod_rewrite"
+            )
         if user.photo_stamp <= 0:
             fallback = urljoin(
                 origin.value,
