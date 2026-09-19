@@ -6,14 +6,20 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from gomazon_webasyst.application.access_values import AppId
+from gomazon_webasyst.application.app_values import AppId
+from gomazon_webasyst.application.application_registry import (
+    ApplicationCatalog,
+    InstallationManifest,
+    InstalledApplication,
+    StaticApplicationRegistry,
+)
 from gomazon_webasyst.application.api_execution.composites.results import ApiMethodSucceeded
 from gomazon_webasyst.application.api_execution.entities.method_definition import ApiMethodDefinition
 from gomazon_webasyst.application.api_execution.vo.method import ApiHttpMethod, ApiMethodName, ApiMethodTarget
 from gomazon_webasyst.compatibility.webasyst.api.services.license import AllowAllAppLicensePolicy
 from gomazon_webasyst.composition.api_credentials import create_api_credential_use_cases
 from gomazon_webasyst.composition.api_execution import create_api_execution_components
-from gomazon_webasyst.infrastructure.api_execution.app_directory import InMemoryInstalledAppDirectory
+from gomazon_webasyst.contracts.applications import ApplicationDescriptor
 from gomazon_webasyst.infrastructure.api_execution.method_registry import InMemoryApiMethodRegistry
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.base import Base
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.models import (
@@ -128,7 +134,16 @@ async def test_api_execution_real_sqlite_asgi_vertical_flow() -> None:
         session_factory=sessions,
         resolve_api_access_token=credentials.resolve_api_access_token,
         method_registry=registry,
-        installed_app_directory=InMemoryInstalledAppDirectory(frozenset({AppId("shop")})),
+        application_registry=StaticApplicationRegistry(
+            ApplicationCatalog(
+                applications=(
+                    ApplicationDescriptor(id=AppId("shop"), name="Shop"),
+                ),
+            ),
+            InstallationManifest(
+                apps=(InstalledApplication(AppId("shop")),),
+            ),
+        ),
         license_policy=AllowAllAppLicensePolicy(),
         api_enabled=True,
         disable_message="",
