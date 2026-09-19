@@ -56,6 +56,12 @@ def php_truthy(value: PhpValue) -> bool:
 
 def normalize_configured_app_ids(config: PhpValue) -> tuple[AppId, ...]:
     mapping = php_string_mapping(config, context="wa-config/apps.php")
+    return normalize_configured_app_mapping(mapping)
+
+
+def normalize_configured_app_mapping(
+    mapping: dict[str, PhpValue],
+) -> tuple[AppId, ...]:
     result: list[AppId] = []
     for raw_app_id, enabled in mapping.items():
         if not php_truthy(enabled):

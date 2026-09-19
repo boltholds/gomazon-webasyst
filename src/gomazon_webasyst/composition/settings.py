@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Literal
 
 from pydantic import ConfigDict
@@ -10,6 +11,7 @@ class Settings(BaseSettings):
     app_name: str = "gomazon-webasyst"
     database_backend: Literal["sqlalchemy"] = "sqlalchemy"
     database_url: str
+    webasyst_root: Path = Path(".")
     session_state_provider: str = "memory"
     backend_session_cookie_name: str = "gomazon_session"
     persistent_auth_cookie_name: str = "auth_token"
