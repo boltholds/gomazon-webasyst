@@ -19,7 +19,12 @@ from gomazon_webasyst.compatibility.webasyst.access_control.evaluation import (
     WebasystAccessSemantics,
 )
 from gomazon_webasyst.application.rights_evaluator import RightsEvaluator
-from gomazon_webasyst.contracts.team import TeamGroupFilter, TeamGroupRead
+from gomazon_webasyst.contracts.team import (
+    TeamGroupDescriptionMissing,
+    TeamGroupDescriptionPresent,
+    TeamGroupFilter,
+    TeamGroupRead,
+)
 
 
 class FakeGroups:
@@ -70,8 +75,8 @@ class FakeUowFactory:
 
 def _groups() -> tuple[TeamGroupRead, ...]:
     return (
-        TeamGroupRead(id=2, name="Office", cnt=2, type="location", description=None),
-        TeamGroupRead(id=1, name="Engineering", cnt=5, type="group", description="Eng"),
+        TeamGroupRead(id=2, name="Office", cnt=2, type="location", description=TeamGroupDescriptionMissing()),
+        TeamGroupRead(id=1, name="Engineering", cnt=5, type="group", description=TeamGroupDescriptionPresent(value="Eng")),
         TeamGroupRead(id=3, name="QA", cnt=3, type="group", description=None),
     )
 
