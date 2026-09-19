@@ -1,0 +1,24 @@
+FIXTURE_KIND: source-characterized
+SOURCE_COMMIT: 39c267a2fabfb0cd6d94f4dd86b23b4750328dd5
+
+HANDLER:
+path = wa-apps/team/lib/handlers/contacts.delete.handler.php
+handler_app_id = team
+source_app_id = contacts
+source_event = delete
+method = execute
+params_by_reference = true
+nested_system = team
+nested_event = contacts_delete
+nested_result_returned_by_handler = false
+
+WA_SYSTEM_EVENT:
+path = wa-system/waSystem.class.php
+string_event_name_uses_current_system_application = true
+params_by_reference = true
+
+EXPECTED_PYTHON:
+outer_owner = team
+outer_result = no_result
+nested_event_key = team.contacts_delete
+same_payload_object = true
