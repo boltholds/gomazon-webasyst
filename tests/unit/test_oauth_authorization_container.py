@@ -17,6 +17,10 @@ from gomazon_webasyst.compatibility.webasyst.oauth.services.redirects import (
 )
 from gomazon_webasyst.infrastructure.oauth_authorization.app_catalog import (
     InMemoryOAuthConsentAppCatalog,
+    InstalledApplicationOAuthConsentAppCatalog,
+)
+from gomazon_webasyst.infrastructure.application_registry.in_memory_catalog import (
+    InMemoryInstalledApplicationCatalog,
 )
 
 
@@ -85,17 +89,21 @@ def test_composition_reuses_existing_auth_and_credential_dependencies() -> None:
     assert parts.redirect_service is not None
 
 
-def test_default_composition_uses_empty_catalog_and_legacy_redirect_policy() -> None:
+@pytest.mark.asyncio
+async def test_default_composition_projects_from_canonical_catalog_and_uses_legacy_redirect_policy() -> None:
     m = _module()
     deps = dependencies()
     deps.pop("consent_catalog")
     deps.pop("redirect_policy")
+    installed = InMemoryInstalledApplicationCatalog(())
     parts = m.create_default_oauth_authorization_components(
         **deps,
+        installed_application_catalog=installed,
         csrf_generator=lambda: "csrf",
     )
 
-    missing = parts.consent_catalog.resolve(
+    assert isinstance(parts.consent_catalog, InstalledApplicationOAuthConsentAppCatalog)
+    missing = await parts.consent_catalog.resolve(
         __import__(
             "gomazon_webasyst.application.access_values",
             fromlist=["AppId"],

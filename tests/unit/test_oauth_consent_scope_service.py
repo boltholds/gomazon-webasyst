@@ -57,7 +57,7 @@ class Catalog:
         }
         self.calls = []
 
-    def resolve(self, app_id):
+    async def resolve(self, app_id):
         self.calls.append(app_id)
         if app_id not in self.applications:
             return OAuthConsentApplicationMissing(app_id)
