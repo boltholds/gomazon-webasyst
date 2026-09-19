@@ -1,6 +1,6 @@
 # OAuth Authorization Surface Design
 
-Status: proposed for written-spec review
+Status: accepted
 Date: 2026-09-19
 
 ## 1. Purpose
