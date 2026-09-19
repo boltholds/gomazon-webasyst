@@ -1,0 +1,23 @@
+from .apiexplorer import APIEXPLORER_APPLICATION
+from .blog import BLOG_APPLICATION
+from .developer import DEVELOPER_APPLICATION
+from .dummy import DUMMY_APPLICATION
+from .installer import INSTALLER_APPLICATION
+from .photos import PHOTOS_APPLICATION
+from .site import SITE_APPLICATION
+from .team import TEAM_APPLICATION
+from .ui import UI_APPLICATION
+from .webasyst import WEBASYST_APPLICATION
+
+__all__ = [
+    "APIEXPLORER_APPLICATION",
+    "BLOG_APPLICATION",
+    "DEVELOPER_APPLICATION",
+    "DUMMY_APPLICATION",
+    "INSTALLER_APPLICATION",
+    "PHOTOS_APPLICATION",
+    "SITE_APPLICATION",
+    "TEAM_APPLICATION",
+    "UI_APPLICATION",
+    "WEBASYST_APPLICATION",
+]
