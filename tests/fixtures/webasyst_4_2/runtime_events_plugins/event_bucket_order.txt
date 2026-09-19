@@ -1,0 +1,11 @@
+FIXTURE_KIND: source-characterized
+SOURCE_COMMIT: 39c267a2fabfb0cd6d94f4dd86b23b4750328dd5
+SOURCE_METHOD: wa-system/event/waEvent.class.php::run
+
+Handler bucket precedence:
+1. exact event_app_id + exact event name
+2. exact event_app_id + wildcard/masked event bucket
+3. wildcard event_app_id + exact event name
+4. wildcard event_app_id + wildcard/masked event bucket
+
+Registration order inside each bucket is preserved by array_merge.
