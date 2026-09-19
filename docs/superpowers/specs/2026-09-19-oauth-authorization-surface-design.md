@@ -314,7 +314,9 @@ This is a distinct compatibility branch and MUST NOT be merged with authenticate
 
 Behavior:
 
-### response_type=token
+Outer cancel does not run the strict authorization-request validator. It reads raw GET values directly. Only an exact raw `response_type == "token"` selects the token branch; missing or any other value follows the code-style branch. Missing response type therefore behaves as code because the outer dispatcher uses the default `"code"`.
+
+### raw response_type=token
 
 Always redirect:
 
@@ -324,7 +326,7 @@ redirect_uri#error=access_denied
 
 The legacy code does not guard an empty redirect URI in this branch.
 
-### response_type=code
+### raw response_type missing/code/other
 
 When redirect URI exists:
 
@@ -593,6 +595,8 @@ This slice deliberately preserves legacy open redirects only inside the compatib
 
 It is not part of the browser consent Composite.
 
+The outer `waAPIController` does not reject non-POST HTTP methods for this route. The controller may therefore be reached by GET/other legacy-dispatch methods, but protocol fields are still read from POST only; a GET with no POST fields produces the normal HTTP-200 `invalid_request` missing-parameter payload rather than a transport 405.
+
 Required POST fields:
 
 - `code`;
@@ -639,6 +643,8 @@ JSONP is NOT applied to token controller responses.
 The existing JSON/XML formatter Services may be reused for serialization, but controller-level format selection needs a compatibility Service with the exact legacy error text/status semantics.
 
 ## 24. /api.php/revoke authentication
+
+The outer dispatcher likewise does not impose a separate HTTP-verb gate on `/api.php/revoke`; request-level `access_token` may therefore come from POST or GET according to `waRequest::request`.
 
 Legacy revoke first calls outer:
 
