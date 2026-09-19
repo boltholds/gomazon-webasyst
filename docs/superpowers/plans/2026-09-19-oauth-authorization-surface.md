@@ -403,7 +403,9 @@ git commit -m "feat: add oauth authorization composite"
   - `issue(existing_cookie_state) -> OAuthCsrfIssued(token, set_cookie: bool)`;
   - `validate(cookie_state, form_state) -> OAuthCsrfAccepted | OAuthCsrfRejected`;
   - secure generator defaults to `secrets.token_hex(16)`.
-- `LegacyOAuthCancelService.cancel(request) -> OAuthCancelRedirect | OAuthCancelFrameworkError`.
+- Compatibility VO `LegacyOAuthCancelRequest(raw_response_type: str, raw_redirect_uri: str, raw_client_name: str)` intentionally permits empty/unknown raw response types and an empty redirect string because outer cancel runs before strict OAuth request validation.
+- `LegacyOAuthCancelService.cancel(request: LegacyOAuthCancelRequest) -> OAuthCancelRedirect | OAuthCancelFrameworkError`.
+- Cancel selects token behavior only when `raw_response_type == "token"`; missing/`"code"`/unknown values use the code-style branch exactly like the outer PHP dispatcher.
 - `LegacyOAuthDenyService.deny(request) -> OAuthDenyRedirect | OAuthDenyHtmlError`.
 
 - [ ] **Step 1: Write failing request-validation characterization tests**
@@ -423,7 +425,7 @@ Use the exact source-characterized concatenation rules; add error query and toke
 
 - [ ] **Step 3: Write cancel-before-auth tests for Review Focus #2**
 
-Cancel TOKEN -> fragment redirect. Cancel CODE + redirect -> query redirect. Cancel CODE without redirect -> `access_denied`/403 framework error. Assert Service has no current-subject/CSRF dependency.
+Raw cancel response_type `"token"` -> fragment redirect. Missing/`"code"`/unknown response type + redirect -> query redirect. Missing/`"code"`/unknown without redirect -> `access_denied`/403 framework error. Assert Service has no strict authorization-request/current-subject/CSRF dependency.
 
 - [ ] **Step 4: Write CSRF tests**
 
@@ -825,14 +827,16 @@ git commit -m "feat: add legacy oauth authorization http flow"
 - Modify: `tests/unit/test_legacy_api_http_adapter.py`
 
 **Interfaces:**
-- POST `/api.php/token`:
+- `/api.php/token` is registered for the same legacy HTTP-method set used by the special API dispatcher; protocol fields are POST-only, so GET/other methods reach the controller and normally produce HTTP-200 missing-parameter errors rather than 405.
+- Token route flow:
   - shared API preconditions;
   - controller format resolution;
   - form normalization;
   - token controller;
   - direct JSON/XML controller serializer;
   - no JSONP.
-- `/api.php/revoke` accepts legacy request methods matching source controller routing, with:
+- `/api.php/revoke` is registered for the same legacy HTTP-method set; request-level target/auth credential may come from POST or GET via request precedence.
+- Revoke route flow:
   - shared API preconditions;
   - normal API credential extraction;
   - missing credential -> framework token_required using existing framework formatter/status/JSONP semantics;
@@ -848,7 +852,7 @@ git commit -m "feat: add legacy oauth authorization http flow"
 
 - [ ] **Step 1: Write token HTTP tests**
 
-Pin success/error JSON/XML, POST-only parameter behavior, invalid format JSON error, callback ignored, all controller payload outcomes status 200.
+Pin success/error JSON/XML, POST-only protocol parameter behavior, GET with no POST protocol fields -> HTTP-200 invalid_request instead of 405, invalid format JSON error, callback ignored, all controller payload outcomes status 200.
 
 - [ ] **Step 2: Write revoke HTTP tests**
 
