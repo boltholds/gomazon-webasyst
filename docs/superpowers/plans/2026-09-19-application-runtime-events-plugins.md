@@ -1,0 +1,440 @@
+# Application Runtime, Events & Plugins Implementation Plan
+
+> **For agentic workers:** execute task-by-task with TDD. Steps use checkbox (`- [ ]`) tracking.
+
+**Goal:** Add explicit Python application/plugin runtime modules, safe installed-plugin discovery, a deterministic Webasyst-compatible event registry/dispatcher, and one startup linker that populates existing API/dispatch registries plus the new event registry.
+
+**Spec:** `docs/superpowers/specs/2026-09-19-application-runtime-events-plugins-design.md`
+
+**Authoritative legacy source:** Webasyst Framework 4.2.0 release commit `39c267a2fabfb0cd6d94f4dd86b23b4750328dd5`.
+
+## Global constraints
+
+- Do not execute PHP.
+- Do not derive Python imports/classes from app/plugin/request strings.
+- Installed metadata and executable Python runtime remain separate.
+- Expected negative states are explicit typed variants, never `None`/False/empty sentinels.
+- Runtime registries are startup-built and request-time read-only.
+- API, dispatch and event registries remain distinct.
+- Runtime linker validates the complete graph before mutating live registries.
+- Event application/domain code imports no FastAPI/Starlette/SQLAlchemy/compatibility modules.
+- Plugin/app filesystem paths remain compatibility/infrastructure-private.
+- Exact Webasyst event bucket ordering and first-result semantics are compatibility requirements.
+- Handler exceptions do not abort unrelated handlers by default.
+- Raw PCRE is never interpreted directly by application code.
+- Plugin lifecycle/update/settings/templates/assets/widgets/cron execution/CLI/live reload remain out of scope.
+
+---
+
+### Task 0: Characterize Webasyst 4.2.0 event and plugin behavior
+
+**Files:**
+- Create: `docs/superpowers/specs/2026-09-19-application-runtime-events-plugins-characterization.md`
+- Create: `tests/fixtures/webasyst_4_2/runtime_events_plugins/`
+- Create: `tests/compatibility/test_runtime_events_plugins_characterization.py`
+
+**Source cases to pin:**
+- `waEvent::run()` handler bucket ordering;
+- `lib/handlers/<source>.<event>.handler.php` parsing;
+- application `wildcard.php`;
+- `wa-config/apps/<app>/plugins.php` truthy/falsy enablement;
+- missing plugin config skip;
+- simple plugin `handlers`;
+- wildcard plugin handlers with cross-app `event_app_id`;
+- implicit `rights.config`, `routing`, `cron`;
+- first non-null result per application;
+- first non-null result per plugin;
+- cross-app plugin result key;
+- exception continuation;
+- `array_keys` padding;
+- raw PCRE usage survey in bundled 4.2.0.
+
+- [ ] Extract source-reduced fixtures from exact 4.2.0 release commit.
+- [ ] Record a source-location/behavior/implementation-consequence table.
+- [ ] Explicitly record whether bundled 4.2.0 uses raw PCRE event patterns.
+- [ ] Add fixture provenance tests pinned to the release SHA.
+- [ ] Reconcile any finding that contradicts the design before implementation.
+- [ ] Commit: `test: characterize legacy events and plugins`.
+
+---
+
+### Task 1: Plugin identity and InstalledPlugin domain
+
+**Files:**
+- Create: `src/gomazon_webasyst/application/plugins/__init__.py`
+- Create: `src/gomazon_webasyst/application/plugins/entities/installed_plugin.py`
+- Create: `src/gomazon_webasyst/application/plugins/vo/identity.py`
+- Create: `src/gomazon_webasyst/application/plugins/vo/metadata.py`
+- Create: `src/gomazon_webasyst/application/plugins/vo/capabilities.py`
+- Create: `src/gomazon_webasyst/application/plugins/vo/handlers.py`
+- Create: `src/gomazon_webasyst/application/ports/installed_plugin_catalog.py`
+- Create: `tests/unit/test_installed_plugin_types.py`
+- Create: `tests/architecture/test_plugin_domain_boundaries.py`
+
+**Types:**
+- `PluginId`;
+- `PluginKey(AppId, PluginId)`;
+- `PluginDisplayName`;
+- `PluginVendor`;
+- `PluginVersion`;
+- explicit image state;
+- `PluginCapabilityName`;
+- normalized declarative handler declarations;
+- `InstalledPlugin` Entity;
+- resolved/missing/snapshot catalog contracts.
+
+- [ ] Write RED tests for immutable identity and validation.
+- [ ] Pin no-null image state and empty immutable collections.
+- [ ] Pin `PluginKey` as the only cross-port plugin identity.
+- [ ] Add architecture guard against transport/ORM/filesystem imports.
+- [ ] Implement minimal Entity/VO/catalog contracts.
+- [ ] Run GREEN.
+- [ ] Commit: `feat: add installed plugin contracts`.
+
+---
+
+### Task 2: Safe installed-plugin discovery
+
+**Files:**
+- Create: `src/gomazon_webasyst/compatibility/webasyst/plugins/__init__.py`
+- Create: `src/gomazon_webasyst/compatibility/webasyst/plugins/paths.py`
+- Create: `src/gomazon_webasyst/compatibility/webasyst/plugins/normalizer.py`
+- Create: `src/gomazon_webasyst/compatibility/webasyst/plugins/raw_config.py`
+- Create: `src/gomazon_webasyst/infrastructure/plugins/__init__.py`
+- Create: `src/gomazon_webasyst/infrastructure/plugins/in_memory_catalog.py`
+- Create: `src/gomazon_webasyst/infrastructure/plugins/filesystem_catalog.py`
+- Create: `tests/unit/test_plugin_config_normalizer.py`
+- Create: `tests/unit/test_plugin_paths.py`
+- Create: `tests/integration/test_installed_plugin_filesystem.py`
+
+**Discovery:**
+- consumes installed application snapshot;
+- reads `wa-config/apps/<app>/plugins.php`;
+- parses via existing restricted PHP parser;
+- resolves `wa-apps/<app>/plugins/<plugin>/lib/config/plugin.php`;
+- normalizes metadata/handlers only;
+- performs no code import/execution.
+
+- [ ] RED: enabled/falsy/missing plugins.
+- [ ] RED: plugin-id path traversal and symlink escape.
+- [ ] RED: simple/wildcard handler declarations.
+- [ ] RED: implicit rights/frontend/cron declarations.
+- [ ] Implement pure normalizer.
+- [ ] Implement immutable startup filesystem catalog.
+- [ ] Run GREEN + characterization tests.
+- [ ] Commit: `feat: discover installed webasyst plugins`.
+
+---
+
+### Task 3: Event identity, patterns and handler contracts
+
+**Files:**
+- Create: `src/gomazon_webasyst/application/events/__init__.py`
+- Create: `src/gomazon_webasyst/application/events/entities/handler_definition.py`
+- Create: `src/gomazon_webasyst/application/events/vo/identity.py`
+- Create: `src/gomazon_webasyst/application/events/vo/patterns.py`
+- Create: `src/gomazon_webasyst/application/events/vo/owners.py`
+- Create: `src/gomazon_webasyst/application/events/vo/payload.py`
+- Create: `src/gomazon_webasyst/application/events/services/pattern_matcher.py`
+- Create: `src/gomazon_webasyst/application/ports/event_handlers.py`
+- Create: `tests/unit/test_event_types.py`
+- Create: `tests/architecture/test_event_domain_boundaries.py`
+
+**Core types:**
+- `EventName`;
+- `EventKey`;
+- `EventHandlerId`;
+- `ExactEventSource | AnyEventSource`;
+- `ExactEventPattern | PrefixEventPattern | LegacyRegexEventPattern`;
+- `ApplicationEventOwner | PluginEventOwner`;
+- `EventHandlerNoResult | EventHandlerReturned`;
+- `EventHandlerDefinition`;
+- `EventHandler` Protocol.
+
+- [ ] RED: equality/hash/frozen validation.
+- [ ] RED: no magic `"*"` state in application contracts.
+- [ ] RED: exact/prefix matching.
+- [ ] RED: raw regex delegates to compatibility matcher port.
+- [ ] Implement minimal types/services.
+- [ ] Run GREEN.
+- [ ] Commit: `feat: add event handler contracts`.
+
+---
+
+### Task 4: EventHandlerRegistry with legacy bucket ordering
+
+**Files:**
+- Create: `src/gomazon_webasyst/infrastructure/events/__init__.py`
+- Create: `src/gomazon_webasyst/infrastructure/events/registry.py`
+- Create: `tests/unit/test_event_handler_registry.py`
+
+**Ordering:**
+1. exact source/exact event;
+2. exact source/pattern bucket;
+3. any source/exact event;
+4. any source/pattern bucket.
+
+Registration order remains stable within bucket.
+
+- [ ] RED: exact-only resolution.
+- [ ] RED: full four-bucket order.
+- [ ] RED: duplicate handler id rejected.
+- [ ] RED: multiple matching prefix patterns preserve registration order.
+- [ ] Implement in-memory immutable/read-mostly registry.
+- [ ] Run GREEN.
+- [ ] Commit: `feat: add event handler registry`.
+
+---
+
+### Task 5: EventDispatcher and first-result semantics
+
+**Files:**
+- Create: `src/gomazon_webasyst/application/events/composites/dispatcher.py`
+- Create: `src/gomazon_webasyst/application/events/composites/contracts.py`
+- Create: `tests/unit/test_event_dispatcher.py`
+
+**Behavior:**
+- invoke ordered matches;
+- no-result allows later same-owner handlers;
+- first returned value closes that owner;
+- later handlers for closed owner are skipped;
+- different owners continue;
+- handler exception -> diagnostic + continue;
+- cancellation/system exceptions propagate;
+- report keeps ordered results + failures.
+
+- [ ] RED: application owner first-result.
+- [ ] RED: plugin owner first-result.
+- [ ] RED: no-result fallthrough.
+- [ ] RED: exception continuation.
+- [ ] RED: deterministic mixed-owner ordering.
+- [ ] Implement dispatcher.
+- [ ] Run GREEN.
+- [ ] Commit: `feat: dispatch registered application events`.
+
+---
+
+### Task 6: Webasyst event compatibility projection
+
+**Files:**
+- Create: `src/gomazon_webasyst/compatibility/webasyst/events/__init__.py`
+- Create: `src/gomazon_webasyst/compatibility/webasyst/events/result_projection.py`
+- Create: `src/gomazon_webasyst/compatibility/webasyst/events/pattern_matcher.py`
+- Create: `src/gomazon_webasyst/compatibility/webasyst/events/payload.py`
+- Create: `tests/unit/test_legacy_event_result_projection.py`
+- Create: `tests/unit/test_legacy_event_pattern_matcher.py`
+
+**Projection keys:**
+- app owner -> `app_id`;
+- same-app plugin -> `plugin_id-plugin`;
+- cross-app plugin -> `app_id_plugin_id-plugin`.
+
+`array_keys` padding belongs here.
+
+- [ ] RED: all result key variants.
+- [ ] RED: `array_keys` scalar/list padding behavior from characterization.
+- [ ] Implement exact/prefix compatibility mapping.
+- [ ] Implement only characterized bounded regex support; explicit unsupported result otherwise.
+- [ ] Run GREEN.
+- [ ] Commit: `feat: project legacy event results`.
+
+---
+
+### Task 7: Runtime module entities
+
+**Files:**
+- Create: `src/gomazon_webasyst/application/runtime/__init__.py`
+- Create: `src/gomazon_webasyst/application/runtime/entities/application_module.py`
+- Create: `src/gomazon_webasyst/application/runtime/entities/plugin_module.py`
+- Create: `src/gomazon_webasyst/application/runtime/vo/dispatch.py`
+- Create: `tests/unit/test_application_runtime_modules.py`
+- Create: `tests/architecture/test_application_runtime_boundaries.py`
+
+**Entities:**
+- `ApplicationRuntimeModule`;
+- `PluginRuntimeModule`;
+- typed dispatch registration variants.
+
+They aggregate already-constructed executable definitions; they do not discover/import them.
+
+- [ ] RED: immutable module identity.
+- [ ] RED: plugin contribution owner matches `PluginKey`.
+- [ ] RED: API targets must be structurally app-owned.
+- [ ] Add dependency guard.
+- [ ] Implement minimal module model.
+- [ ] Run GREEN.
+- [ ] Commit: `feat: add application runtime module declarations`.
+
+---
+
+### Task 8: Dispatch registration sink/builder
+
+**Files:**
+- Create: `src/gomazon_webasyst/application/ports/dispatch_registration.py`
+- Modify: `src/gomazon_webasyst/compatibility/webasyst/dispatch/registry.py`
+- Create: `tests/unit/test_dispatch_registration.py`
+
+**Goal:** separate request-time lookup from startup mutation.
+
+- [ ] RED: typed controller/action/multi-action/plugin registration.
+- [ ] RED: duplicate target registration rejected rather than overwritten.
+- [ ] Preserve existing `DispatchRegistry` lookup contract.
+- [ ] Implement registration sink on in-memory registry/builder.
+- [ ] Run existing routing/dispatch suite.
+- [ ] Commit: `refactor: add typed dispatch registration`.
+
+---
+
+### Task 9: ApplicationRuntimeLinker full validation then link
+
+**Files:**
+- Create: `src/gomazon_webasyst/application/runtime/composites/linker.py`
+- Create: `src/gomazon_webasyst/application/runtime/composites/results.py`
+- Create: `tests/unit/test_application_runtime_linker.py`
+
+**Validation before mutation:**
+- app module app exists;
+- duplicate app module rejected;
+- plugin runtime plugin exists/enabled;
+- duplicate plugin module rejected;
+- API targets owned by declared app/plugin parent;
+- dispatch definitions structurally owned;
+- event owners structurally owned;
+- duplicate API/dispatch/event targets detected before apply.
+
+- [ ] RED: installed app links.
+- [ ] RED: uninstalled app rejected.
+- [ ] RED: disabled/missing plugin rejected.
+- [ ] RED: duplicate runtime definitions leave all registries unchanged.
+- [ ] RED: foreign contribution rejected.
+- [ ] Implement validate-plan-apply composite.
+- [ ] Run GREEN.
+- [ ] Commit: `feat: link application runtime modules`.
+
+---
+
+### Task 10: Composition runtime graph
+
+**Files:**
+- Create: `src/gomazon_webasyst/composition/application_runtime.py`
+- Modify: `src/gomazon_webasyst/composition/container.py`
+- Modify: `src/gomazon_webasyst/composition/api_execution.py`
+- Wire existing dispatch composition where appropriate.
+- Create: `tests/unit/test_application_runtime_composition.py`
+
+**Composition:**
+- build InstalledApplicationCatalog;
+- build InstalledPluginCatalog;
+- construct explicit Python runtime modules;
+- construct fresh API/dispatch/event registries;
+- link modules;
+- inject linked registries into consumers;
+- expose read-only event dispatcher/runtime diagnostics.
+
+Initial production runtime module tuple may be empty until first real app slice.
+
+- [ ] RED: one catalog/plugin/runtime graph per Container.
+- [ ] RED: installed-but-no-module stays non-executable.
+- [ ] RED: explicit test injection avoids real filesystem.
+- [ ] Implement composition.
+- [ ] Run full existing foundation suite.
+- [ ] Commit: `feat: compose application runtime graph`.
+
+---
+
+### Task 11: Cross-runtime proof module
+
+**Files:**
+- Create: `tests/integration/test_application_runtime_cross_registry.py`
+- Add a test-only Python application runtime module.
+
+**Proof module must declare:**
+- one API method;
+- one dispatch registration;
+- one event handler.
+
+Test:
+1. app is installed in a temporary Webasyst root;
+2. runtime linker accepts its Python module;
+3. API registry resolves method;
+4. dispatch registry resolves handler;
+5. emitted event invokes event handler;
+6. removing runtime module leaves app installed but all three executable capabilities absent.
+
+- [ ] Write RED integration proof.
+- [ ] Implement only minimal missing wiring.
+- [ ] Run GREEN.
+- [ ] Commit: `test: verify linked application runtime capabilities`.
+
+---
+
+### Task 12: Installed plugin vs migrated plugin proof
+
+**Files:**
+- Create: `tests/integration/test_plugin_runtime_linking.py`
+
+Scenario:
+- plugin enabled in `plugins.php`;
+- manifest declares event handlers;
+- no Python PluginRuntimeModule -> metadata visible, handler not executable;
+- add explicit PluginRuntimeModule -> event handler becomes executable;
+- disabled plugin -> linker rejects Python plugin runtime.
+
+- [ ] Write integration tests.
+- [ ] Run GREEN.
+- [ ] Commit: `test: verify plugin runtime requires explicit migration`.
+
+---
+
+### Task 13: Architecture/security guards
+
+**Files:**
+- Create: `tests/architecture/test_application_runtime_security.py`
+- Extend relevant no-optional/dynamic-loading guards.
+- Modify: `AGENTS.md`.
+
+Guards:
+- no `eval`/`exec`/`subprocess`/dynamic import in runtime/plugin/event discovery;
+- installed metadata entities contain no callable fields;
+- runtime module package contains no filesystem parsing;
+- request-time presentation code cannot register runtime definitions;
+- API/dispatch/event registries are distinct;
+- runtime linker is the production link point;
+- no `None` result contracts.
+
+- [ ] Write guard tests.
+- [ ] Fix violations.
+- [ ] Run architecture suite.
+- [ ] Commit: `test: guard application runtime boundaries`.
+
+---
+
+### Task 14: Full acceptance and completion record
+
+- [ ] Run repository compile/static checks.
+- [ ] Run `python -m pytest -q`.
+- [ ] Run focused plugin/event/runtime suites.
+- [ ] Search repository for dynamic PHP/Python runtime loading primitives.
+- [ ] Verify request-time paths perform no filesystem discovery.
+- [ ] Verify existing routing/API/OAuth/auth/ACL/application-registry tests remain green.
+- [ ] Mark all plan checkboxes complete.
+- [ ] Mark design spec implemented.
+- [ ] Record exact passing test count in `AGENTS.md`.
+- [ ] Commit: `docs: record application runtime verification`.
+
+## Completion definition
+
+Complete only when:
+
+- installed plugin discovery is source-characterized and safe;
+- installed plugin metadata is typed and immutable;
+- explicit Python application/plugin runtime modules exist;
+- API/dispatch/event contributions link through one startup Composite;
+- event ordering/first-result/failure continuation match 4.2.0 characterization;
+- installed-but-unmigrated plugin is non-executable;
+- no dynamic PHP/Python class discovery exists;
+- full CI is green.
+
+## Follow-on
+
+Port the first real bundled application vertical slice using this runtime module system.
