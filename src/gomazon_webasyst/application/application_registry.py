@@ -136,7 +136,7 @@ class StaticApplicationRegistry:
     def _validate_system_apps(self) -> None:
         for descriptor in self._catalog.applications:
             if (
-                descriptor.capabilities.system
+                descriptor.framework_system
                 and descriptor.id not in self._installed
             ):
                 raise ValueError(
@@ -173,7 +173,7 @@ class StaticApplicationRegistry:
         return tuple(
             self._apps[entry.app_id]
             for entry in self._manifest.apps
-            if not self._apps[entry.app_id].capabilities.system
+            if not self._apps[entry.app_id].framework_system
         )
 
     def list_enabled_apps_including_system(
