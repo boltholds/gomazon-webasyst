@@ -9,11 +9,27 @@ from gomazon_webasyst.application.api_execution.vo.method import (
     ApiMethodName,
     ApiMethodTarget,
 )
+from gomazon_webasyst.application.events.entities.handler_definition import (
+    EventHandlerDefinition,
+)
+from gomazon_webasyst.application.events.vo.identity import (
+    EventHandlerId,
+    EventName,
+)
+from gomazon_webasyst.application.events.vo.owners import ApplicationEventOwner
+from gomazon_webasyst.application.events.vo.patterns import (
+    ExactEventPattern,
+    ExactEventSource,
+)
+from gomazon_webasyst.application.ports.event_publisher import EventPublisher
 from gomazon_webasyst.application.runtime.entities.application_module import (
     ApplicationRuntimeModule,
 )
 from gomazon_webasyst.application.team.groups import ListVisibleTeamGroups
 from gomazon_webasyst.compatibility.webasyst.team.api import TeamGroupsGetListApiMethod
+from gomazon_webasyst.compatibility.webasyst.team.events import (
+    TeamContactsDeleteRelayHandler,
+)
 from gomazon_webasyst.compatibility.webasyst.team.groups_filter import (
     LegacyTeamGroupFilterParser,
 )
@@ -31,6 +47,8 @@ _TEAM_APP_ID = AppId("team")
 
 def create_team_runtime_module(
     session_factory: async_sessionmaker[AsyncSession],
+    *,
+    event_publisher: EventPublisher,
 ) -> ApplicationRuntimeModule:
     list_groups = ListVisibleTeamGroups(
         groups=SQLAlchemyTeamGroupReader(session_factory),
@@ -51,10 +69,17 @@ def create_team_runtime_module(
         allowed_methods=frozenset({ApiHttpMethod("GET")}),
         handler=handler,
     )
+    contacts_delete_relay = EventHandlerDefinition(
+        handler_id=EventHandlerId("team-contacts-delete-relay"),
+        owner=ApplicationEventOwner(_TEAM_APP_ID),
+        source=ExactEventSource(AppId("contacts")),
+        pattern=ExactEventPattern(EventName("delete")),
+        handler=TeamContactsDeleteRelayHandler(event_publisher),
+    )
     return ApplicationRuntimeModule(
         app_id=_TEAM_APP_ID,
         dispatch_handlers=(),
         api_methods=(method,),
-        event_handlers=(),
+        event_handlers=(contacts_delete_relay,),
         plugins=(),
     )
