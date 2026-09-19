@@ -759,11 +759,11 @@ git commit -m "feat: compose oauth authorization surface"
   - HTTPS state.
 - Execution order:
   1. shared API preconditions;
-  2. auth-request parse;
-  3. POST cancel detection -> cancel service -> response;
-  4. current-subject flow + apply auth-cookie dispositions;
-  5. unauthenticated GET -> issue CSRF + login HTML;
-  6. unauthenticated POST -> validate CSRF -> password login -> apply cookies -> continue as authenticated on success / rerender login on failure;
+  2. raw POST cancel detection -> minimal cancel parsing/service -> response, before current-subject resolution, CSRF and full OAuth request validation;
+  3. current-subject flow + apply auth-cookie dispositions;
+  4. unauthenticated GET -> issue CSRF + login HTML without requiring full OAuth request validity;
+  5. unauthenticated POST -> validate login CSRF -> password login -> apply cookies -> redirect to the same OAuth URL on success / rerender login on failure;
+  6. authenticated request -> full auth-request parse/validation;
   7. authenticated GET -> `authorization_flow.prepare` -> consent/code/error HTML;
   8. authenticated POST -> validate CSRF;
   9. logout -> backend logout flow/apply cookie clear/redirect same auth URL;
@@ -772,11 +772,11 @@ git commit -m "feat: compose oauth authorization surface"
 
 - [ ] **Step 1: Write failing cancel-before-auth HTTP test for Review Focus #2**
 
-Use spies for current-subject and CSRF that fail if called. POST `cancel=1` with invalid cookies/CSRF must still return legacy redirect/error.
+Use spies for current-subject, CSRF and full authorization-request parser that fail if called. POST `cancel=1` with missing `client_id`/`scope`, invalid cookies and invalid CSRF must still return the legacy cancel redirect/error.
 
 - [ ] **Step 2: Write login/current-subject HTTP tests**
 
-GET unauthenticated -> login page + CSRF cookie. POST valid password + matching CSRF -> session cookie and consent page/redirected auth flow. Invalid login remains login page and never issues grant.
+GET unauthenticated, even with incomplete/invalid OAuth query fields, -> login page + CSRF cookie. POST valid password + matching CSRF -> session cookie + redirect to the same OAuth URL; only the subsequent authenticated request performs full OAuth validation/consent. Invalid login remains login page and never issues grant.
 
 - [ ] **Step 3: Write consent/grant/deny/logout tests**
 
@@ -834,13 +834,13 @@ git commit -m "feat: add legacy oauth authorization http flow"
   - no JSONP.
 - `/api.php/revoke` accepts legacy request methods matching source controller routing, with:
   - shared API preconditions;
-  - controller format;
   - normal API credential extraction;
-  - missing credential -> framework token_required;
+  - missing credential -> framework token_required using existing framework formatter/status/JSONP semantics;
   - resolve/authenticate through revoke Composite;
-  - invalid credential -> framework invalid_token status semantics;
+  - invalid credential -> framework invalid_token using existing framework formatter/status/JSONP semantics;
+  - only after successful authentication: controller format resolution;
   - request-level revoke target extraction;
-  - controller response HTTP 200.
+  - controller response HTTP 200 with no JSONP.
 - `main.py` order:
   1. contacts;
   2. `create_legacy_oauth_router(container.oauth_authorization)`;
@@ -855,9 +855,10 @@ Pin success/error JSON/XML, POST-only parameter behavior, invalid format JSON er
 Pin:
 - request token revokes;
 - Bearer-only token authenticates but no-op target returns empty value;
-- invalid/missing auth token uses framework statuses;
+- invalid/missing auth token uses framework statuses and framework JSONP behavior when callback is supplied;
+- invalid controller `format` does not override a prior token_required/invalid_token authentication failure;
 - request token precedence over Bearer;
-- callback ignored.
+- callback is ignored only after authentication succeeds and controller response rendering begins.
 
 - [ ] **Step 3: Write static-route precedence test**
 
