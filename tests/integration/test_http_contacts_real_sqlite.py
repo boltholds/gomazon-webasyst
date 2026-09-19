@@ -45,6 +45,16 @@ async def test_contact_http_vertical_slice_with_real_sqlalchemy_adapter(tmp_path
     async with app.router.lifespan_context(app):
         async with app.state.container.engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
+            for ddl in (
+                "CREATE TABLE wa_verification_channel_assets (id INTEGER PRIMARY KEY, address TEXT NOT NULL)",
+                "CREATE TABLE wa_contact_settings (contact_id INTEGER NOT NULL, app_id TEXT, name TEXT, value TEXT)",
+                "CREATE TABLE wa_app_tokens (token TEXT PRIMARY KEY, contact_id INTEGER NOT NULL)",
+                "CREATE TABLE wa_contact_data_text (id INTEGER PRIMARY KEY, contact_id INTEGER NOT NULL, value TEXT)",
+                "CREATE TABLE wa_contact_categories (contact_id INTEGER NOT NULL, category_id INTEGER NOT NULL)",
+                "CREATE TABLE wa_contact_category (id INTEGER PRIMARY KEY, cnt INTEGER NOT NULL)",
+                "CREATE TABLE wa_contact_events (id INTEGER PRIMARY KEY, contact_id INTEGER NOT NULL)",
+            ):
+                await connection.exec_driver_sql(ddl)
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -65,3 +75,13 @@ async def test_contact_http_vertical_slice_with_real_sqlalchemy_adapter(tmp_path
             )
             assert updated.status_code == 200
             assert updated.json()["company"] == "Example Ltd"
+
+            deleted = await client.delete(
+                f"/api/v1/contacts/{contact_id}"
+            )
+            assert deleted.status_code == 204
+
+            missing = await client.get(
+                f"/api/v1/contacts/{contact_id}"
+            )
+            assert missing.status_code == 404
