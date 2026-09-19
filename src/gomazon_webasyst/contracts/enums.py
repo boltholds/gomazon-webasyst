@@ -489,3 +489,46 @@ class CookieSameSite(EnumStr):
     LAX = "lax"
     STRICT = "strict"
     NONE = "none"
+
+
+class OAuthResponseType(EnumStr):
+    CODE = "code"
+    TOKEN = "token"
+
+
+class OAuthConsentDecision(EnumStr):
+    APPROVE = "approve"
+    DENY = "deny"
+
+
+class OAuthGrantType(EnumStr):
+    AUTHORIZATION_CODE = "authorization_code"
+
+
+class OAuthAuthorizationResultKind(EnumStr):
+    CONSENT_REQUIRED = "consent_required"
+    CODE_GRANTED = "code_granted"
+    TOKEN_GRANTED = "token_granted"
+    DENIED = "denied"
+    INVALID_SCOPE = "invalid_scope"
+    GRANT_UNAVAILABLE = "grant_unavailable"
+
+
+class OAuthConsentAppLookupKind(EnumStr):
+    RESOLVED = "resolved"
+    MISSING = "missing"
+
+
+class OAuthConsentAccessKind(EnumStr):
+    GRANTED = "granted"
+    DENIED = "denied"
+
+
+class OAuthRevokeTargetKind(EnumStr):
+    PROVIDED = "provided"
+    MISSING = "missing"
+
+
+class OAuthRevokeAuthenticationKind(EnumStr):
+    AUTHENTICATED = "authenticated"
+    REJECTED = "rejected"
