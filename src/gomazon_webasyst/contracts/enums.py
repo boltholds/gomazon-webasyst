@@ -573,3 +573,29 @@ class LegacyApiParameterDecodeReason(EnumStr):
     ENTRY_LIMIT = "entry_limit"
     KEY_LENGTH_LIMIT = "key_length_limit"
     VALUE_LENGTH_LIMIT = "value_length_limit"
+
+
+class TeamOnlineStatus(EnumStr):
+    OFFLINE = "offline"
+    ONLINE = "online"
+    IDLE = "idle"
+
+
+class TeamAccessLevel(EnumStr):
+    LIMITED = "limited"
+    FULL = "full"
+
+
+class TeamUserScopeKind(EnumStr):
+    ALL = "all"
+    GROUPS = "groups"
+
+
+class TeamValueStateKind(EnumStr):
+    MISSING = "missing"
+    PRESENT = "present"
+
+
+class TeamCurrentEventKind(EnumStr):
+    MISSING = "missing"
+    PRESENT = "present"
