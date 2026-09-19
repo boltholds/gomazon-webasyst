@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     database_backend: Literal["sqlalchemy"] = "sqlalchemy"
     database_url: str
     webasyst_root: Path = Path(".")
+    webasyst_timezone: str = "UTC"
+    webasyst_mod_rewrite: bool = True
     session_state_provider: str = "memory"
     backend_session_cookie_name: str = "gomazon_session"
     persistent_auth_cookie_name: str = "auth_token"
