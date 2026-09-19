@@ -43,7 +43,7 @@ def api_parts():
     return ApiExecutionComponents(
         pipeline=pipeline,
         method_registry=object(),
-        installed_app_directory=object(),
+        installed_application_catalog=object(),
         preconditions=LegacyApiTransportPreconditionService(
             api_enabled=True,
             disable_message="",

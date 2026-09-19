@@ -30,7 +30,7 @@ def components(*, enabled=True, force_https=False):
     return ApiExecutionComponents(
         pipeline=pipeline,
         method_registry=object(),
-        installed_app_directory=object(),
+        installed_application_catalog=object(),
         preconditions=LegacyApiTransportPreconditionService(
             api_enabled=enabled,
             disable_message="maintenance",

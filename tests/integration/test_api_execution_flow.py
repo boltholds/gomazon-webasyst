@@ -10,10 +10,19 @@ from gomazon_webasyst.application.access_values import AppId
 from gomazon_webasyst.application.api_execution.composites.results import ApiMethodSucceeded
 from gomazon_webasyst.application.api_execution.entities.method_definition import ApiMethodDefinition
 from gomazon_webasyst.application.api_execution.vo.method import ApiHttpMethod, ApiMethodName, ApiMethodTarget
+from gomazon_webasyst.application.application_registry.entities.installed_application import InstalledApplication
+from gomazon_webasyst.application.application_registry.vo.capabilities import ApplicationCapabilities
+from gomazon_webasyst.application.application_registry.vo.header_items import ApplicationHeaderItems
+from gomazon_webasyst.application.application_registry.vo.icons import ApplicationIconSet
+from gomazon_webasyst.application.application_registry.vo.metadata import (
+    ApplicationDisplayName,
+    ApplicationVendor,
+    ApplicationVersion,
+)
 from gomazon_webasyst.compatibility.webasyst.api.services.license import AllowAllAppLicensePolicy
 from gomazon_webasyst.composition.api_credentials import create_api_credential_use_cases
 from gomazon_webasyst.composition.api_execution import create_api_execution_components
-from gomazon_webasyst.infrastructure.api_execution.app_directory import InMemoryInstalledAppDirectory
+from gomazon_webasyst.infrastructure.application_registry.in_memory_catalog import InMemoryInstalledApplicationCatalog
 from gomazon_webasyst.infrastructure.api_execution.method_registry import InMemoryApiMethodRegistry
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.base import Base
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.models import (
@@ -128,7 +137,19 @@ async def test_api_execution_real_sqlite_asgi_vertical_flow() -> None:
         session_factory=sessions,
         resolve_api_access_token=credentials.resolve_api_access_token,
         method_registry=registry,
-        installed_app_directory=InMemoryInstalledAppDirectory(frozenset({AppId("shop")})),
+        installed_application_catalog=InMemoryInstalledApplicationCatalog(
+            (
+                InstalledApplication(
+                    app_id=AppId("shop"),
+                    display_name=ApplicationDisplayName("Shop"),
+                    icons=ApplicationIconSet(()),
+                    vendor=ApplicationVendor("webasyst"),
+                    version=ApplicationVersion("1.0.0"),
+                    capabilities=ApplicationCapabilities(frozenset()),
+                    header_items=ApplicationHeaderItems(()),
+                ),
+            )
+        ),
         license_policy=AllowAllAppLicensePolicy(),
         api_enabled=True,
         disable_message="",
