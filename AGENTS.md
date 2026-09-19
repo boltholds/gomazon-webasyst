@@ -24,6 +24,7 @@ Authoritative companion artifacts:
 - Installed application registry/discovery design: `docs/superpowers/specs/2026-09-19-installed-application-registry-discovery-design.md`
 - Installed application registry/discovery plan: `docs/superpowers/plans/2026-09-19-installed-application-registry-discovery.md`
 - Application runtime/events/plugins design: `docs/superpowers/specs/2026-09-19-application-runtime-events-plugins-design.md`
+- Application runtime/events/plugins plan: `docs/superpowers/plans/2026-09-19-application-runtime-events-plugins.md`
 - Official legacy documentation reference: `https://developers.webasyst.com/docs`
 
 ---
