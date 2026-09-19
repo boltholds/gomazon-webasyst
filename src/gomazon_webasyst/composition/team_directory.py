@@ -61,7 +61,10 @@ from gomazon_webasyst.compatibility.webasyst.team.api.resource_urls import (
 from gomazon_webasyst.compatibility.webasyst.team.events import (
     TeamContactsCollectionBridge,
 )
-from gomazon_webasyst.composition.application_runtime import RuntimeModuleFactory
+from gomazon_webasyst.composition.application_runtime import (
+    RuntimeModuleFactory,
+    RuntimeModuleFactoryBuilder,
+)
 from gomazon_webasyst.composition.settings import Settings
 from gomazon_webasyst.infrastructure.team_directory.clock import SystemTeamClock
 from gomazon_webasyst.infrastructure.team_directory.sqlalchemy.access import (
@@ -84,6 +87,24 @@ from gomazon_webasyst.infrastructure.team_directory.sqlalchemy.presence import (
 
 _TEAM_APP = AppId("team")
 _CONTACTS_APP = AppId("contacts")
+
+
+@dataclass(slots=True, frozen=True)
+class TeamRuntimeModuleFactoryBuilder(RuntimeModuleFactoryBuilder):
+    settings: Settings
+
+    def create(
+        self,
+        session_factory: object,
+    ) -> RuntimeModuleFactory:
+        if not isinstance(session_factory, async_sessionmaker):
+            raise TypeError(
+                "Team runtime requires SQLAlchemy async_sessionmaker"
+            )
+        return TeamRuntimeModuleFactory(
+            session_factory=session_factory,
+            settings=self.settings,
+        )
 
 
 @dataclass(slots=True, frozen=True)
