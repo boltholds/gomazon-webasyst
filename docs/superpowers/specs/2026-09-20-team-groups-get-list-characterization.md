@@ -23,7 +23,7 @@ This document pins the first real bundled-application compatibility endpoint mig
 | Group source | Uses `waGroupModel`. | Reads existing `wa_group`; no Team-owned schema is introduced. |
 | Response fields | Takes group metadata fields then removes only `icon` and `sort`. | Response contains exactly `id`, `name`, `cnt`, `type`, `description`. |
 | Ordering | Query orders by `sort`. | Team-specific reader preserves `ORDER BY sort`; the generic ACL GroupRepository is intentionally not reused for this projection. |
-| Type filter | GET `filter[type]` is normalized through `waUtils::toStrArray()`; missing/empty means no type filter. | Compatibility parser supports scalar, repeated `filter[type][]`, and nested normalized shape. |
+| Type filter | GET `filter[type]` is normalized through `waUtils::toStrArray()`: scalar values become a one-item array, scalar items are trimmed, and an explicitly supplied empty scalar becomes `['']`; only an absent `filter[type]` means no type filter. | Compatibility parser preserves scalar/repeated array shape, trims scalar values, and does not collapse an explicit empty item into missing state. |
 | Visibility | Group is included when `getRights('team', 'manage_users_in_group.<id>') >= 0`. | Existing `RightsEvaluator` is reused; finite negative hides, zero/positive shows, full/global access yields unlimited visibility. |
 | Dotted-right fallback | Webasyst rights semantics permit `manage_users_in_group.all` fallback when exact dotted right is zero/missing. | Existing `ExactThenLegacyAllFallback` is reused rather than duplicating Team ACL rules. |
 | Output container | Visible groups are appended with `[]`, producing a JSON list rather than an id-keyed map. | Python returns a list preserving query order. |
