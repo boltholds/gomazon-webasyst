@@ -41,6 +41,10 @@ from gomazon_webasyst.application.persistent_login import (
 )
 from gomazon_webasyst.composition.access_control import create_access_control_use_cases
 from gomazon_webasyst.composition.api_credentials import create_api_credential_use_cases
+from gomazon_webasyst.composition.api_execution import (
+    ApiExecutionComponents,
+    create_default_api_execution_components,
+)
 from gomazon_webasyst.composition.auth import create_auth_use_cases
 from gomazon_webasyst.composition.session_state_providers import (
     SessionStateProviderRegistry,
@@ -74,6 +78,7 @@ class Container:
     issue_implicit_api_access_token: IssueImplicitApiAccessToken
     resolve_api_access_token: ResolveApiAccessToken
     revoke_api_access_token: RevokeApiAccessToken
+    api_execution: ApiExecutionComponents
     get_group: GetGroup
     list_groups: ListGroups
     list_user_groups: ListUserGroups
@@ -118,6 +123,13 @@ def create_container_with_session_state_registry(
     auth = create_auth_use_cases(session_factory, session_state=session_state)
     api_credentials = create_api_credential_use_cases(session_factory)
     access = create_access_control_use_cases(session_factory)
+    api_execution = create_default_api_execution_components(
+        session_factory=session_factory,
+        resolve_api_access_token=api_credentials.resolve_api_access_token,
+        api_enabled=settings.api_enabled,
+        disable_message=settings.api_disable_message,
+        force_https=settings.api_force_https,
+    )
     return Container(
         settings=settings,
         engine=engine,
@@ -137,6 +149,7 @@ def create_container_with_session_state_registry(
         issue_implicit_api_access_token=api_credentials.issue_implicit_api_access_token,
         resolve_api_access_token=api_credentials.resolve_api_access_token,
         revoke_api_access_token=api_credentials.revoke_api_access_token,
+        api_execution=api_execution,
         get_group=access.get_group,
         list_groups=access.list_groups,
         list_user_groups=access.list_user_groups,

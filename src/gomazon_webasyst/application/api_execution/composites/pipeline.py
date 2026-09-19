@@ -51,7 +51,7 @@ class ApiExecutionPipeline:
                     code=ApiFrameworkErrorCode.INVALID_TOKEN,
                     description="Invalid access token",
                     http_status=401,
-                    details={},
+                    details={"_credential_reason": token_result.reason.value},
                 )
             )
         if not isinstance(token_result, ApiAccessTokenResolved):
