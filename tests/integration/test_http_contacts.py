@@ -37,7 +37,11 @@ class FakeContainer:
         self.update_contact = FakeUpdateContact()
         self.api_execution = object()
         self.oauth_authorization = object()
+        self.initialized = 0
         self.closed = 0
+
+    async def initialize(self) -> None:
+        self.initialized += 1
 
     async def close(self) -> None:
         self.closed += 1
@@ -80,4 +84,5 @@ async def test_contact_http_routes_use_application_services(monkeypatch) -> None
             )
             assert invalid.status_code == 422
 
+    assert container.initialized == 1
     assert container.closed == 1
