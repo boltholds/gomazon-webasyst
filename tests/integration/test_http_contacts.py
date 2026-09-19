@@ -35,6 +35,7 @@ class FakeContainer:
         self.get_contact = FakeGetContact()
         self.create_contact = FakeCreateContact()
         self.update_contact = FakeUpdateContact()
+        self.api_execution = object()
         self.closed = 0
 
     async def close(self) -> None:
