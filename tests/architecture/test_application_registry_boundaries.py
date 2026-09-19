@@ -59,3 +59,26 @@ def test_api_execution_has_no_parallel_installed_app_store() -> None:
     assert "InMemoryInstalledAppDirectory" not in composition
     assert "InstalledAppDirectory" not in authorizer
     assert "ApplicationRegistry" in authorizer
+
+
+def test_dispatch_handler_registry_has_no_installation_state() -> None:
+    assert not Path(
+        "src/gomazon_webasyst/application/ports/dispatch_registry.py"
+    ).exists()
+
+    handler_port = Path(
+        "src/gomazon_webasyst/application/ports/handler_registry.py"
+    ).read_text(encoding="utf-8")
+    handler_registry = Path(
+        "src/gomazon_webasyst/compatibility/webasyst/dispatch/registry.py"
+    ).read_text(encoding="utf-8")
+    resolver = Path(
+        "src/gomazon_webasyst/compatibility/webasyst/dispatch/resolver.py"
+    ).read_text(encoding="utf-8")
+
+    assert "plugin_available" not in handler_port
+    assert "enable_plugin" not in handler_registry
+    assert "_plugins" not in handler_registry
+    assert "ApplicationRegistry" in resolver
+    assert "PluginEnabled" in resolver
+    assert "ApplicationEnabled" in resolver
