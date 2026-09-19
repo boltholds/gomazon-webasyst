@@ -1,6 +1,6 @@
 # API Execution Core Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [x]) syntax for tracking.
 
 **Goal:** Build the Webasyst 4.2.0-compatible authenticated API method execution path on top of the existing OAuth credential and access-control cores, with all new domain/application code explicitly separated into Entity, VO, Services, and Composite packages.
 
@@ -74,7 +74,7 @@ These are the five high-risk inputs/conditions that must be pinned by tests in t
 - Produces closed EnumStr domains ApiResponseFormat, ApiFrameworkErrorCode, ApiExecutionResultKind, ApiMethodResultKind, ApiCredentialSourceKind and any lookup/authorization discriminators required by later tasks.
 - Produces Pydantic ApiFrameworkError and ApiExecutionSucceeded / ApiExecutionRejected cross-boundary contracts.
 
-- [ ] **Step 1: Write failing VO/Entity/Composite tests**
+- [x] **Step 1: Write failing VO/Entity/Composite tests**
 
 ~~~python
 def test_api_http_method_is_open_uppercase_vo() -> None:
@@ -105,33 +105,33 @@ def test_request_parameters_preserve_query_and_form_sources() -> None:
     assert params.form["id"] == "form"
 ~~~
 
-- [ ] **Step 2: Write failing EnumStr/serialization and no-Optional tests**
+- [x] **Step 2: Write failing EnumStr/serialization and no-Optional tests**
 
 Use TypeAdapter on the execution result union and raw string discriminators. Assert ApiResponseFormat.JSON serializes as "json", framework error code serializes as its legacy string, and no result/model field annotation contains NoneType.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Run: python -m pytest tests/unit/test_api_execution_types.py tests/architecture/test_api_execution_taxonomy.py tests/architecture/test_no_optional_result_contracts.py -v
 
 Expected: FAIL because the api_execution packages/contracts do not yet exist.
 
-- [ ] **Step 4: Implement the minimal taxonomy foundation**
+- [x] **Step 4: Implement the minimal taxonomy foundation**
 
 Use frozen/slotted dataclasses for internal VOs/Entities/Composites and Pydantic frozen models for serialized contracts. ApiParameterMap must copy input into an immutable MappingProxyType or equivalent immutable value representation; callers must not be able to mutate request parameters after construction.
 
 ApiFrameworkErrorCode must initially contain exactly the framework-owned codes required by this slice: DISABLED="disabled", INVALID_REQUEST="invalid_request", TOKEN_REQUIRED="token_required", INVALID_TOKEN="invalid_token", APP_NOT_INSTALLED="app_not_installed", ACCESS_DENIED="access_denied", PAYMENT_REQUIRED="payment_required", INVALID_METHOD="invalid_method", INVALID_PARAM="invalid_param".
 
-- [ ] **Step 5: Add taxonomy architecture guard**
+- [x] **Step 5: Add taxonomy architecture guard**
 
 The guard checks that every Python module under application/api_execution is below exactly one of entities/, vo/, services/, composites/, except package __init__.py. It also rejects FastAPI, Starlette, SQLAlchemy and compatibility imports from that tree.
 
-- [ ] **Step 6: Run GREEN**
+- [x] **Step 6: Run GREEN**
 
 Run: python -m pytest tests/unit/test_api_execution_types.py tests/architecture/test_api_execution_taxonomy.py tests/architecture/test_no_optional_result_contracts.py -v
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ~~~bash
 git add src/gomazon_webasyst/application/api_execution src/gomazon_webasyst/application/ports/api_methods.py src/gomazon_webasyst/contracts/api_execution.py src/gomazon_webasyst/contracts/enums.py tests/unit/test_api_execution_types.py tests/architecture/test_api_execution_taxonomy.py tests/architecture/test_no_optional_result_contracts.py
@@ -157,7 +157,7 @@ git commit -m "feat: add api execution taxonomy foundation"
 - Verb mismatch returns ApiMethodRejected(ApiFrameworkError(code=INVALID_REQUEST, http_status=405, description="Method <VERB> not allowed")) without calling the handler.
 - Allowed verb delegates exactly once to definition.handler.execute(context, parameters).
 
-- [ ] **Step 1: Write failing registry tests**
+- [x] **Step 1: Write failing registry tests**
 
 ~~~python
 def test_registry_is_extended_by_registration_not_dispatch_branch() -> None:
@@ -176,7 +176,7 @@ def test_registry_is_extended_by_registration_not_dispatch_branch() -> None:
     assert isinstance(missing, ApiMethodMissing)
 ~~~
 
-- [ ] **Step 2: Write failing executor tests, including Review Focus #3**
+- [x] **Step 2: Write failing executor tests, including Review Focus #3**
 
 ~~~python
 @pytest.mark.asyncio
@@ -202,23 +202,23 @@ async def test_executor_rejects_unknown_extension_verb_before_handler_call() -> 
 
 Also pin multiple allowed verbs and successful handler pass-through.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Run: python -m pytest tests/unit/test_api_method_registry.py tests/unit/test_api_method_executor.py -v
 
 Expected: FAIL for missing registry/executor.
 
-- [ ] **Step 4: Implement registry and executor**
+- [x] **Step 4: Implement registry and executor**
 
 Do not use importlib, globals, class-name construction, module scanning, plugin autoloading, or app/method if/elif dispatch.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 Run: python -m pytest tests/unit/test_api_method_registry.py tests/unit/test_api_method_executor.py tests/architecture/test_api_execution_taxonomy.py -v
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ~~~bash
 git add src/gomazon_webasyst/application/ports/api_method_registry.py src/gomazon_webasyst/application/api_execution/services/method_executor.py src/gomazon_webasyst/infrastructure/api_execution tests/unit/test_api_method_registry.py tests/unit/test_api_method_executor.py
@@ -252,7 +252,7 @@ git commit -m "feat: add explicit api method registry"
 - create_webasyst_rights_evaluator() is extracted from composition/access_control.py and used both by create_access_control_use_cases and API compatibility composition so effective-right semantics cannot drift.
 - LegacyApiAppAccessService uses AccessControlUnitOfWorkFactory + RightsEvaluator. It denies Missing/NotUser; grants resolved users for AppId("webasyst"); for other apps it loads effective access and grants Limited/Full/GlobalAdmin but denies NoAppAccess.
 
-- [ ] **Step 1: Write failing exact-order authorizer tests, including Review Focus #2**
+- [x] **Step 1: Write failing exact-order authorizer tests, including Review Focus #2**
 
 Use recording stubs with call logs.
 
@@ -287,27 +287,27 @@ async def test_access_denial_stops_scope_and_license() -> None:
 
 Add separate tests: granted app/access but scope excludes target -> ACCESS_DENIED without license; granted scope but blocked license -> PAYMENT_REQUIRED 402.
 
-- [ ] **Step 2: Write failing legacy app-access tests**
+- [x] **Step 2: Write failing legacy app-access tests**
 
 Pin: AccessSubjectMissing -> unavailable/denied; AccessSubjectNotUser -> denied; resolved user + webasyst -> granted without rights lookup; normal app NoAppAccess -> denied; Limited/Full/GlobalAdmin -> granted.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Run: python -m pytest tests/unit/test_api_request_authorizer.py tests/unit/test_legacy_api_app_access.py -v
 
 Expected: FAIL for missing ports/services.
 
-- [ ] **Step 4: Implement authorization ports/services and evaluator factory**
+- [x] **Step 4: Implement authorization ports/services and evaluator factory**
 
 Keep the literal Webasyst compatibility exception only in compatibility/webasyst/api/services/app_access.py. The application authorizer must never compare app_id.value to "webasyst".
 
-- [ ] **Step 5: Run GREEN plus existing ACL tests**
+- [x] **Step 5: Run GREEN plus existing ACL tests**
 
 Run: python -m pytest tests/unit/test_api_request_authorizer.py tests/unit/test_legacy_api_app_access.py tests/unit/test_access_control_reads.py tests/unit/test_access_control_container.py -v
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ~~~bash
 git add src/gomazon_webasyst/application/ports/installed_apps.py src/gomazon_webasyst/application/ports/api_app_access.py src/gomazon_webasyst/application/ports/app_license.py src/gomazon_webasyst/application/api_execution/composites/authorization.py src/gomazon_webasyst/application/api_execution/services/authorizer.py src/gomazon_webasyst/infrastructure/api_execution/app_directory.py src/gomazon_webasyst/compatibility/webasyst/api src/gomazon_webasyst/composition/access_control.py tests/unit/test_api_request_authorizer.py tests/unit/test_legacy_api_app_access.py
@@ -333,7 +333,7 @@ git commit -m "feat: add api request authorization services"
 - Exact legacy rule: touch only when a previous last_datetime exists AND now - last_datetime > 30 seconds. Never-active, exactly 30 seconds, and newer values are skipped.
 - SQLAlchemyApiUserActivityStore maps WaContactRow.last_datetime and never returns None.
 
-- [ ] **Step 1: Write failing threshold tests**
+- [x] **Step 1: Write failing threshold tests**
 
 ~~~python
 @pytest.mark.asyncio
@@ -360,27 +360,27 @@ async def test_activity_older_than_30_seconds_is_touched() -> None:
     assert store.touches == [(42, NOW)]
 ~~~
 
-- [ ] **Step 2: Write failing SQLite null-normalization and update tests**
+- [x] **Step 2: Write failing SQLite null-normalization and update tests**
 
 Seed WaContactRow with last_datetime NULL, assert ApiUserNeverActive. Seed timestamp, assert ApiUserLastActiveAt. Touch and commit, reload exact timestamp.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Run: python -m pytest tests/unit/test_api_user_activity_service.py tests/integration/test_sqlalchemy_api_activity_store.py -v
 
 Expected: FAIL for missing activity types/store/service.
 
-- [ ] **Step 4: Implement minimal activity adapter and Service**
+- [x] **Step 4: Implement minimal activity adapter and Service**
 
 Activity subject disappearance is an ordinary typed result. Pipeline integration in Task 5 treats missing/skipped activity as non-fatal compatibility side-effect outcomes; infrastructure errors still propagate.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 Run: python -m pytest tests/unit/test_api_user_activity_service.py tests/integration/test_sqlalchemy_api_activity_store.py -v
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ~~~bash
 git add src/gomazon_webasyst/application/api_execution/vo/activity.py src/gomazon_webasyst/application/ports/api_activity.py src/gomazon_webasyst/application/api_execution/services/activity.py src/gomazon_webasyst/infrastructure/api_execution/activity.py tests/unit/test_api_user_activity_service.py tests/integration/test_sqlalchemy_api_activity_store.py
@@ -404,7 +404,7 @@ git commit -m "feat: add api user activity service"
 - Registry miss maps INVALID_METHOD/404.
 - Executor/handler result becomes ApiExecutionSucceeded or ApiExecutionRejected without response formatting.
 
-- [ ] **Step 1: Write failing pipeline sequencing tests**
+- [x] **Step 1: Write failing pipeline sequencing tests**
 
 ~~~python
 @pytest.mark.asyncio
@@ -418,27 +418,27 @@ async def test_pipeline_sequences_token_activity_authorization_registry_executor
     assert log == ["token", "activity", "authorize", "registry", "execute"]
 ~~~
 
-- [ ] **Step 2: Write short-circuit tests for each stage**
+- [x] **Step 2: Write short-circuit tests for each stage**
 
 Token rejection must leave log ["token"]. Authorization rejection must leave ["token", "activity", "authorize"]. Registry missing must not call executor. Handler/framework rejection must return typed rejection unchanged.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Run: python -m pytest tests/unit/test_api_execution_pipeline.py -v
 
 Expected: FAIL because pipeline Composite does not exist.
 
-- [ ] **Step 4: Implement orchestration only**
+- [x] **Step 4: Implement orchestration only**
 
 The pipeline file must contain no SQL, no compatibility string checks, no JSON/XML logic, no header parsing, no method-specific parameter parsing.
 
-- [ ] **Step 5: Run GREEN and taxonomy guard**
+- [x] **Step 5: Run GREEN and taxonomy guard**
 
 Run: python -m pytest tests/unit/test_api_execution_pipeline.py tests/architecture/test_api_execution_taxonomy.py -v
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ~~~bash
 git add src/gomazon_webasyst/application/api_execution/composites/pipeline.py tests/unit/test_api_execution_pipeline.py
@@ -480,11 +480,11 @@ git commit -m "feat: add api execution composite pipeline"
 - ApiParameterReaderService.get/post reads only its source and required=True rejects PHP-falsy values with INVALID_PARAM/400.
 - LegacyApiTransportPreconditionService returns ApiTransportAccepted | ApiTransportDisabled(message) | ApiHttpsRequired. URL construction stays presentation-side.
 
-- [ ] **Step 1: Write source-backed route/format/precondition characterization tests**
+- [x] **Step 1: Write source-backed route/format/precondition characterization tests**
 
 Pin the three route forms, malformed paths, reserved endpoints, JSON default, XML/JSON case normalization, invalid explicit format, API disabled and ssl_all requiring HTTPS.
 
-- [ ] **Step 2: Write credential precedence tests including Review Focus #1**
+- [x] **Step 2: Write credential precedence tests including Review Focus #1**
 
 ~~~python
 def test_post_access_token_shadows_get_even_when_empty_then_header_wins() -> None:
@@ -502,27 +502,27 @@ def test_post_access_token_shadows_get_even_when_empty_then_header_wins() -> Non
 
 Also pin: no POST key -> GET token; non-empty POST beats GET/header; request token "0" is PHP-falsy and falls to header; Bearer stripping is case-insensitive; no credential -> typed missing.
 
-- [ ] **Step 3: Write GET/POST parameter-reader tests**
+- [x] **Step 3: Write GET/POST parameter-reader tests**
 
 Required values None, False, 0, 0.0, "", "0", empty tuple/list/mapping reject; non-empty values pass. GET never reads form and POST never reads query.
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 Run: python -m pytest tests/compatibility/test_api_execution_transport_characterization.py tests/unit/test_legacy_api_transport_services.py -v
 
 Expected: FAIL for missing compatibility services.
 
-- [ ] **Step 5: Implement normalization services**
+- [x] **Step 5: Implement normalization services**
 
 Do not import FastAPI/Starlette in these pure compatibility services. Presentation converts Request into LegacyApiHttpRequestComposite in Task 8.
 
-- [ ] **Step 6: Run GREEN**
+- [x] **Step 6: Run GREEN**
 
 Run: python -m pytest tests/compatibility/test_api_execution_transport_characterization.py tests/unit/test_legacy_api_transport_services.py -v
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ~~~bash
 git add src/gomazon_webasyst/compatibility/webasyst/api tests/compatibility/test_api_execution_transport_characterization.py tests/unit/test_legacy_api_transport_services.py
@@ -549,7 +549,7 @@ git commit -m "feat: add legacy api transport normalization"
 - LegacyApiResponseRenderer.render(execution_result, response_format, callback) selects JSON/XML. JSONP applies only to JSON.
 - JSONP uses legacy PHP truthiness for callback: empty string and "0" mean no JSONP. Non-falsy callback forces status 200 and media type text/javascript; body is callback(<json>); for both success and error.
 
-- [ ] **Step 1: Write failing JSON recursive metadata tests**
+- [x] **Step 1: Write failing JSON recursive metadata tests**
 
 ~~~python
 def test_json_formatter_removes_element_metadata_recursively() -> None:
@@ -565,11 +565,11 @@ def test_json_formatter_removes_element_metadata_recursively() -> None:
     assert json.loads(rendered) == {"items": [{"id": 1}, {"id": 2}]}
 ~~~
 
-- [ ] **Step 2: Write failing XML characterization tests including Review Focus #5**
+- [x] **Step 2: Write failing XML characterization tests including Review Focus #5**
 
 Pin root <response>, explicit nested _element item names, items -> item and categories -> category inference, associative mapping nesting, scalar text and empty string element.
 
-- [ ] **Step 3: Write JSONP tests including Review Focus #4**
+- [x] **Step 3: Write JSONP tests including Review Focus #4**
 
 ~~~python
 @pytest.mark.parametrize("callback", ["", "0"])
@@ -587,23 +587,23 @@ def test_nonempty_jsonp_callback_forces_200_even_for_error() -> None:
     assert response.body.endswith(");")
 ~~~
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 Run: python -m pytest tests/compatibility/test_api_response_characterization.py tests/unit/test_legacy_api_response_formatters.py -v
 
 Expected: FAIL for missing formatters/renderer.
 
-- [ ] **Step 5: Implement formatters with stdlib only**
+- [x] **Step 5: Implement formatters with stdlib only**
 
 Use json and xml.etree.ElementTree or an equivalently safe stdlib XML builder. Never build XML by string concatenating unescaped user values.
 
-- [ ] **Step 6: Run GREEN**
+- [x] **Step 6: Run GREEN**
 
 Run: python -m pytest tests/compatibility/test_api_response_characterization.py tests/unit/test_legacy_api_response_formatters.py -v
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ~~~bash
 git add src/gomazon_webasyst/compatibility/webasyst/api/services src/gomazon_webasyst/compatibility/webasyst/api/composites tests/compatibility/test_api_response_characterization.py tests/unit/test_legacy_api_response_formatters.py
@@ -636,11 +636,11 @@ git commit -m "feat: add legacy api response formatters"
 - HTTPS redirect location is built from the actual request URL in presentation when ApiHttpsRequired is returned.
 - main.py mounts only the legacy API router in addition to existing native contacts router; the broader legacy catch-all router remains unmounted.
 
-- [ ] **Step 1: Write failing composition tests**
+- [x] **Step 1: Write failing composition tests**
 
 Assert default registry/directory are empty, custom registry/directory identity is preserved, ResolveApiAccessToken is reused from the container credential core, and no concrete SQL/HTTP objects enter the pipeline.
 
-- [ ] **Step 2: Write failing HTTP adapter tests**
+- [x] **Step 2: Write failing HTTP adapter tests**
 
 Use FastAPI TestClient/ASGI client with stub components to pin:
 - /api.php?app=shop&method=ping
@@ -654,23 +654,23 @@ Use FastAPI TestClient/ASGI client with stub components to pin:
 - API disabled -> disabled/404
 - HTTPS-required -> 301 with https URL
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Run: python -m pytest tests/unit/test_api_execution_container.py tests/unit/test_legacy_api_http_adapter.py tests/unit/test_container.py -v
 
 Expected: FAIL because composition/router do not exist.
 
-- [ ] **Step 4: Implement composition and presentation adapter**
+- [x] **Step 4: Implement composition and presentation adapter**
 
 FastAPI Request/Response objects exist only in presentation/http/legacy_api.py. Use existing container lifespan pattern; add the execution components/container field without changing auth/session lifetime semantics.
 
-- [ ] **Step 5: Run GREEN plus main-app import test**
+- [x] **Step 5: Run GREEN plus main-app import test**
 
 Run: python -m pytest tests/unit/test_api_execution_container.py tests/unit/test_legacy_api_http_adapter.py tests/unit/test_container.py -v
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ~~~bash
 git add src/gomazon_webasyst/composition/api_execution.py src/gomazon_webasyst/presentation/http/legacy_api.py src/gomazon_webasyst/composition/container.py src/gomazon_webasyst/main.py tests/unit/test_api_execution_container.py tests/unit/test_legacy_api_http_adapter.py tests/unit/test_container.py
@@ -691,7 +691,7 @@ git commit -m "feat: wire legacy api execution adapter"
 - Vertical test uses real SQLite OAuth token persistence, real ACL tables/evaluator, real SQL activity store, explicit fixture installed app + method registration, pipeline and ASGI adapter.
 - Fixture method is an ApiMethodDefinition Entity registered explicitly; it echoes typed query/form data and does not receive Request/AsyncSession.
 
-- [ ] **Step 1: Write the SQLite/ASGI end-to-end fixture flow**
+- [x] **Step 1: Write the SQLite/ASGI end-to-end fixture flow**
 
 Seed:
 - contact 42 as backend user with last_datetime older than 30 seconds;
@@ -714,7 +714,7 @@ Verify:
 11. JSONP callback forces status 200;
 12. reserved auth path never invokes the fixture registry.
 
-- [ ] **Step 2: Add architecture guards**
+- [x] **Step 2: Add architecture guards**
 
 Guards reject:
 - fastapi/starlette/sqlalchemy/compatibility imports below application/api_execution;
@@ -726,7 +726,7 @@ Guards reject:
 - if/elif chains containing both app and method comparisons in execution dispatch;
 - new Python files directly under application/api_execution other than __init__.py, enforcing Entity/VO/Services/Composite package classification.
 
-- [ ] **Step 3: Run focused verification**
+- [x] **Step 3: Run focused verification**
 
 Run:
 
@@ -736,7 +736,7 @@ python -m pytest   tests/unit/test_api_execution_types.py   tests/unit/test_api_
 
 Expected: PASS.
 
-- [ ] **Step 4: Run complete verification**
+- [x] **Step 4: Run complete verification**
 
 ~~~bash
 python -m compileall -q src tests
@@ -745,17 +745,17 @@ python -m pytest -v
 
 Expected: compile success and entire repository suite green.
 
-- [ ] **Step 5: Compare scope against main**
+- [x] **Step 5: Compare scope against main**
 
 Run: git diff --stat main...feature/api-execution-core and inspect changed paths.
 
 Confirm no /api.php/auth consent implementation, no token/revoke HTTP implementation, no Redis/Supabase adapter, no installer subsystem, no dynamic app method import, and no mass bundled-app migration entered the branch.
 
-- [ ] **Step 6: Update implementation status in this plan**
+- [x] **Step 6: Update implementation status in this plan**
 
 Record exact branch SHA, full pytest passed/failed/skipped count, compileall status and the fact that method execution HTTP adapter is mounted while OAuth consent/auth remains out of scope.
 
-- [ ] **Step 7: Commit completion**
+- [x] **Step 7: Commit completion**
 
 ~~~bash
 git add tests/integration/test_api_execution_flow.py tests/architecture/test_api_execution_boundaries.py tests/architecture/test_dependency_boundaries.py tests/architecture/test_no_optional_result_contracts.py docs/superpowers/plans/2026-09-19-api-execution-core.md AGENTS.md
@@ -779,3 +779,25 @@ Before integration, all of the following must be evidenced on the feature-branch
 - JSON _element removal, XML list metadata and JSONP legacy status behavior are covered;
 - /api.php/auth and other reserved endpoints are not dispatched as application methods;
 - production main mounts the method-execution API adapter without mounting the unrelated legacy catch-all.
+
+
+## Implementation Status
+
+Implemented and gap-audited on `feature/api-execution-core`.
+
+Verified implementation head: `04d81d2b0c65137226d97ddc916c3276cde38082`.
+
+Fresh GitHub Actions verification on that implementation head:
+
+- Python 3.12 compile source tree: **success**.
+- Full pytest suite: **397 passed, 0 failed, 0 skipped** (2 pre-existing TestClient deprecation warnings).
+- Entity / VO / Services / Composite taxonomy guards pass.
+- API Execution Core application packages remain free of FastAPI/Starlette, SQLAlchemy and Webasyst compatibility dependencies.
+- Explicit method registry and staged execution pipeline are active; dynamic PHP class discovery is not reproduced.
+- Legacy `/api.php` method execution is mounted, while `/api.php/auth` consent and token/revoke HTTP flows remain outside this slice.
+
+Native execution included a plan-vs-code gap audit because the branch already contained most planned implementation when execution began. Three concrete gaps were closed with regression coverage:
+
+1. `ApiParameterMap` now accepts any declared `Mapping` value and freezes it recursively rather than accepting only `dict`.
+2. Invalid explicit legacy response format preserves the source-backed HTTP 200 `invalid_request` behavior.
+3. Presentation now constructs and uses `LegacyApiHttpRequestComposite`, including the server `HTTP_AUTHORIZATION` fallback, rather than dropping that source.
