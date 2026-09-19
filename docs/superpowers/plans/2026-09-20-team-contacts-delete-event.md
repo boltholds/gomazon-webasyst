@@ -18,4 +18,22 @@ Date: 2026-09-20
 - [x] Test factory identity mismatch fails startup.
 - [x] Add source-characterization executable fixture.
 - [x] Update architecture record/ADR.
-- [ ] Run final full CI and record exact test count.
+- [x] Run final full CI and record exact test count.
+
+
+## Verification record
+
+Final code head before completion-documentation commits: `af25c4822797d73afb546ab0b65f8d9df65b63f3`.
+
+GitHub Actions completed successfully on that head:
+
+- source-tree compile passed;
+- `809 passed, 9 warnings`;
+- exact Webasyst 4.2.0 Team contacts-delete characterization passed;
+- Team relay publishes `team.contacts_delete` with the exact same payload object;
+- nested handler execution is proven through the real linked EventDispatcher;
+- nested results do not leak into the outer `contacts.delete` result;
+- uninstalled known runtime factories are not invoked;
+- runtime factory identity mismatch fails startup;
+- nested-event architecture guards passed;
+- existing Team groups API and all earlier framework slices remain green.
