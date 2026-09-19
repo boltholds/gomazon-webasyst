@@ -19,6 +19,7 @@ Authoritative companion artifacts:
 - Access-control design: `docs/superpowers/specs/2026-09-15-access-control-design.md`
 - State backend + API OAuth2 design: `docs/superpowers/specs/2026-09-15-state-backends-api-oauth2-design.md`
 - API execution core design: `docs/superpowers/specs/2026-09-19-api-execution-core-design.md`
+- Backend session HTTP bridge design: `docs/superpowers/specs/2026-09-19-backend-session-http-bridge-design.md`
 - Official legacy documentation reference: `https://developers.webasyst.com/docs`
 
 ---
@@ -298,6 +299,25 @@ Date: 2026-09-19
 
 PHP class-name construction and `class_exists()` lookup are replaced by an application-owned `ApiMethodRegistry` keyed by open `ApiMethodTarget`/`ApiMethodName` VOs and returning registered `ApiMethodDefinition` Entities. Adding a method requires registration, not a central dispatch branch or dynamic import. HTTP method tokens are open uppercase VOs; closed response/result/rejection domains use `EnumStr`. Query/form source distinction, Bearer/request-token extraction, JSON/XML/JSONP rendering, legacy error envelopes, API-disable behavior and HTTPS redirects remain compatibility/presentation concerns and MUST NOT leak into application method handlers.
 
+
+### ADR-038 — Backend HTTP authentication returns credential dispositions, not cookie operations
+Status: accepted
+Date: 2026-09-19
+
+The backend-session HTTP bridge is transport-neutral at the application boundary. Its Composites return explicit `IssueSessionCredential | ClearSessionCredential | KeepSessionCredential` session intents and reuse `RefreshPersistentCredential | ClearPersistentCredential | KeepPersistentCredential` for persistent authentication. FastAPI/Starlette cookie reads/writes, cookie names, SameSite/Secure attributes and expiry headers remain presentation/composition concerns. Password authentication, session resolution, persistent restore and logout continue to use the existing auth use cases; no second authentication system or global current-user object is introduced.
+
+### ADR-039 — Python backend sessions use an opaque native cookie and do not impersonate PHP sessions
+Status: accepted
+Date: 2026-09-19
+
+The Python rewrite transports the existing opaque `SessionId` in a dedicated host-only backend cookie, default name `gomazon_session`. It is not named `PHPSESSID`, does not decode PHP session files, and does not claim interoperability with PHP `$_SESSION`. Runtime `SessionStateStore` state remains authoritative for expiry/revocation. The legacy persistent credential continues to use the compatibility cookie name `auth_token`. PHP session interoperability, if needed later, must be a separate compatibility adapter.
+
+### ADR-040 — Browser current-subject resolution is session-first with persistent-login fallback
+Status: accepted
+Date: 2026-09-19
+
+Browser-authenticated surfaces resolve identity in a fixed order: valid Python session credential first; only if no subject is resolved may the bridge attempt persistent-login restoration. A valid session always wins and persistent restore is not invoked. A rejected supplied session credential is scheduled for clearing. If persistent login is globally disabled, persistent restore is not invoked and existing `auth_token` transport is left untouched. Session-only password login also leaves an existing persistent credential untouched. Logout is idempotent and clears both session and persistent credential transport.
+
 ---
 
 ## Target dependency direction
@@ -441,6 +461,22 @@ The first auth slice is backend password authentication plus session create/reso
 - token/code collisions and expected concurrent state changes are typed outcomes;
 - raw scope CSV encoding stays in the Webasyst compatibility adapter;
 - HTTP token extraction, consent/redirect flows and API method authorization are not part of this credential slice.
+
+---
+
+## Backend session HTTP bridge rules
+
+- backend browser authentication uses the existing auth/session/persistent-login use cases; no parallel auth model is introduced;
+- bridge application code is classified as VO, Service, or Composite; existing `AuthenticatedSubject`/`AuthSessionKey`/`StoredAuthSession` remain the identity-bearing entities and MUST NOT be duplicated;
+- valid Python session credential wins over persistent credential fallback;
+- supplied rejected session credentials return explicit clear-session transport intent;
+- persistent-login disabled means no restore attempt and no mutation of existing `auth_token`;
+- session-only password login MUST NOT clear or rotate an existing persistent credential;
+- remember intent is a closed typed value and MUST NOT be added as `remember: bool` to `BackendPasswordCredentials`;
+- cookie names, HttpOnly/SameSite/Secure/path/lifetime and Set-Cookie operations remain presentation/composition concerns;
+- default Python session cookie is `gomazon_session`; default persistent cookie remains `auth_token`;
+- Python session transport MUST NOT use `PHPSESSID` or decode PHP session files in this slice;
+- no standalone production login route is mounted by this bridge; the next OAuth authorization slice consumes it.
 
 ---
 
