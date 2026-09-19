@@ -456,6 +456,8 @@ The first auth slice is backend password authentication plus session create/reso
 - query and form parameters remain distinct through `ApiRequestParameters`;
 - legacy required-parameter falsy behavior is isolated in a compatibility parameter-reader Service;
 - JSON/XML/JSONP formatting and framework error envelopes stay outside application execution;
+- an invalid explicit legacy `format` value returns `invalid_request` with HTTP 200, matching the 4.2.0 response call that omits an error status;
+- presentation constructs `LegacyApiHttpRequestComposite` once and preserves credential precedence through request input, normal Authorization header, then server `HTTP_AUTHORIZATION` fallback;
 - JSON recursively removes `_element`; XML preserves characterized `_element`/list/plural semantics; JSONP forces status 200 in the legacy adapter;
 - API user `last_datetime` compatibility touch is a separate Service with the characterized >30 second threshold;
 - `/api.php/auth` consent/redirect/CSRF remains a later slice.
