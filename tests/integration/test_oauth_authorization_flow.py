@@ -18,13 +18,16 @@ from gomazon_webasyst.application.oauth_authorization.vo.client import (
     OAuthAppDisplayName,
     OAuthAppIconReference,
 )
-from gomazon_webasyst.composition.container import create_container
+from gomazon_webasyst.composition.container import create_container_with_application_catalog
 from gomazon_webasyst.composition.oauth_authorization import (
     create_oauth_authorization_components,
 )
 from gomazon_webasyst.composition.settings import Settings
 from gomazon_webasyst.compatibility.webasyst.oauth.services.redirects import (
     LegacyUnregisteredRedirectPolicy,
+)
+from gomazon_webasyst.infrastructure.application_registry.in_memory_catalog import (
+    InMemoryInstalledApplicationCatalog,
 )
 from gomazon_webasyst.infrastructure.oauth_authorization.app_catalog import (
     InMemoryOAuthConsentAppCatalog,
@@ -54,8 +57,9 @@ CRM = OAuthConsentApplication(
 
 
 async def _build(tmp_path: Path):
-    container = create_container(
-        Settings(database_url=f"sqlite+aiosqlite:///{tmp_path / 'oauth.db'}")
+    container = create_container_with_application_catalog(
+        Settings(database_url=f"sqlite+aiosqlite:///{tmp_path / 'oauth.db'}"),
+        installed_application_catalog=InMemoryInstalledApplicationCatalog(()),
     )
     async with container.engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
