@@ -38,3 +38,24 @@ def test_registry_port_has_no_nullable_or_boolean_lookup_results() -> None:
     assert "Optional[" not in source
     assert "| None" not in source
     assert "-> bool" not in source
+
+
+def test_api_execution_has_no_parallel_installed_app_store() -> None:
+    assert not Path(
+        "src/gomazon_webasyst/application/ports/installed_apps.py"
+    ).exists()
+    assert not Path(
+        "src/gomazon_webasyst/infrastructure/api_execution/app_directory.py"
+    ).exists()
+
+    composition = Path(
+        "src/gomazon_webasyst/composition/api_execution.py"
+    ).read_text(encoding="utf-8")
+    authorizer = Path(
+        "src/gomazon_webasyst/application/api_execution/services/authorizer.py"
+    ).read_text(encoding="utf-8")
+
+    assert "InstalledAppDirectory" not in composition
+    assert "InMemoryInstalledAppDirectory" not in composition
+    assert "InstalledAppDirectory" not in authorizer
+    assert "ApplicationRegistry" in authorizer
