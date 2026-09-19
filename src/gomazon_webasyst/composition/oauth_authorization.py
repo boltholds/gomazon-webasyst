@@ -45,6 +45,7 @@ from gomazon_webasyst.compatibility.webasyst.oauth.services.html_renderer import
     LegacyOAuthHtmlRenderer,
 )
 from gomazon_webasyst.compatibility.webasyst.oauth.services.redirects import (
+    LegacyOAuthRedirectService,
     LegacyUnregisteredRedirectPolicy,
 )
 from gomazon_webasyst.compatibility.webasyst.oauth.services.request_validation import (
@@ -59,6 +60,7 @@ from gomazon_webasyst.compatibility.webasyst.oauth.services.revoke_target import
 from gomazon_webasyst.compatibility.webasyst.oauth.services.token_controller import (
     LegacyOAuthControllerRenderer,
     LegacyOAuthTokenController,
+    LegacyOAuthTokenRequestService,
 )
 from gomazon_webasyst.composition.access_control import create_webasyst_rights_evaluator
 from gomazon_webasyst.composition.backend_session_bridge import (
@@ -91,6 +93,8 @@ class OAuthAuthorizationComponents:
     cancel_service: LegacyOAuthCancelService
     deny_service: LegacyOAuthDenyService
     html_renderer: LegacyOAuthHtmlRenderer
+    redirect_service: LegacyOAuthRedirectService
+    token_request_service: LegacyOAuthTokenRequestService
     token_controller: LegacyOAuthTokenController
     controller_format_service: LegacyOAuthControllerFormatService
     controller_renderer: LegacyOAuthControllerRenderer
@@ -148,6 +152,8 @@ def create_oauth_authorization_components(
         cancel_service=LegacyOAuthCancelService(),
         deny_service=LegacyOAuthDenyService(),
         html_renderer=LegacyOAuthHtmlRenderer(),
+        redirect_service=LegacyOAuthRedirectService(),
+        token_request_service=LegacyOAuthTokenRequestService(),
         token_controller=LegacyOAuthTokenController(exchange_authorization_code),
         controller_format_service=LegacyOAuthControllerFormatService(),
         controller_renderer=LegacyOAuthControllerRenderer(),
