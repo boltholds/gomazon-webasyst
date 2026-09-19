@@ -145,22 +145,22 @@ class StaticApplicationRegistry:
                 )
 
     def resolve_app(self, app_id: AppId) -> ApplicationResolution:
-        descriptor = self._apps.get(app_id)
-        if descriptor is None:
+        if app_id not in self._apps:
             return ApplicationUnknown(app_id)
+        descriptor = self._apps[app_id]
         if app_id in self._installed:
             return ApplicationEnabled(descriptor)
         return ApplicationDisabled(descriptor)
 
     def resolve_plugin(self, plugin_ref: PluginRef) -> PluginResolution:
-        descriptor = self._plugins.get(plugin_ref)
-        if descriptor is None:
+        if plugin_ref not in self._plugins:
             return PluginUnknown(plugin_ref)
+        descriptor = self._plugins[plugin_ref]
 
         owner = self._apps[plugin_ref.app_id]
-        installed_owner = self._installed.get(plugin_ref.app_id)
-        if installed_owner is None:
+        if plugin_ref.app_id not in self._installed:
             return PluginOwnerDisabled(descriptor, owner)
+        installed_owner = self._installed[plugin_ref.app_id]
 
         if plugin_ref.plugin_id in installed_owner.plugins:
             return PluginEnabled(descriptor)
@@ -196,9 +196,9 @@ class StaticApplicationRegistry:
         if app_id not in self._apps:
             return PluginListOwnerUnknown(app_id)
 
-        installed = self._installed.get(app_id)
-        if installed is None:
+        if app_id not in self._installed:
             return PluginListOwnerDisabled(app_id)
+        installed = self._installed[app_id]
 
         return PluginListResolved(
             app_id=app_id,
