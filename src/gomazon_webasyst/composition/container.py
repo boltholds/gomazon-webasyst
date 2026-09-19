@@ -33,7 +33,12 @@ from gomazon_webasyst.application.auth import (
     LogoutBackendSession,
     ResolveBackendSession,
 )
-from gomazon_webasyst.application.contacts import CreateContact, GetContact, UpdateContact
+from gomazon_webasyst.application.contacts import (
+    CreateContact,
+    DeleteContacts,
+    GetContact,
+    UpdateContact,
+)
 from gomazon_webasyst.application.persistent_login import (
     IssuePersistentCredential,
     RestoreBackendSessionFromPersistentCredential,
@@ -106,6 +111,7 @@ class Container:
     get_contact: GetContact
     create_contact: CreateContact
     update_contact: UpdateContact
+    delete_contacts: DeleteContacts
     authenticate_backend_password: AuthenticateBackendPassword
     resolve_backend_session: ResolveBackendSession
     logout_backend_session: LogoutBackendSession
@@ -269,6 +275,10 @@ def create_container_with_registries(
         get_contact=GetContact(uow_factory),
         create_contact=CreateContact(uow_factory),
         update_contact=UpdateContact(uow_factory),
+        delete_contacts=DeleteContacts(
+            uow_factory,
+            application_runtime.event_publisher,
+        ),
         authenticate_backend_password=auth.authenticate_backend_password,
         resolve_backend_session=auth.resolve_backend_session,
         logout_backend_session=auth.logout_backend_session,
