@@ -6,8 +6,10 @@ from gomazon_webasyst.application.oauth_authorization.vo.authorization import (
 )
 from gomazon_webasyst.compatibility.webasyst.oauth.vo.transport import (
     OAuthCsrfAccepted,
+    OAuthCsrfCookieMissing,
     OAuthCsrfCookieProvided,
     OAuthCsrfCookieState,
+    OAuthCsrfFormMissing,
     OAuthCsrfFormProvided,
     OAuthCsrfFormState,
     OAuthCsrfIssued,
