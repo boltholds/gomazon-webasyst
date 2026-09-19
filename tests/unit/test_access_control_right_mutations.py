@@ -1,3 +1,9 @@
+from gomazon_webasyst.application.application_registry import (
+    ApplicationCatalog,
+    InstallationManifest,
+    InstalledApplication,
+    StaticApplicationRegistry,
+)
 from gomazon_webasyst.application.access_control import (
     AssignRight,
     RevokeRight,
@@ -37,6 +43,7 @@ from gomazon_webasyst.application.rights_mutation_policy import (
 )
 from gomazon_webasyst.compatibility.webasyst.access_control.evaluation import WebasystAccessSemantics
 from gomazon_webasyst.compatibility.webasyst.access_control.mutation import LegacyRightsMutationPolicy
+from gomazon_webasyst.contracts.applications import ApplicationDescriptor
 from gomazon_webasyst.contracts.access_control import (
     AccessMutationRejected,
     AppAccessSet,
@@ -144,13 +151,36 @@ def authorized():
     return FakeAdminPolicy(AccessAdministrationAuthorized())
 
 
+def application_registry(
+    *,
+    enabled: tuple[str, ...] = ("shop", "webasyst"),
+    known: tuple[str, ...] = ("shop", "webasyst"),
+) -> StaticApplicationRegistry:
+    return StaticApplicationRegistry(
+        ApplicationCatalog(
+            tuple(
+                ApplicationDescriptor(id=AppId(app_id), name=app_id.title())
+                for app_id in known
+            )
+        ),
+        InstallationManifest(
+            tuple(InstalledApplication(AppId(app_id)) for app_id in enabled)
+        ),
+    )
+
+
 async def test_denied_actor_never_reaches_rights_store() -> None:
     uow = FakeUow()
     denied = FakeAdminPolicy(
         AccessAdministrationDenied(AccessAdministrationDenyReason.NOT_GLOBAL_ADMIN)
     )
 
-    result = await AssignRight(Factory(uow), denied, mutation_policy())(
+    result = await AssignRight(
+        Factory(uow),
+        denied,
+        mutation_policy(),
+        application_registry(),
+    )(
         ACTOR,
         UserTarget(42),
         PermissionKey(AppId("shop"), RightName("orders.edit")),
@@ -167,7 +197,12 @@ async def test_named_assign_validates_target_and_executes_planner() -> None:
     uow = FakeUow()
     key = PermissionKey(AppId("shop"), RightName("orders.edit"))
 
-    result = await AssignRight(Factory(uow), authorized(), mutation_policy())(
+    result = await AssignRight(
+        Factory(uow),
+        authorized(),
+        mutation_policy(),
+        application_registry(),
+    )(
         ACTOR,
         UserTarget(42),
         key,
@@ -185,19 +220,34 @@ async def test_named_assign_rejects_missing_target_reserved_backend_and_zero() -
     key = PermissionKey(AppId("shop"), RightName("orders.edit"))
     missing_uow = FakeUow(users=())
 
-    missing = await AssignRight(Factory(missing_uow), authorized(), mutation_policy())(
+    missing = await AssignRight(
+        Factory(missing_uow),
+        authorized(),
+        mutation_policy(),
+        application_registry(),
+    )(
         ACTOR,
         UserTarget(42),
         key,
         RightValue(1),
     )
-    reserved = await AssignRight(Factory(FakeUow()), authorized(), mutation_policy())(
+    reserved = await AssignRight(
+        Factory(FakeUow()),
+        authorized(),
+        mutation_policy(),
+        application_registry(),
+    )(
         ACTOR,
         GuestsTarget(),
         PermissionKey(AppId("shop"), RightName("backend")),
         RightValue(1),
     )
-    zero = await AssignRight(Factory(FakeUow()), authorized(), mutation_policy())(
+    zero = await AssignRight(
+        Factory(FakeUow()),
+        authorized(),
+        mutation_policy(),
+        application_registry(),
+    )(
         ACTOR,
         GuestsTarget(),
         key,
@@ -216,7 +266,12 @@ async def test_revoke_absent_is_explicit_without_commit() -> None:
     uow = FakeUow()
     key = PermissionKey(AppId("shop"), RightName("orders.edit"))
 
-    result = await RevokeRight(Factory(uow), authorized(), mutation_policy())(
+    result = await RevokeRight(
+        Factory(uow),
+        authorized(),
+        mutation_policy(),
+        application_registry(),
+    )(
         ACTOR,
         UserTarget(42),
         key,
@@ -232,7 +287,12 @@ async def test_revoke_existing_executes_exact_delete() -> None:
     assignment = NamedRightAssignment(UserTarget(42), key, RightValue(2))
     uow = FakeUow(assignments=(assignment,))
 
-    result = await RevokeRight(Factory(uow), authorized(), mutation_policy())(
+    result = await RevokeRight(
+        Factory(uow),
+        authorized(),
+        mutation_policy(),
+        application_registry(),
+    )(
         ACTOR,
         UserTarget(42),
         key,
@@ -256,7 +316,12 @@ async def test_app_access_modes_use_legacy_cleanup_plans() -> None:
         ),
     ):
         uow = FakeUow()
-        result = await SetAppAccess(Factory(uow), authorized(), mutation_policy())(
+        result = await SetAppAccess(
+            Factory(uow),
+            authorized(),
+            mutation_policy(),
+            application_registry(),
+        )(
             ACTOR,
             GroupTarget(GroupId(7)),
             AppId("shop"),
@@ -270,7 +335,12 @@ async def test_app_access_modes_use_legacy_cleanup_plans() -> None:
 async def test_global_control_app_is_rejected_from_set_app_access() -> None:
     uow = FakeUow()
 
-    result = await SetAppAccess(Factory(uow), authorized(), mutation_policy())(
+    result = await SetAppAccess(
+            Factory(uow),
+            authorized(),
+            mutation_policy(),
+            application_registry(),
+        )(
         ACTOR,
         GuestsTarget(),
         AppId("webasyst"),
@@ -279,6 +349,65 @@ async def test_global_control_app_is_rejected_from_set_app_access() -> None:
 
     assert isinstance(result, AccessMutationRejected)
     assert result.reason is AccessMutationRejectReason.GLOBAL_CONTROL_APP
+    assert uow.commits == 0
+
+
+async def test_named_assign_rejects_unknown_application_before_planner() -> None:
+    uow = FakeUow()
+    result = await AssignRight(
+        Factory(uow),
+        authorized(),
+        mutation_policy(),
+        application_registry(known=("webasyst",), enabled=("webasyst",)),
+    )(
+        ACTOR,
+        UserTarget(42),
+        PermissionKey(AppId("shop"), RightName("orders.edit")),
+        RightValue(1),
+    )
+
+    assert isinstance(result, AccessMutationRejected)
+    assert result.reason is AccessMutationRejectReason.APPLICATION_NOT_FOUND
+    assert uow.rights.plans == []
+    assert uow.commits == 0
+
+
+async def test_app_access_rejects_disabled_application_before_planner() -> None:
+    uow = FakeUow()
+    result = await SetAppAccess(
+        Factory(uow),
+        authorized(),
+        mutation_policy(),
+        application_registry(enabled=("webasyst",)),
+    )(
+        ACTOR,
+        UserTarget(42),
+        AppId("shop"),
+        AppAccessMode.FULL,
+    )
+
+    assert isinstance(result, AccessMutationRejected)
+    assert result.reason is AccessMutationRejectReason.APPLICATION_DISABLED
+    assert uow.rights.plans == []
+    assert uow.commits == 0
+
+
+async def test_revoke_rejects_disabled_application_before_snapshot_lookup() -> None:
+    uow = FakeUow()
+    result = await RevokeRight(
+        Factory(uow),
+        authorized(),
+        mutation_policy(),
+        application_registry(enabled=("webasyst",)),
+    )(
+        ACTOR,
+        UserTarget(42),
+        PermissionKey(AppId("shop"), RightName("orders.edit")),
+    )
+
+    assert isinstance(result, AccessMutationRejected)
+    assert result.reason is AccessMutationRejectReason.APPLICATION_DISABLED
+    assert uow.rights.plans == []
     assert uow.commits == 0
 
 
