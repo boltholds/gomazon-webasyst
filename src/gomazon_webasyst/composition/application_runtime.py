@@ -2,9 +2,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeAlias
 
-from gomazon_webasyst.application.api_execution.entities.method_definition import (
-    ApiMethodDefinition,
-)
 from gomazon_webasyst.application.events.composites.dispatcher import EventDispatcher
 from gomazon_webasyst.application.events.services.pattern_matcher import EventPatternMatcher
 from gomazon_webasyst.application.ports.api_method_registry import ApiMethodRegistry
@@ -15,6 +12,7 @@ from gomazon_webasyst.application.ports.dispatch_registry import DispatchRegistr
 from gomazon_webasyst.application.ports.event_handlers import EventHandlerRegistry
 from gomazon_webasyst.application.ports.installed_application_catalog import (
     InstalledApplicationCatalog,
+    InstalledApplicationSnapshot,
 )
 from gomazon_webasyst.application.ports.installed_plugin_catalog import (
     InstalledPluginCatalog,
@@ -62,6 +60,34 @@ PluginCatalogSource: TypeAlias = (
 
 
 @dataclass(slots=True, frozen=True)
+class ProvidedRuntimeModules:
+    modules: tuple[ApplicationRuntimeModule, ...]
+
+
+@dataclass(slots=True, frozen=True)
+class InstalledKnownRuntimeModules:
+    modules: tuple[ApplicationRuntimeModule, ...]
+
+
+RuntimeModuleSource: TypeAlias = (
+    ProvidedRuntimeModules | InstalledKnownRuntimeModules
+)
+
+
+@dataclass(slots=True, frozen=True)
+class DefaultRuntimeModulePlan:
+    pass
+
+
+@dataclass(slots=True, frozen=True)
+class ExplicitRuntimeModulePlan:
+    modules: tuple[ApplicationRuntimeModule, ...]
+
+
+RuntimeModulePlan: TypeAlias = DefaultRuntimeModulePlan | ExplicitRuntimeModulePlan
+
+
+@dataclass(slots=True, frozen=True)
 class ApplicationRuntimePending:
     pass
 
@@ -91,14 +117,14 @@ class ApplicationRuntimeBootstrap:
         *,
         installed_applications: InstalledApplicationCatalog,
         plugin_source: PluginCatalogSource,
-        modules: tuple[ApplicationRuntimeModule, ...],
+        module_source: RuntimeModuleSource,
         api_methods: ApiMethodRegistry,
         dispatch: DispatchRegistrationSink,
         events: EventHandlerRegistry,
     ) -> None:
         self._installed_applications = installed_applications
         self._plugin_source = plugin_source
-        self._modules = modules
+        self._module_source = module_source
         self._api_methods = api_methods
         self._dispatch = dispatch
         self._events = events
@@ -112,7 +138,10 @@ class ApplicationRuntimeBootstrap:
         if isinstance(self._state, ApplicationRuntimeReady):
             return self._state
 
-        installed_plugins = await self._installed_plugins()
+        application_snapshot = await self._installed_applications.snapshot()
+        installed_plugins = await self._installed_plugins(application_snapshot)
+        modules = self._runtime_modules(application_snapshot)
+
         linker = ApplicationRuntimeLinker(
             installed_applications=self._installed_applications,
             installed_plugins=installed_plugins,
@@ -120,7 +149,7 @@ class ApplicationRuntimeBootstrap:
             dispatch=self._dispatch,
             events=self._events,
         )
-        result = await linker.link(self._modules)
+        result = await linker.link(modules)
         if isinstance(result, RuntimeLinkRejected):
             raise ApplicationRuntimeInitializationError(result)
 
@@ -131,16 +160,36 @@ class ApplicationRuntimeBootstrap:
         self._state = ready
         return ready
 
-    async def _installed_plugins(self) -> InstalledPluginCatalog:
+    async def _installed_plugins(
+        self,
+        application_snapshot: InstalledApplicationSnapshot,
+    ) -> InstalledPluginCatalog:
         if isinstance(self._plugin_source, ProvidedPluginCatalogSource):
             return self._plugin_source.catalog
         if isinstance(self._plugin_source, FilesystemPluginCatalogSource):
-            snapshot = await self._installed_applications.snapshot()
             return FilesystemInstalledPluginCatalog(
                 self._plugin_source.root,
-                snapshot,
+                application_snapshot,
             )
         raise AssertionError("unsupported plugin catalog source")
+
+    def _runtime_modules(
+        self,
+        application_snapshot: InstalledApplicationSnapshot,
+    ) -> tuple[ApplicationRuntimeModule, ...]:
+        if isinstance(self._module_source, ProvidedRuntimeModules):
+            return self._module_source.modules
+        if isinstance(self._module_source, InstalledKnownRuntimeModules):
+            installed_ids = {
+                application.app_id
+                for application in application_snapshot.applications
+            }
+            return tuple(
+                module
+                for module in self._module_source.modules
+                if module.app_id in installed_ids
+            )
+        raise AssertionError("unsupported runtime module source")
 
 
 @dataclass(slots=True, frozen=True)
@@ -157,7 +206,7 @@ def create_application_runtime_components(
     *,
     installed_applications: InstalledApplicationCatalog,
     plugin_source: PluginCatalogSource,
-    modules: tuple[ApplicationRuntimeModule, ...],
+    module_source: RuntimeModuleSource,
 ) -> ApplicationRuntimeComponents:
     api_methods = InMemoryApiMethodRegistry()
     dispatch = InMemoryDispatchRegistry()
@@ -167,7 +216,7 @@ def create_application_runtime_components(
     bootstrap = ApplicationRuntimeBootstrap(
         installed_applications=installed_applications,
         plugin_source=plugin_source,
-        modules=modules,
+        module_source=module_source,
         api_methods=api_methods,
         dispatch=dispatch,
         events=events,
@@ -182,8 +231,9 @@ def create_application_runtime_components(
     )
 
 
-def create_default_application_runtime_modules() -> tuple[
-    ApplicationRuntimeModule,
-    ...,
-]:
-    return ()
+def create_default_application_runtime_modules(
+    session_factory,
+) -> tuple[ApplicationRuntimeModule, ...]:
+    from gomazon_webasyst.composition.team import create_team_runtime_module
+
+    return (create_team_runtime_module(session_factory),)
