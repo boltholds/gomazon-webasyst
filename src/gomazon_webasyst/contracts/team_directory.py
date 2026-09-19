@@ -1,8 +1,65 @@
 from datetime import datetime
+from typing import Annotated, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from gomazon_webasyst.contracts.enums import GroupType, TeamOnlineStatus
+from gomazon_webasyst.contracts.enums import (
+    GroupType,
+    TeamCurrentEventKind,
+    TeamOnlineStatus,
+    TeamValueStateKind,
+)
+
+
+class TeamTextMissingRead(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    kind: Literal[TeamValueStateKind.MISSING] = TeamValueStateKind.MISSING
+
+
+class TeamTextValueRead(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    kind: Literal[TeamValueStateKind.PRESENT] = TeamValueStateKind.PRESENT
+    value: str
+
+
+TeamTextReadState: TypeAlias = Annotated[
+    TeamTextMissingRead | TeamTextValueRead,
+    Field(discriminator="kind"),
+]
+
+
+class TeamIntMissingRead(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    kind: Literal[TeamValueStateKind.MISSING] = TeamValueStateKind.MISSING
+
+
+class TeamIntValueRead(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    kind: Literal[TeamValueStateKind.PRESENT] = TeamValueStateKind.PRESENT
+    value: int
+
+
+TeamIntReadState: TypeAlias = Annotated[
+    TeamIntMissingRead | TeamIntValueRead,
+    Field(discriminator="kind"),
+]
+
+
+class TeamDateTimeMissingRead(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    kind: Literal[TeamValueStateKind.MISSING] = TeamValueStateKind.MISSING
+
+
+class TeamDateTimeValueRead(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    kind: Literal[TeamValueStateKind.PRESENT] = TeamValueStateKind.PRESENT
+    value: datetime
+
+
+TeamDateTimeReadState: TypeAlias = Annotated[
+    TeamDateTimeMissingRead | TeamDateTimeValueRead,
+    Field(discriminator="kind"),
+]
 
 
 class TeamPhoneRead(BaseModel):
@@ -10,36 +67,53 @@ class TeamPhoneRead(BaseModel):
 
     value: str
     ext: str
-    status: str | None
+    status: TeamTextReadState
 
 
 class TeamCurrentEventRead(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     id: int
-    uid: str | None
+    uid: TeamTextReadState
     create_datetime: datetime
     update_datetime: datetime
     contact_id: int
     calendar_id: int
     summary: str
-    description: str | None
-    location: str | None
+    description: TeamTextReadState
+    location: TeamTextReadState
     start: datetime
     end: datetime
     is_allday: bool
     is_status: bool
     sequence: int
     calendar_name: str
-    status_bg_color: str | None
-    status_font_color: str | None
-    bg_color: str | None
-    font_color: str | None
-    icon: str | None
+    status_bg_color: TeamTextReadState
+    status_font_color: TeamTextReadState
+    bg_color: TeamTextReadState
+    font_color: TeamTextReadState
+    icon: TeamTextReadState
+
+
+class TeamCurrentEventMissingRead(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    kind: Literal[TeamCurrentEventKind.MISSING] = TeamCurrentEventKind.MISSING
+
+
+class TeamCurrentEventPresentRead(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    kind: Literal[TeamCurrentEventKind.PRESENT] = TeamCurrentEventKind.PRESENT
+    event: TeamCurrentEventRead
+
+
+TeamCurrentEventReadState: TypeAlias = Annotated[
+    TeamCurrentEventMissingRead | TeamCurrentEventPresentRead,
+    Field(discriminator="kind"),
+]
 
 
 class TeamUserRead(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True, populate_by_name=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     id: int
     name: str
@@ -52,17 +126,17 @@ class TeamUserRead(BaseModel):
     phone: tuple[TeamPhoneRead, ...]
     locale: str
     jobtitle: str
-    last_datetime: datetime | None
-    birth_day: int | None
-    birth_month: int | None
+    last_datetime: TeamDateTimeReadState
+    birth_day: TeamIntReadState
+    birth_month: TeamIntReadState
     create_datetime: datetime
     userpic: str
     userpic_original_crop: str
     userpic_uploaded: bool
     userpic_thumbs: dict[str, str]
     group_id: tuple[int, ...]
-    online_status: TeamOnlineStatus = Field(alias="_online_status")
-    current_event: TeamCurrentEventRead | str = Field(alias="_event")
+    online_status: TeamOnlineStatus
+    current_event: TeamCurrentEventReadState
 
 
 class TeamGroupRead(BaseModel):
@@ -72,4 +146,4 @@ class TeamGroupRead(BaseModel):
     name: str
     cnt: int
     type: GroupType
-    description: str | None
+    description: TeamTextReadState
