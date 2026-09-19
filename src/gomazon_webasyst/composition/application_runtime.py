@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypeAlias
+from typing import Protocol, TypeAlias
 
 from gomazon_webasyst.application.api_execution.entities.method_definition import (
     ApiMethodDefinition,
@@ -75,6 +75,26 @@ class ApplicationRuntimeReady:
 ApplicationRuntimeState: TypeAlias = ApplicationRuntimePending | ApplicationRuntimeReady
 
 
+class RuntimeModuleFactory(Protocol):
+    async def build(
+        self,
+        installed_applications: InstalledApplicationCatalog,
+        event_dispatcher: EventDispatcher,
+    ) -> tuple[ApplicationRuntimeModule, ...]: ...
+
+
+@dataclass(slots=True, frozen=True)
+class StaticRuntimeModuleFactory:
+    modules: tuple[ApplicationRuntimeModule, ...]
+
+    async def build(
+        self,
+        installed_applications: InstalledApplicationCatalog,
+        event_dispatcher: EventDispatcher,
+    ) -> tuple[ApplicationRuntimeModule, ...]:
+        return self.modules
+
+
 class ApplicationRuntimeInitializationError(RuntimeError):
     def __init__(self, rejected: RuntimeLinkRejected) -> None:
         self.rejected = rejected
@@ -91,14 +111,16 @@ class ApplicationRuntimeBootstrap:
         *,
         installed_applications: InstalledApplicationCatalog,
         plugin_source: PluginCatalogSource,
-        modules: tuple[ApplicationRuntimeModule, ...],
+        module_factory: RuntimeModuleFactory,
+        event_dispatcher: EventDispatcher,
         api_methods: ApiMethodRegistry,
         dispatch: DispatchRegistrationSink,
         events: EventHandlerRegistry,
     ) -> None:
         self._installed_applications = installed_applications
         self._plugin_source = plugin_source
-        self._modules = modules
+        self._module_factory = module_factory
+        self._event_dispatcher = event_dispatcher
         self._api_methods = api_methods
         self._dispatch = dispatch
         self._events = events
@@ -113,6 +135,10 @@ class ApplicationRuntimeBootstrap:
             return self._state
 
         installed_plugins = await self._installed_plugins()
+        modules = await self._module_factory.build(
+            self._installed_applications,
+            self._event_dispatcher,
+        )
         linker = ApplicationRuntimeLinker(
             installed_applications=self._installed_applications,
             installed_plugins=installed_plugins,
@@ -120,7 +146,7 @@ class ApplicationRuntimeBootstrap:
             dispatch=self._dispatch,
             events=self._events,
         )
-        result = await linker.link(self._modules)
+        result = await linker.link(modules)
         if isinstance(result, RuntimeLinkRejected):
             raise ApplicationRuntimeInitializationError(result)
 
@@ -157,17 +183,19 @@ def create_application_runtime_components(
     *,
     installed_applications: InstalledApplicationCatalog,
     plugin_source: PluginCatalogSource,
-    modules: tuple[ApplicationRuntimeModule, ...],
+    module_factory: RuntimeModuleFactory,
 ) -> ApplicationRuntimeComponents:
     api_methods = InMemoryApiMethodRegistry()
     dispatch = InMemoryDispatchRegistry()
     events = InMemoryEventHandlerRegistry(
         EventPatternMatcher(RejectUnsupportedLegacyRegexMatcher())
     )
+    event_dispatcher = EventDispatcher(events)
     bootstrap = ApplicationRuntimeBootstrap(
         installed_applications=installed_applications,
         plugin_source=plugin_source,
-        modules=modules,
+        module_factory=module_factory,
+        event_dispatcher=event_dispatcher,
         api_methods=api_methods,
         dispatch=dispatch,
         events=events,
@@ -177,13 +205,19 @@ def create_application_runtime_components(
         dispatch_registry=dispatch,
         dispatch_registration=dispatch,
         event_registry=events,
-        event_dispatcher=EventDispatcher(events),
+        event_dispatcher=event_dispatcher,
         bootstrap=bootstrap,
     )
 
 
-def create_default_application_runtime_modules() -> tuple[
-    ApplicationRuntimeModule,
-    ...,
-]:
-    return ()
+def create_application_runtime_components_with_modules(
+    *,
+    installed_applications: InstalledApplicationCatalog,
+    plugin_source: PluginCatalogSource,
+    modules: tuple[ApplicationRuntimeModule, ...],
+) -> ApplicationRuntimeComponents:
+    return create_application_runtime_components(
+        installed_applications=installed_applications,
+        plugin_source=plugin_source,
+        module_factory=StaticRuntimeModuleFactory(modules),
+    )
