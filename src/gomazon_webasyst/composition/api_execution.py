@@ -4,13 +4,18 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from gomazon_webasyst.application.api_credentials import ResolveApiAccessToken
+from gomazon_webasyst.application.application_registry import (
+    ApplicationCatalog,
+    InstallationManifest,
+    StaticApplicationRegistry,
+)
 from gomazon_webasyst.application.api_execution.composites.pipeline import ApiExecutionPipeline
 from gomazon_webasyst.application.api_execution.services.activity import ApiUserActivityService
 from gomazon_webasyst.application.api_execution.services.authorizer import ApiRequestAuthorizer
 from gomazon_webasyst.application.api_execution.services.method_executor import ApiMethodExecutor
 from gomazon_webasyst.application.ports.api_method_registry import ApiMethodRegistry
 from gomazon_webasyst.application.ports.app_license import AppLicensePolicy
-from gomazon_webasyst.application.ports.installed_apps import InstalledAppDirectory
+from gomazon_webasyst.application.ports.application_registry import ApplicationRegistry
 from gomazon_webasyst.compatibility.webasyst.api.composites.response_renderer import LegacyApiResponseRenderer
 from gomazon_webasyst.compatibility.webasyst.api.services.app_access import LegacyApiAppAccessService
 from gomazon_webasyst.compatibility.webasyst.api.services.credential_extractor import LegacyApiCredentialExtractionService
@@ -21,7 +26,6 @@ from gomazon_webasyst.compatibility.webasyst.api.services.target_parser import L
 from gomazon_webasyst.composition.access_control import create_webasyst_rights_evaluator
 from gomazon_webasyst.infrastructure.access_control.sqlalchemy.unit_of_work import SQLAlchemyAccessControlUnitOfWorkFactory
 from gomazon_webasyst.infrastructure.api_execution.activity import SQLAlchemyApiUserActivityStore
-from gomazon_webasyst.infrastructure.api_execution.app_directory import InMemoryInstalledAppDirectory
 from gomazon_webasyst.infrastructure.api_execution.method_registry import InMemoryApiMethodRegistry
 
 
@@ -29,7 +33,7 @@ from gomazon_webasyst.infrastructure.api_execution.method_registry import InMemo
 class ApiExecutionComponents:
     pipeline: ApiExecutionPipeline
     method_registry: ApiMethodRegistry
-    installed_app_directory: InstalledAppDirectory
+    application_registry: ApplicationRegistry
     preconditions: LegacyApiTransportPreconditionService
     target_parser: LegacyApiTargetParser
     credential_extractor: LegacyApiCredentialExtractionService
@@ -42,7 +46,7 @@ def create_api_execution_components(
     session_factory: async_sessionmaker[AsyncSession],
     resolve_api_access_token: ResolveApiAccessToken,
     method_registry: ApiMethodRegistry,
-    installed_app_directory: InstalledAppDirectory,
+    application_registry: ApplicationRegistry,
     license_policy: AppLicensePolicy,
     api_enabled: bool,
     disable_message: str,
@@ -57,7 +61,7 @@ def create_api_execution_components(
         create_webasyst_rights_evaluator(),
     )
     authorizer = ApiRequestAuthorizer(
-        installed_apps=installed_app_directory,
+        application_registry=application_registry,
         app_access=app_access,
         license_policy=license_policy,
     )
@@ -71,7 +75,7 @@ def create_api_execution_components(
     return ApiExecutionComponents(
         pipeline=pipeline,
         method_registry=method_registry,
-        installed_app_directory=installed_app_directory,
+        application_registry=application_registry,
         preconditions=LegacyApiTransportPreconditionService(
             api_enabled=api_enabled,
             disable_message=disable_message,
@@ -96,7 +100,10 @@ def create_default_api_execution_components(
         session_factory=session_factory,
         resolve_api_access_token=resolve_api_access_token,
         method_registry=InMemoryApiMethodRegistry(),
-        installed_app_directory=InMemoryInstalledAppDirectory(frozenset()),
+        application_registry=StaticApplicationRegistry(
+            ApplicationCatalog(()),
+            InstallationManifest(()),
+        ),
         license_policy=AllowAllAppLicensePolicy(),
         api_enabled=api_enabled,
         disable_message=disable_message,
