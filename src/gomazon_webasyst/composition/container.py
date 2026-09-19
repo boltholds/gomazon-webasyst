@@ -40,6 +40,9 @@ from gomazon_webasyst.application.persistent_login import (
     RevokePersistentCredential,
 )
 from gomazon_webasyst.composition.access_control import create_access_control_use_cases
+from gomazon_webasyst.composition.application_registry import (
+    create_installed_application_catalog,
+)
 from gomazon_webasyst.composition.api_credentials import create_api_credential_use_cases
 from gomazon_webasyst.composition.api_execution import (
     ApiExecutionComponents,
@@ -61,8 +64,8 @@ from gomazon_webasyst.composition.session_state_providers import (
     resolve_session_state_store,
 )
 from gomazon_webasyst.composition.settings import Settings
-from gomazon_webasyst.infrastructure.application_registry.in_memory_catalog import (
-    InMemoryInstalledApplicationCatalog,
+from gomazon_webasyst.application.ports.installed_application_catalog import (
+    InstalledApplicationCatalog,
 )
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.factory import (
     create_engine,
@@ -90,6 +93,7 @@ class Container:
     issue_implicit_api_access_token: IssueImplicitApiAccessToken
     resolve_api_access_token: ResolveApiAccessToken
     revoke_api_access_token: RevokeApiAccessToken
+    installed_application_catalog: InstalledApplicationCatalog
     api_execution: ApiExecutionComponents
     oauth_authorization: OAuthAuthorizationComponents
     get_group: GetGroup
@@ -115,9 +119,22 @@ class Container:
 
 
 def create_container(settings: Settings) -> Container:
-    return create_container_with_session_state_registry(
+    return create_container_with_registries(
         settings,
         session_state_registry=create_default_session_state_provider_registry(),
+        installed_application_catalog=create_installed_application_catalog(settings),
+    )
+
+
+def create_container_with_application_catalog(
+    settings: Settings,
+    *,
+    installed_application_catalog: InstalledApplicationCatalog,
+) -> Container:
+    return create_container_with_registries(
+        settings,
+        session_state_registry=create_default_session_state_provider_registry(),
+        installed_application_catalog=installed_application_catalog,
     )
 
 
@@ -125,6 +142,19 @@ def create_container_with_session_state_registry(
     settings: Settings,
     *,
     session_state_registry: SessionStateProviderRegistry,
+) -> Container:
+    return create_container_with_registries(
+        settings,
+        session_state_registry=session_state_registry,
+        installed_application_catalog=create_installed_application_catalog(settings),
+    )
+
+
+def create_container_with_registries(
+    settings: Settings,
+    *,
+    session_state_registry: SessionStateProviderRegistry,
+    installed_application_catalog: InstalledApplicationCatalog,
 ) -> Container:
     session_state = resolve_session_state_store(
         session_state_registry,
@@ -140,7 +170,6 @@ def create_container_with_session_state_registry(
     )
     api_credentials = create_api_credential_use_cases(session_factory)
     access = create_access_control_use_cases(session_factory)
-    installed_application_catalog = InMemoryInstalledApplicationCatalog(())
     api_execution = create_default_api_execution_components(
         session_factory=session_factory,
         resolve_api_access_token=api_credentials.resolve_api_access_token,
@@ -182,6 +211,7 @@ def create_container_with_session_state_registry(
         issue_implicit_api_access_token=api_credentials.issue_implicit_api_access_token,
         resolve_api_access_token=api_credentials.resolve_api_access_token,
         revoke_api_access_token=api_credentials.revoke_api_access_token,
+        installed_application_catalog=installed_application_catalog,
         api_execution=api_execution,
         oauth_authorization=oauth_authorization,
         get_group=access.get_group,
