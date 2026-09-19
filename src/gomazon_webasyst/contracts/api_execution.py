@@ -1,6 +1,6 @@
-from typing import Annotated, Any, Literal, TypeAlias
+from typing import Annotated, Literal, TypeAlias
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from gomazon_webasyst.contracts.enums import (
     ApiExecutionResultKind,
@@ -15,14 +15,14 @@ class ApiFrameworkError(BaseModel):
     code: ApiFrameworkErrorCode
     description: str
     http_status: Annotated[int, Field(ge=100, le=599)]
-    details: dict[str, Any]
+    details: dict[str, JsonValue]
 
 
 class ApiExecutionSucceeded(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     kind: Literal[ApiExecutionResultKind.SUCCEEDED] = ApiExecutionResultKind.SUCCEEDED
-    payload: Any
+    payload: JsonValue
     status_code: Annotated[int, Field(ge=100, le=599)] = 200
 
 
