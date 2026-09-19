@@ -50,7 +50,10 @@ class ListVisibleTeamGroups:
 
         visible: list[TeamGroupRead] = []
         for group in groups:
-            if group_filter.types and group.type not in group_filter.types:
+            if (
+                group_filter.types
+                and group.type.value not in group_filter.types
+            ):
                 continue
             right = self._rights_evaluator.effective_right(
                 snapshot,
