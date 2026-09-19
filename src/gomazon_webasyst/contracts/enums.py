@@ -564,3 +564,12 @@ class RuntimeLinkRejectReason(EnumStr):
     EVENT_HANDLER_CONFLICT = "event_handler_conflict"
     FOREIGN_DISPATCH_TARGET = "foreign_dispatch_target"
     FOREIGN_EVENT_OWNER = "foreign_event_owner"
+
+
+class LegacyApiParameterDecodeReason(EnumStr):
+    MALFORMED_KEY = "malformed_key"
+    SHAPE_CONFLICT = "shape_conflict"
+    DEPTH_LIMIT = "depth_limit"
+    ENTRY_LIMIT = "entry_limit"
+    KEY_LENGTH_LIMIT = "key_length_limit"
+    VALUE_LENGTH_LIMIT = "value_length_limit"
