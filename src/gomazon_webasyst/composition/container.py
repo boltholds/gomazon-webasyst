@@ -78,6 +78,12 @@ from gomazon_webasyst.compatibility.webasyst.api.services.license import (
 from gomazon_webasyst.application.ports.installed_application_catalog import (
     InstalledApplicationCatalog,
 )
+from gomazon_webasyst.application.ports.installed_plugin_catalog import (
+    InstalledPluginCatalog,
+)
+from gomazon_webasyst.application.runtime.entities.application_module import (
+    ApplicationRuntimeModule,
+)
 from gomazon_webasyst.infrastructure.plugins.in_memory_catalog import (
     InMemoryInstalledPluginCatalog,
 )
@@ -142,6 +148,7 @@ def create_container(settings: Settings) -> Container:
         session_state_registry=create_default_session_state_provider_registry(),
         installed_application_catalog=create_installed_application_catalog(settings),
         plugin_source=FilesystemPluginCatalogSource(settings.webasyst_root),
+        runtime_modules=create_default_application_runtime_modules(),
     )
 
 
@@ -157,6 +164,23 @@ def create_container_with_application_catalog(
         plugin_source=ProvidedPluginCatalogSource(
             InMemoryInstalledPluginCatalog(())
         ),
+        runtime_modules=(),
+    )
+
+
+def create_container_with_runtime_catalogs(
+    settings: Settings,
+    *,
+    installed_application_catalog: InstalledApplicationCatalog,
+    installed_plugin_catalog: InstalledPluginCatalog,
+    runtime_modules: tuple[ApplicationRuntimeModule, ...],
+) -> Container:
+    return create_container_with_registries(
+        settings,
+        session_state_registry=create_default_session_state_provider_registry(),
+        installed_application_catalog=installed_application_catalog,
+        plugin_source=ProvidedPluginCatalogSource(installed_plugin_catalog),
+        runtime_modules=runtime_modules,
     )
 
 
@@ -170,6 +194,7 @@ def create_container_with_session_state_registry(
         session_state_registry=session_state_registry,
         installed_application_catalog=create_installed_application_catalog(settings),
         plugin_source=FilesystemPluginCatalogSource(settings.webasyst_root),
+        runtime_modules=create_default_application_runtime_modules(),
     )
 
 
@@ -179,6 +204,7 @@ def create_container_with_registries(
     session_state_registry: SessionStateProviderRegistry,
     installed_application_catalog: InstalledApplicationCatalog,
     plugin_source: PluginCatalogSource,
+    runtime_modules: tuple[ApplicationRuntimeModule, ...],
 ) -> Container:
     session_state = resolve_session_state_store(
         session_state_registry,
@@ -197,7 +223,7 @@ def create_container_with_registries(
     application_runtime = create_application_runtime_components(
         installed_applications=installed_application_catalog,
         plugin_source=plugin_source,
-        modules=create_default_application_runtime_modules(),
+        modules=runtime_modules,
     )
     api_execution = create_api_execution_components(
         session_factory=session_factory,
