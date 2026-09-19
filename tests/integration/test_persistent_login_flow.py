@@ -11,7 +11,7 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from gomazon_webasyst.application.persistent_values import PersistentCredential
-from gomazon_webasyst.composition.container import create_container
+from gomazon_webasyst.composition.container import create_container_with_application_catalog
 from gomazon_webasyst.composition.settings import Settings
 from gomazon_webasyst.contracts.auth import (
     AuthenticationSucceeded,
@@ -27,6 +27,9 @@ from gomazon_webasyst.contracts.persistent_login import (
     PersistentLoginRestored,
     RefreshPersistentCredential,
 )
+from gomazon_webasyst.infrastructure.application_registry.in_memory_catalog import (
+    InMemoryInstalledApplicationCatalog,
+)
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.base import Base
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.models import WaContactRow
 
@@ -34,7 +37,10 @@ from gomazon_webasyst.infrastructure.persistence.sqlalchemy.models import WaCont
 @pytest.mark.asyncio
 async def test_issue_restore_and_credential_invalidation_end_to_end(tmp_path: Path):
     db_path = tmp_path / "persistent-login.db"
-    container = create_container(Settings(database_url=f"sqlite+aiosqlite:///{db_path}"))
+    container = create_container_with_application_catalog(
+        Settings(database_url=f"sqlite+aiosqlite:///{db_path}"),
+        installed_application_catalog=InMemoryInstalledApplicationCatalog(()),
+    )
     async with container.engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
 
