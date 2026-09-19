@@ -23,4 +23,23 @@ Date: 2026-09-20
 - [x] Integration-test production HTTP deletion path.
 - [x] Add executable source-characterization fixture.
 - [x] Update ADR/architecture record.
-- [ ] Run final full CI and record exact count.
+- [x] Run final full CI and record exact count.
+
+
+## Verification record
+
+Final code head before completion-documentation commits: `6c855fff631016dc0a90b776b0bc89b376ff018a`.
+
+GitHub Actions completed successfully on that head:
+
+- source-tree compile passed;
+- `820 passed, 9 warnings`;
+- exact Webasyst 4.2.0 contact-delete characterization passed;
+- contact delete publishes `contacts.delete` before destructive UoW entry;
+- immutable deletion scope/order/duplicates are pinned;
+- legacy cleanup persistence across core contact-owned tables passed;
+- Team relay is reached from the real DeleteContacts use case;
+- nested Team consumer observes the contact still present during event dispatch;
+- contact is absent after cleanup commit;
+- native production DELETE route executes the real deletion path;
+- architecture guards for EventPublisher and immutable destructive scope passed.
