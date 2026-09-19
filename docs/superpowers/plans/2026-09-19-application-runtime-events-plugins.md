@@ -1,6 +1,6 @@
 # Application Runtime, Events & Plugins Implementation Plan
 
-> **For agentic workers:** execute task-by-task with TDD. Steps use checkbox (`- [ ]`) tracking.
+> **For agentic workers:** execute task-by-task with TDD. Steps use checkbox (`- [x]`) tracking.
 
 **Goal:** Add explicit Python application/plugin runtime modules, safe installed-plugin discovery, a deterministic Webasyst-compatible event registry/dispatcher, and one startup linker that populates existing API/dispatch registries plus the new event registry.
 
@@ -49,12 +49,12 @@
 - `array_keys` padding;
 - raw PCRE usage survey in bundled 4.2.0.
 
-- [ ] Extract source-reduced fixtures from exact 4.2.0 release commit.
-- [ ] Record a source-location/behavior/implementation-consequence table.
-- [ ] Explicitly record whether bundled 4.2.0 uses raw PCRE event patterns.
-- [ ] Add fixture provenance tests pinned to the release SHA.
-- [ ] Reconcile any finding that contradicts the design before implementation.
-- [ ] Commit: `test: characterize legacy events and plugins`.
+- [x] Extract source-reduced fixtures from exact 4.2.0 release commit.
+- [x] Record a source-location/behavior/implementation-consequence table.
+- [x] Explicitly record whether bundled 4.2.0 uses raw PCRE event patterns.
+- [x] Add fixture provenance tests pinned to the release SHA.
+- [x] Reconcile any finding that contradicts the design before implementation.
+- [x] Commit: `test: characterize legacy events and plugins`.
 
 ---
 
@@ -83,13 +83,13 @@
 - `InstalledPlugin` Entity;
 - resolved/missing/snapshot catalog contracts.
 
-- [ ] Write RED tests for immutable identity and validation.
-- [ ] Pin no-null image state and empty immutable collections.
-- [ ] Pin `PluginKey` as the only cross-port plugin identity.
-- [ ] Add architecture guard against transport/ORM/filesystem imports.
-- [ ] Implement minimal Entity/VO/catalog contracts.
-- [ ] Run GREEN.
-- [ ] Commit: `feat: add installed plugin contracts`.
+- [x] Write RED tests for immutable identity and validation.
+- [x] Pin no-null image state and empty immutable collections.
+- [x] Pin `PluginKey` as the only cross-port plugin identity.
+- [x] Add architecture guard against transport/ORM/filesystem imports.
+- [x] Implement minimal Entity/VO/catalog contracts.
+- [x] Run GREEN.
+- [x] Commit: `feat: add installed plugin contracts`.
 
 ---
 
@@ -115,14 +115,14 @@
 - normalizes metadata/handlers only;
 - performs no code import/execution.
 
-- [ ] RED: enabled/falsy/missing plugins.
-- [ ] RED: plugin-id path traversal and symlink escape.
-- [ ] RED: simple/wildcard handler declarations.
-- [ ] RED: implicit rights/frontend/cron declarations.
-- [ ] Implement pure normalizer.
-- [ ] Implement immutable startup filesystem catalog.
-- [ ] Run GREEN + characterization tests.
-- [ ] Commit: `feat: discover installed webasyst plugins`.
+- [x] RED: enabled/falsy/missing plugins.
+- [x] RED: plugin-id path traversal and symlink escape.
+- [x] RED: simple/wildcard handler declarations.
+- [x] RED: implicit rights/frontend/cron declarations.
+- [x] Implement pure normalizer.
+- [x] Implement immutable startup filesystem catalog.
+- [x] Run GREEN + characterization tests.
+- [x] Commit: `feat: discover installed webasyst plugins`.
 
 ---
 
@@ -151,13 +151,13 @@
 - `EventHandlerDefinition`;
 - `EventHandler` Protocol.
 
-- [ ] RED: equality/hash/frozen validation.
-- [ ] RED: no magic `"*"` state in application contracts.
-- [ ] RED: exact/prefix matching.
-- [ ] RED: raw regex delegates to compatibility matcher port.
-- [ ] Implement minimal types/services.
-- [ ] Run GREEN.
-- [ ] Commit: `feat: add event handler contracts`.
+- [x] RED: equality/hash/frozen validation.
+- [x] RED: no magic `"*"` state in application contracts.
+- [x] RED: exact/prefix matching.
+- [x] RED: raw regex delegates to compatibility matcher port.
+- [x] Implement minimal types/services.
+- [x] Run GREEN.
+- [x] Commit: `feat: add event handler contracts`.
 
 ---
 
@@ -176,13 +176,13 @@
 
 Registration order remains stable within bucket.
 
-- [ ] RED: exact-only resolution.
-- [ ] RED: full four-bucket order.
-- [ ] RED: duplicate handler id rejected.
-- [ ] RED: multiple matching prefix patterns preserve registration order.
-- [ ] Implement in-memory immutable/read-mostly registry.
-- [ ] Run GREEN.
-- [ ] Commit: `feat: add event handler registry`.
+- [x] RED: exact-only resolution.
+- [x] RED: full four-bucket order.
+- [x] RED: duplicate handler id rejected.
+- [x] RED: multiple matching prefix patterns preserve registration order.
+- [x] Implement in-memory immutable/read-mostly registry.
+- [x] Run GREEN.
+- [x] Commit: `feat: add event handler registry`.
 
 ---
 
@@ -203,14 +203,14 @@ Registration order remains stable within bucket.
 - cancellation/system exceptions propagate;
 - report keeps ordered results + failures.
 
-- [ ] RED: application owner first-result.
-- [ ] RED: plugin owner first-result.
-- [ ] RED: no-result fallthrough.
-- [ ] RED: exception continuation.
-- [ ] RED: deterministic mixed-owner ordering.
-- [ ] Implement dispatcher.
-- [ ] Run GREEN.
-- [ ] Commit: `feat: dispatch registered application events`.
+- [x] RED: application owner first-result.
+- [x] RED: plugin owner first-result.
+- [x] RED: no-result fallthrough.
+- [x] RED: exception continuation.
+- [x] RED: deterministic mixed-owner ordering.
+- [x] Implement dispatcher.
+- [x] Run GREEN.
+- [x] Commit: `feat: dispatch registered application events`.
 
 ---
 
@@ -231,12 +231,12 @@ Registration order remains stable within bucket.
 
 `array_keys` padding belongs here.
 
-- [ ] RED: all result key variants.
-- [ ] RED: `array_keys` scalar/list padding behavior from characterization.
-- [ ] Implement exact/prefix compatibility mapping.
-- [ ] Implement only characterized bounded regex support; explicit unsupported result otherwise.
-- [ ] Run GREEN.
-- [ ] Commit: `feat: project legacy event results`.
+- [x] RED: all result key variants.
+- [x] RED: `array_keys` scalar/list padding behavior from characterization.
+- [x] Implement exact/prefix compatibility mapping.
+- [x] Implement only characterized bounded regex support; explicit unsupported result otherwise.
+- [x] Run GREEN.
+- [x] Commit: `feat: project legacy event results`.
 
 ---
 
@@ -257,13 +257,13 @@ Registration order remains stable within bucket.
 
 They aggregate already-constructed executable definitions; they do not discover/import them.
 
-- [ ] RED: immutable module identity.
-- [ ] RED: plugin contribution owner matches `PluginKey`.
-- [ ] RED: API targets must be structurally app-owned.
-- [ ] Add dependency guard.
-- [ ] Implement minimal module model.
-- [ ] Run GREEN.
-- [ ] Commit: `feat: add application runtime module declarations`.
+- [x] RED: immutable module identity.
+- [x] RED: plugin contribution owner matches `PluginKey`.
+- [x] RED: API targets must be structurally app-owned.
+- [x] Add dependency guard.
+- [x] Implement minimal module model.
+- [x] Run GREEN.
+- [x] Commit: `feat: add application runtime module declarations`.
 
 ---
 
@@ -276,12 +276,12 @@ They aggregate already-constructed executable definitions; they do not discover/
 
 **Goal:** separate request-time lookup from startup mutation.
 
-- [ ] RED: typed controller/action/multi-action/plugin registration.
-- [ ] RED: duplicate target registration rejected rather than overwritten.
-- [ ] Preserve existing `DispatchRegistry` lookup contract.
-- [ ] Implement registration sink on in-memory registry/builder.
-- [ ] Run existing routing/dispatch suite.
-- [ ] Commit: `refactor: add typed dispatch registration`.
+- [x] RED: typed controller/action/multi-action/plugin registration.
+- [x] RED: duplicate target registration rejected rather than overwritten.
+- [x] Preserve existing `DispatchRegistry` lookup contract.
+- [x] Implement registration sink on in-memory registry/builder.
+- [x] Run existing routing/dispatch suite.
+- [x] Commit: `refactor: add typed dispatch registration`.
 
 ---
 
@@ -302,14 +302,14 @@ They aggregate already-constructed executable definitions; they do not discover/
 - event owners structurally owned;
 - duplicate API/dispatch/event targets detected before apply.
 
-- [ ] RED: installed app links.
-- [ ] RED: uninstalled app rejected.
-- [ ] RED: disabled/missing plugin rejected.
-- [ ] RED: duplicate runtime definitions leave all registries unchanged.
-- [ ] RED: foreign contribution rejected.
-- [ ] Implement validate-plan-apply composite.
-- [ ] Run GREEN.
-- [ ] Commit: `feat: link application runtime modules`.
+- [x] RED: installed app links.
+- [x] RED: uninstalled app rejected.
+- [x] RED: disabled/missing plugin rejected.
+- [x] RED: duplicate runtime definitions leave all registries unchanged.
+- [x] RED: foreign contribution rejected.
+- [x] Implement validate-plan-apply composite.
+- [x] Run GREEN.
+- [x] Commit: `feat: link application runtime modules`.
 
 ---
 
@@ -333,12 +333,12 @@ They aggregate already-constructed executable definitions; they do not discover/
 
 Initial production runtime module tuple may be empty until first real app slice.
 
-- [ ] RED: one catalog/plugin/runtime graph per Container.
-- [ ] RED: installed-but-no-module stays non-executable.
-- [ ] RED: explicit test injection avoids real filesystem.
-- [ ] Implement composition.
-- [ ] Run full existing foundation suite.
-- [ ] Commit: `feat: compose application runtime graph`.
+- [x] RED: one catalog/plugin/runtime graph per Container.
+- [x] RED: installed-but-no-module stays non-executable.
+- [x] RED: explicit test injection avoids real filesystem.
+- [x] Implement composition.
+- [x] Run full existing foundation suite.
+- [x] Commit: `feat: compose application runtime graph`.
 
 ---
 
@@ -361,10 +361,10 @@ Test:
 5. emitted event invokes event handler;
 6. removing runtime module leaves app installed but all three executable capabilities absent.
 
-- [ ] Write RED integration proof.
-- [ ] Implement only minimal missing wiring.
-- [ ] Run GREEN.
-- [ ] Commit: `test: verify linked application runtime capabilities`.
+- [x] Write RED integration proof.
+- [x] Implement only minimal missing wiring.
+- [x] Run GREEN.
+- [x] Commit: `test: verify linked application runtime capabilities`.
 
 ---
 
@@ -380,9 +380,9 @@ Scenario:
 - add explicit PluginRuntimeModule -> event handler becomes executable;
 - disabled plugin -> linker rejects Python plugin runtime.
 
-- [ ] Write integration tests.
-- [ ] Run GREEN.
-- [ ] Commit: `test: verify plugin runtime requires explicit migration`.
+- [x] Write integration tests.
+- [x] Run GREEN.
+- [x] Commit: `test: verify plugin runtime requires explicit migration`.
 
 ---
 
@@ -402,25 +402,44 @@ Guards:
 - runtime linker is the production link point;
 - no `None` result contracts.
 
-- [ ] Write guard tests.
-- [ ] Fix violations.
-- [ ] Run architecture suite.
-- [ ] Commit: `test: guard application runtime boundaries`.
+- [x] Write guard tests.
+- [x] Fix violations.
+- [x] Run architecture suite.
+- [x] Commit: `test: guard application runtime boundaries`.
 
 ---
 
 ### Task 14: Full acceptance and completion record
 
-- [ ] Run repository compile/static checks.
-- [ ] Run `python -m pytest -q`.
-- [ ] Run focused plugin/event/runtime suites.
-- [ ] Search repository for dynamic PHP/Python runtime loading primitives.
-- [ ] Verify request-time paths perform no filesystem discovery.
-- [ ] Verify existing routing/API/OAuth/auth/ACL/application-registry tests remain green.
-- [ ] Mark all plan checkboxes complete.
-- [ ] Mark design spec implemented.
-- [ ] Record exact passing test count in `AGENTS.md`.
-- [ ] Commit: `docs: record application runtime verification`.
+- [x] Run repository compile/static checks.
+- [x] Run `python -m pytest -q`.
+- [x] Run focused plugin/event/runtime suites.
+- [x] Search repository for dynamic PHP/Python runtime loading primitives.
+- [x] Verify request-time paths perform no filesystem discovery.
+- [x] Verify existing routing/API/OAuth/auth/ACL/application-registry tests remain green.
+- [x] Mark all plan checkboxes complete.
+- [x] Mark design spec implemented.
+- [x] Record exact passing test count in `AGENTS.md`.
+- [x] Commit: `docs: record application runtime verification`.
+
+## Verification record
+
+Implementation head before completion-documentation commits: `ea2c1a4d424f50530b5df08b80dcd4c9664871e5`.
+
+GitHub Actions full CI completed successfully on that head:
+
+- source tree compile passed;
+- `782 passed, 9 warnings`;
+- exact Webasyst 4.2.0 event/plugin characterization tests passed;
+- safe installed-plugin discovery tests passed;
+- event ordering/first-result/failure-continuation tests passed;
+- runtime module/linker atomicity tests passed;
+- shared application-runtime composition tests passed;
+- cross-registry app runtime proof passed;
+- installed-plugin-vs-explicit-Python-runtime proof passed;
+- architecture/security guards passed.
+
+The exact source behavior is pinned to Webasyst Framework 4.2.0 release commit `39c267a2fabfb0cd6d94f4dd86b23b4750328dd5`.
 
 ## Completion definition
 
