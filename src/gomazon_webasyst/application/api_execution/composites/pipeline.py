@@ -86,6 +86,7 @@ class ApiExecutionPipeline:
         context = ApiInvocationContext(
             principal=principal,
             target=request.target,
+            origin=request.origin,
         )
         method_result = await self._method_executor.execute(
             resolved_method.definition,
