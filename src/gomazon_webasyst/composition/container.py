@@ -34,6 +34,7 @@ from gomazon_webasyst.application.auth import (
     ResolveBackendSession,
 )
 from gomazon_webasyst.application.contacts import CreateContact, GetContact, UpdateContact
+from gomazon_webasyst.application.ports.application_registry import ApplicationRegistry
 from gomazon_webasyst.application.persistent_login import (
     IssuePersistentCredential,
     RestoreBackendSessionFromPersistentCredential,
@@ -45,6 +46,7 @@ from gomazon_webasyst.composition.api_execution import (
     ApiExecutionComponents,
     create_default_api_execution_components,
 )
+from gomazon_webasyst.composition.applications import create_default_application_registry
 from gomazon_webasyst.composition.auth import create_auth_use_cases
 from gomazon_webasyst.composition.backend_session_bridge import (
     BackendSessionBridgeComponents,
@@ -87,6 +89,7 @@ class Container:
     issue_implicit_api_access_token: IssueImplicitApiAccessToken
     resolve_api_access_token: ResolveApiAccessToken
     revoke_api_access_token: RevokeApiAccessToken
+    application_registry: ApplicationRegistry
     api_execution: ApiExecutionComponents
     oauth_authorization: OAuthAuthorizationComponents
     get_group: GetGroup
@@ -136,13 +139,18 @@ def create_container_with_session_state_registry(
         settings,
     )
     api_credentials = create_api_credential_use_cases(session_factory)
-    access = create_access_control_use_cases(session_factory)
+    application_registry = create_default_application_registry()
+    access = create_access_control_use_cases(
+        session_factory,
+        application_registry,
+    )
     api_execution = create_default_api_execution_components(
         session_factory=session_factory,
         resolve_api_access_token=api_credentials.resolve_api_access_token,
         api_enabled=settings.api_enabled,
         disable_message=settings.api_disable_message,
         force_https=settings.api_force_https,
+        application_registry=application_registry,
     )
     oauth_authorization = create_default_oauth_authorization_components(
         session_factory=session_factory,
@@ -176,6 +184,7 @@ def create_container_with_session_state_registry(
         issue_implicit_api_access_token=api_credentials.issue_implicit_api_access_token,
         resolve_api_access_token=api_credentials.resolve_api_access_token,
         revoke_api_access_token=api_credentials.revoke_api_access_token,
+        application_registry=application_registry,
         api_execution=api_execution,
         oauth_authorization=oauth_authorization,
         get_group=access.get_group,
