@@ -532,3 +532,9 @@ class OAuthRevokeTargetKind(EnumStr):
 class OAuthRevokeAuthenticationKind(EnumStr):
     AUTHENTICATED = "authenticated"
     REJECTED = "rejected"
+
+
+class OAuthControllerErrorCode(EnumStr):
+    INVALID_REQUEST = "invalid_request"
+    UNSUPPORTED_GRANT_TYPE = "unsupported_grant_type"
+    INVALID_GRANT = "invalid_grant"
