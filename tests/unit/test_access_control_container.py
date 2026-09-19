@@ -28,6 +28,7 @@ from gomazon_webasyst.compatibility.webasyst.access_control.mutation import (
     LegacyRightsMutationPolicy,
 )
 from gomazon_webasyst.composition.access_control import create_access_control_use_cases
+from gomazon_webasyst.composition.applications import create_default_application_registry
 from gomazon_webasyst.infrastructure.access_control.sqlalchemy.unit_of_work import (
     SQLAlchemyAccessControlUnitOfWorkFactory,
 )
@@ -36,7 +37,10 @@ from gomazon_webasyst.infrastructure.access_control.sqlalchemy.unit_of_work impo
 def test_access_control_composition_wires_full_use_case_surface() -> None:
     session_factory = object()
 
-    access = create_access_control_use_cases(session_factory)
+    access = create_access_control_use_cases(
+        session_factory,
+        create_default_application_registry(),
+    )
 
     assert isinstance(access.get_group, GetGroup)
     assert isinstance(access.list_groups, ListGroups)
@@ -58,7 +62,10 @@ def test_access_control_composition_wires_full_use_case_surface() -> None:
 
 
 def test_access_control_composition_shares_uow_and_explicit_compatibility_policies() -> None:
-    access = create_access_control_use_cases(object())
+    access = create_access_control_use_cases(
+        object(),
+        create_default_application_registry(),
+    )
 
     uow_factory = access.get_effective_right._uow_factory
     assert isinstance(uow_factory, SQLAlchemyAccessControlUnitOfWorkFactory)
@@ -77,3 +84,15 @@ def test_access_control_composition_shares_uow_and_explicit_compatibility_polici
     assert isinstance(mutation_policy, LegacyRightsMutationPolicy)
     assert access.set_app_access._mutation_policy is mutation_policy
     assert access.set_global_admin_access._mutation_policy is mutation_policy
+
+
+def test_acl_app_mutations_share_one_application_registry() -> None:
+    registry = create_default_application_registry()
+    access = create_access_control_use_cases(object(), registry)
+
+    assert access.assign_right._application_registry is registry
+    assert access.revoke_right._application_registry is registry
+    assert access.set_app_access._application_registry is registry
+    assert not hasattr(access.get_app_access, "_application_registry")
+    assert not hasattr(access.get_effective_right, "_application_registry")
+    assert not hasattr(access.get_rights_snapshot, "_application_registry")
