@@ -3,6 +3,10 @@ from datetime import datetime
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from gomazon_webasyst.application.contact_deletion import (
+    ContactDeletionApplied,
+    ContactDeletionBatch,
+)
 from gomazon_webasyst.application.errors import ContactNotFound
 from gomazon_webasyst.composition.settings import Settings
 from gomazon_webasyst.contracts.contacts import ContactCreate, ContactRead, ContactUpdate
@@ -30,11 +34,24 @@ class FakeUpdateContact:
         return ContactRead(**values)
 
 
+class FakeDeleteContacts:
+    def __init__(self) -> None:
+        self.calls: list[ContactDeletionBatch] = []
+
+    async def execute(
+        self,
+        batch: ContactDeletionBatch,
+    ) -> ContactDeletionApplied:
+        self.calls.append(batch)
+        return ContactDeletionApplied(contact_ids=batch.contact_ids)
+
+
 class FakeContainer:
     def __init__(self) -> None:
         self.get_contact = FakeGetContact()
         self.create_contact = FakeCreateContact()
         self.update_contact = FakeUpdateContact()
+        self.delete_contacts = FakeDeleteContacts()
         self.api_execution = object()
         self.oauth_authorization = object()
         self.initialized = 0
@@ -73,6 +90,12 @@ async def test_contact_http_routes_use_application_services(monkeypatch) -> None
             )
             assert updated.status_code == 200
             assert updated.json()["company"] == "Example Ltd"
+
+            deleted = await client.delete("/api/v1/contacts/1")
+            assert deleted.status_code == 204
+            assert container.delete_contacts.calls == [
+                ContactDeletionBatch(contact_ids=(1,))
+            ]
 
             missing = await client.get("/api/v1/contacts/999")
             assert missing.status_code == 404
