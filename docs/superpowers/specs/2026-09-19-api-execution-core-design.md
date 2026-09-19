@@ -1,6 +1,6 @@
 # API Execution Core Design
 
-Status: proposed for written-spec review
+Status: accepted
 Date: 2026-09-19
 Branch: `feature/api-execution-core`
 Target: Webasyst Framework 4.2.0 API execution compatibility
@@ -195,7 +195,7 @@ ApiResponseFormat.JSON
 ApiResponseFormat.XML
 ```
 
-An invalid explicit format yields legacy `invalid_request` response semantics. The application pipeline never branches on raw strings such as `"JSON"` or `"XML"`.
+An invalid explicit format yields legacy `invalid_request` payload semantics with HTTP status 200 because 4.2.0 calls the response helper without an explicit error status. The application pipeline never branches on raw strings such as `"JSON"` or `"XML"`.
 
 ### Access-token extraction precedence
 
@@ -461,7 +461,7 @@ JSONP is a compatibility presentation feature only. It is not part of `ApiMethod
 
 ## Transport composites
 
-Presentation normalizes raw HTTP into transport composites before calling application services.
+Presentation normalizes raw HTTP into transport composites before calling application services. The ASGI adapter also normalizes any server-provided `HTTP_AUTHORIZATION` compatibility value into the same explicit authorization-header state instead of dropping that fallback.
 
 ```text
 LegacyApiHttpRequestComposite
