@@ -21,16 +21,23 @@ class LegacyTeamGroupFilterParser:
 
         return TeamGroupFilter()
 
-    @staticmethod
-    def _to_strings(value: ApiParameterValue) -> tuple[str, ...]:
-        if isinstance(value, str):
-            return (value,) if value else ()
+    @classmethod
+    def _to_strings(
+        cls,
+        value: ApiParameterValue,
+    ) -> tuple[str, ...]:
         if isinstance(value, tuple):
-            return tuple(
-                item
-                for item in value
-                if isinstance(item, str) and item
-            )
-        if isinstance(value, int | float | bool):
-            return (str(value),)
-        return ()
+            return tuple(cls._scalar_string(item) for item in value)
+        if isinstance(value, Mapping):
+            return ()
+        return (cls._scalar_string(value),)
+
+    @staticmethod
+    def _scalar_string(value: ApiParameterValue) -> str:
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, bool):
+            return "1" if value else ""
+        if isinstance(value, int | float):
+            return str(value)
+        return ""
