@@ -321,25 +321,25 @@ Browser-authenticated surfaces resolve identity in a fixed order: valid Python s
 
 
 ### ADR-041 — Webasyst OAuth authorization is a separate typed surface over existing auth and credential cores
-Status: accepted
+Status: proposed
 Date: 2026-09-19
 
 `/api.php/auth`, `/api.php/token`, and `/api.php/revoke` form a dedicated OAuth authorization surface. The authorization application layer owns typed consent/grant orchestration and reuses `BackendCurrentSubjectFlow`, `BackendPasswordLoginFlow`, `BackendLogoutFlow`, `IssueAuthorizationCode`, `IssueImplicitApiAccessToken`, `ExchangeAuthorizationCode`, `ResolveApiAccessToken`, and `RevokeApiAccessToken`. It MUST NOT query session/token tables directly or receive FastAPI/Starlette Request objects. Browser/HTTP behavior, CSRF, HTML, JSON/XML envelopes and Webasyst quirks remain compatibility/presentation concerns.
 
 ### ADR-042 — Legacy unregistered redirect behavior is isolated behind an OAuth redirect policy
-Status: accepted
+Status: proposed
 Date: 2026-09-19
 
 Webasyst 4.2.0 does not maintain an OAuth client registry and accepts request-supplied `client_id`, `client_name`, and `redirect_uri`. Exact compatibility therefore uses an injected `OAuthRedirectPolicy`; the first `LegacyUnregisteredRedirectPolicy` preserves request-supplied redirects. Application orchestration MUST NOT assume that unregistered redirects are intrinsically valid. A future registered-client policy may validate client/redirect pairs without changing credential storage or authorization Composites.
 
 ### ADR-043 — Revoke authentication credential and revoke target are distinct compatibility states
-Status: accepted
+Status: proposed
 Date: 2026-09-19
 
 For `/api.php/revoke`, outer API authentication follows normal legacy credential precedence (request token, Authorization header, server `HTTP_AUTHORIZATION`), but the controller separately reads only request-level `access_token` as the deletion target. Compatibility therefore models `RevokeTargetProvided | RevokeTargetMissing` separately from the authenticated credential. Header-only Bearer authentication succeeds but produces a no-op deletion and `{"access_token": ""}`; no invalid empty `ApiAccessToken` is constructed and the generic revocation use case remains strict.
 
 ### ADR-044 — Legacy token/revoke controllers use HTTP 200 payload errors and no JSONP
-Status: accepted
+Status: proposed
 Date: 2026-09-19
 
 `/api.php/token` and controller-level `/api.php/revoke` responses preserve Webasyst 4.2.0 controller semantics: ordinary success/error payloads are HTTP 200, response format is JSON by default with optional XML, invalid explicit format becomes JSON `invalid_request`, and JSONP is not applied. Framework-level precondition/authentication failures that happen before those controllers keep their own HTTP statuses.
