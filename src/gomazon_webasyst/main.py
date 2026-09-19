@@ -19,6 +19,7 @@ def create_app_with_settings(settings: Settings) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        await container.initialize()
         app.state.container = container
         try:
             yield
