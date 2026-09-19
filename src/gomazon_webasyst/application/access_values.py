@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import TypeAlias
 
+from gomazon_webasyst.application.app_values import AppId
+
 
 @dataclass(slots=True, frozen=True)
 class GroupId:
@@ -9,17 +11,6 @@ class GroupId:
     def __post_init__(self) -> None:
         if self.value <= 0:
             raise ValueError("group id must be positive")
-
-
-@dataclass(slots=True, frozen=True)
-class AppId:
-    value: str
-
-    def __post_init__(self) -> None:
-        if not self.value:
-            raise ValueError("app id must not be empty")
-        if len(self.value) > 32:
-            raise ValueError("app id must not exceed 32 characters")
 
 
 @dataclass(slots=True, frozen=True)
