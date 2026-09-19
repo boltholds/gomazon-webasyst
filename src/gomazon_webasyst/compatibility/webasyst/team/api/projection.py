@@ -19,6 +19,9 @@ from gomazon_webasyst.application.team_directory.vo.states import (
     TeamTextMissing,
     TeamTextValue,
 )
+from gomazon_webasyst.compatibility.webasyst.team.api.datetime_policy import (
+    LegacyTeamDateTimePolicy,
+)
 from gomazon_webasyst.compatibility.webasyst.team.api.resource_urls import (
     LegacyTeamUserResourceUrlPolicy,
 )
@@ -28,8 +31,10 @@ class LegacyTeamApiProjector:
     def __init__(
         self,
         resources: LegacyTeamUserResourceUrlPolicy,
+        datetime_policy: LegacyTeamDateTimePolicy,
     ) -> None:
         self._resources = resources
+        self._datetime_policy = datetime_policy
 
     def user(
         self,
@@ -61,7 +66,7 @@ class LegacyTeamApiProjector:
             ),
             "birth_day": self._int_or_none(user.birth_day),
             "birth_month": self._int_or_none(user.birth_month),
-            "create_datetime": self._datetime_string(
+            "create_datetime": self._datetime_policy.create_datetime(
                 user.create_datetime
             ),
             "_online_status": user.online_status.value,
@@ -98,10 +103,10 @@ class LegacyTeamApiProjector:
         return {
             "id": event.id,
             "uid": self._text_or_none(event.uid),
-            "create_datetime": self._datetime_string(
+            "create_datetime": self._datetime_policy.local_datetime(
                 event.create_datetime
             ),
-            "update_datetime": self._datetime_string(
+            "update_datetime": self._datetime_policy.local_datetime(
                 event.update_datetime
             ),
             "contact_id": event.contact_id,
@@ -109,8 +114,8 @@ class LegacyTeamApiProjector:
             "summary": event.summary,
             "description": self._text_or_none(event.description),
             "location": self._text_or_none(event.location),
-            "start": self._datetime_string(event.start),
-            "end": self._datetime_string(event.end),
+            "start": self._datetime_policy.local_datetime(event.start),
+            "end": self._datetime_policy.local_datetime(event.end),
             "is_allday": int(event.is_allday),
             "is_status": int(event.is_status),
             "sequence": event.sequence,
@@ -147,11 +152,8 @@ class LegacyTeamApiProjector:
         if isinstance(state, TeamDateTimeMissing):
             return None
         if isinstance(state, TeamDateTimeValue):
-            return LegacyTeamApiProjector._datetime_string(
+            return LegacyTeamDateTimePolicy.local_datetime(
                 state.value
             )
         raise AssertionError("unsupported Team datetime state")
 
-    @staticmethod
-    def _datetime_string(value: datetime) -> str:
-        return value.strftime("%Y-%m-%d %H:%M:%S")
