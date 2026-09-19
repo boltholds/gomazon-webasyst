@@ -95,12 +95,8 @@ class TeamRuntimeModuleFactoryBuilder(RuntimeModuleFactoryBuilder):
 
     def create(
         self,
-        session_factory: object,
+        session_factory: async_sessionmaker[AsyncSession],
     ) -> RuntimeModuleFactory:
-        if not isinstance(session_factory, async_sessionmaker):
-            raise TypeError(
-                "Team runtime requires SQLAlchemy async_sessionmaker"
-            )
         return TeamRuntimeModuleFactory(
             session_factory=session_factory,
             settings=self.settings,
