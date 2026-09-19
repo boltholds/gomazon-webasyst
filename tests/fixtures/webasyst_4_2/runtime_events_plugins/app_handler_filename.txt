@@ -1,0 +1,15 @@
+FIXTURE_KIND: source-characterized
+SOURCE_COMMIT: 39c267a2fabfb0cd6d94f4dd86b23b4750328dd5
+SOURCE_METHOD: wa-system/event/waEvent.class.php::parseAppsHandlersFiles
+
+Example filename:
+contacts.delete.handler.php
+
+Characterized mapping for a handler file inside application "team":
+event_app_id = contacts
+event_name = delete
+handler_app_id = team
+default_method = execute
+derived_legacy_class = teamContactsDeleteHandler
+
+Python implementation must preserve subscription identity but must not derive/import a class from this filename.
