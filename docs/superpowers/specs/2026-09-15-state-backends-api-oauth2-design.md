@@ -1,6 +1,6 @@
 # State Backend Providers + API OAuth2 Credential Core — Design Specification
 
-Status: draft for written-spec review
+Status: accepted and implemented
 Date: 2026-09-15
 Repository: `boltholds/gomazon-webasyst`
 Base: `main` at `2fdda93c7aecb7f500825dd56c1c966a63ab03e9`
