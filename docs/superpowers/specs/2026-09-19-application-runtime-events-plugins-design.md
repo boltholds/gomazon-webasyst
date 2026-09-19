@@ -1,6 +1,6 @@
 # Application Runtime, Events & Plugins — Design Specification
 
-Status: accepted baseline
+Status: implemented
 Date: 2026-09-19
 Repository: `boltholds/gomazon-webasyst`
 Authoritative legacy release: Webasyst Framework 4.2.0
