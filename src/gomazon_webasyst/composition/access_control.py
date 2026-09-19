@@ -22,6 +22,7 @@ from gomazon_webasyst.application.access_control import (
     SetGlobalAdminAccess,
     UpdateGroup,
 )
+from gomazon_webasyst.application.ports.application_registry import ApplicationRegistry
 from gomazon_webasyst.application.rights_evaluator import RightsEvaluator
 from gomazon_webasyst.compatibility.webasyst.access_control.evaluation import (
     ExactThenLegacyAllFallback,
@@ -63,7 +64,10 @@ def create_webasyst_rights_evaluator() -> RightsEvaluator:
     )
 
 
-def create_access_control_use_cases(session_factory) -> AccessControlUseCases:
+def create_access_control_use_cases(
+    session_factory,
+    application_registry: ApplicationRegistry,
+) -> AccessControlUseCases:
     uow_factory = SQLAlchemyAccessControlUnitOfWorkFactory(session_factory)
     app_semantics = WebasystAccessSemantics()
     evaluator = create_webasyst_rights_evaluator()
@@ -84,9 +88,24 @@ def create_access_control_use_cases(session_factory) -> AccessControlUseCases:
         add_group_member=AddGroupMember(uow_factory, admin_policy),
         remove_group_member=RemoveGroupMember(uow_factory, admin_policy),
         replace_group_members=ReplaceGroupMembers(uow_factory, admin_policy),
-        assign_right=AssignRight(uow_factory, admin_policy, mutation_policy),
-        revoke_right=RevokeRight(uow_factory, admin_policy, mutation_policy),
-        set_app_access=SetAppAccess(uow_factory, admin_policy, mutation_policy),
+        assign_right=AssignRight(
+            uow_factory,
+            admin_policy,
+            mutation_policy,
+            application_registry,
+        ),
+        revoke_right=RevokeRight(
+            uow_factory,
+            admin_policy,
+            mutation_policy,
+            application_registry,
+        ),
+        set_app_access=SetAppAccess(
+            uow_factory,
+            admin_policy,
+            mutation_policy,
+            application_registry,
+        ),
         set_global_admin_access=SetGlobalAdminAccess(
             uow_factory,
             admin_policy,
