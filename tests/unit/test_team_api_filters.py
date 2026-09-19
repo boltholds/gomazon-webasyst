@@ -77,3 +77,39 @@ def test_groups_type_filter_ignores_unknown_types() -> None:
     assert filters.types == frozenset(
         {GroupType.GROUP, GroupType.LOCATION}
     )
+
+
+def test_explicit_numeric_php_array_indexes_are_treated_as_list_values() -> None:
+    parser = LegacyTeamApiFilterParser()
+    users = parser.users(
+        ApiParameterMap(
+            {
+                "filter": {
+                    "group_id": {"0": "7", "1": "9"},
+                    "access": {"0": "crm", "1": "files"},
+                }
+            }
+        )
+    )
+    groups = parser.groups(
+        ApiParameterMap(
+            {
+                "filter": {
+                    "type": {"0": "group", "1": "location"}
+                }
+            }
+        )
+    )
+
+    assert users.scope.group_ids == (GroupId(7), GroupId(9))
+    assert tuple(item.app_id.value for item in users.access) == (
+        "crm",
+        "files",
+    )
+    assert all(
+        item.level is TeamAccessLevel.LIMITED
+        for item in users.access
+    )
+    assert groups.types == frozenset(
+        {GroupType.GROUP, GroupType.LOCATION}
+    )
