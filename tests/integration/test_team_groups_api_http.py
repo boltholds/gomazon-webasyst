@@ -185,6 +185,10 @@ async def test_team_groups_get_list_runs_through_production_runtime_and_legacy_d
             post_rejected = await client.post(
                 f"/api.php/team.groups.getList?access_token={TOKEN}"
             )
+            empty_type_filter = await client.get(
+                f"/api.php/team.groups.getList?access_token={TOKEN}"
+                "&filter[type]="
+            )
 
     assert response.status_code == 200
     assert response.json() == [
@@ -234,3 +238,6 @@ async def test_team_groups_get_list_runs_through_production_runtime_and_legacy_d
 
     assert post_rejected.status_code == 405
     assert post_rejected.json()["error"] == "invalid_request"
+
+    assert empty_type_filter.status_code == 200
+    assert empty_type_filter.json() == []
