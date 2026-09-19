@@ -77,7 +77,7 @@ def _groups() -> tuple[TeamGroupRead, ...]:
     return (
         TeamGroupRead(id=2, name="Office", cnt=2, type="location", description=TeamGroupDescriptionMissing()),
         TeamGroupRead(id=1, name="Engineering", cnt=5, type="group", description=TeamGroupDescriptionPresent(value="Eng")),
-        TeamGroupRead(id=3, name="QA", cnt=3, type="group", description=None),
+        TeamGroupRead(id=3, name="QA", cnt=3, type="group", description=TeamGroupDescriptionMissing()),
     )
 
 
