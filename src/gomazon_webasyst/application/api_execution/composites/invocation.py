@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from gomazon_webasyst.application.api_credential_values import ApiAccessToken, ApiClientId, ApiScope
 from gomazon_webasyst.application.api_execution.vo.method import ApiHttpMethod, ApiMethodTarget
 from gomazon_webasyst.application.api_execution.vo.parameters import ApiRequestParameters
+from gomazon_webasyst.application.api_execution.vo.origin import ApiRequestOrigin
 
 
 @dataclass(slots=True, frozen=True)
@@ -11,6 +12,7 @@ class ApiInvocationRequest:
     target: ApiMethodTarget
     http_method: ApiHttpMethod
     parameters: ApiRequestParameters
+    origin: ApiRequestOrigin
 
 
 @dataclass(slots=True, frozen=True)
@@ -28,3 +30,4 @@ class ApiPrincipalContext:
 class ApiInvocationContext:
     principal: ApiPrincipalContext
     target: ApiMethodTarget
+    origin: ApiRequestOrigin
