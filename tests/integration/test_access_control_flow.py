@@ -4,6 +4,12 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from gomazon_webasyst.application.application_registry import (
+    ApplicationCatalog,
+    InstallationManifest,
+    InstalledApplication,
+    StaticApplicationRegistry,
+)
 from gomazon_webasyst.application.access_values import (
     AppId,
     GroupId,
@@ -15,6 +21,7 @@ from gomazon_webasyst.application.access_values import (
     UserTarget,
 )
 from gomazon_webasyst.composition.access_control import create_access_control_use_cases
+from gomazon_webasyst.contracts.applications import ApplicationDescriptor
 from gomazon_webasyst.contracts.access_control import (
     AccessMutationRejected,
     AppAccessSet,
@@ -123,7 +130,20 @@ async def test_access_control_vertical_flow_with_real_legacy_tables() -> None:
         )
         await session.commit()
 
-    access = create_access_control_use_cases(sessions)
+    application_registry = StaticApplicationRegistry(
+        ApplicationCatalog(
+            applications=(
+                ApplicationDescriptor(id=AppId("shop"), name="Shop"),
+            ),
+        ),
+        InstallationManifest(
+            apps=(InstalledApplication(AppId("shop")),),
+        ),
+    )
+    access = create_access_control_use_cases(
+        sessions,
+        application_registry,
+    )
     root = AuthenticatedSubject(id=1, login="root")
     user = AuthenticatedSubject(id=42, login="user42")
     user43 = AuthenticatedSubject(id=43, login="user43")
@@ -133,6 +153,14 @@ async def test_access_control_vertical_flow_with_real_legacy_tables() -> None:
     assert isinstance(effective, EffectiveRightResolved)
     assert isinstance(effective.right, FiniteRight)
     assert effective.right.value == 4
+
+    unknown_app_read = await access.get_effective_right(
+        user,
+        PermissionKey(AppId("legacy_unknown"), RightName("orders.edit")),
+    )
+    assert isinstance(unknown_app_read, EffectiveRightResolved)
+    assert isinstance(unknown_app_read.right, FiniteRight)
+    assert unknown_app_read.right.value == 0
 
     created = await access.create_group(root, GroupCreate(name="Editors"))
     assert isinstance(created, GroupCreated)
