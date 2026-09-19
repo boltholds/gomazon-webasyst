@@ -352,6 +352,14 @@ Date: 2026-09-19
 
 Runtime-installed application identity is represented by one application-owned `InstalledApplicationCatalog` shared by production composition. Webasyst compatibility discovery normalizes `wa-config/apps.php` plus per-app `lib/config/app.php` metadata into immutable `InstalledApplication` Entities/VOs; raw PHP arrays, filesystem paths and parser types do not cross into application code. API Execution consumes the canonical catalog for app-existence authorization, while OAuth consent uses a consumer-specific projection over the same catalog for display metadata. `ApiMethodRegistry` and `DispatchRegistry` remain separate registries because installation, executable API methods and dispatch handlers are distinct concepts. The first implementation uses one startup snapshot per container and does not execute arbitrary PHP, perform request-time filesystem discovery, or recreate `waSystem` as a service locator.
 
+
+### ADR-046 — Canonical installed-app metadata is locale-neutral and excludes legacy build cache state
+Status: accepted
+Date: 2026-09-19
+
+Webasyst 4.2.0 `waSystem::getApps()` translates application/header-item names and caches loaded app info per locale, while also injecting a `build` value from `build.php`, debug time, or zero. The Python runtime intentionally constructs one shared installed-application snapshot per Container, so that canonical snapshot MUST NOT capture a request/user locale or cache-busting build value. `InstalledApplication` stores the raw manifest default name plus normalized static metadata; locale-specific names belong to a later consumer projection/localization boundary. Until that projection exists, OAuth consent may display the manifest default name and MUST NOT be described as having localized UI parity. Legacy build metadata is omitted until a concrete consumer requires it.
+
+
 ---
 
 ## Target dependency direction
@@ -551,6 +559,12 @@ The first auth slice is backend password authentication plus session create/reso
 - production discovery uses a configured Webasyst root and a restricted declarative PHP return-array parser; arbitrary PHP evaluation or subprocess execution is forbidden;
 - the first implementation builds one startup snapshot per container; installer-driven hot reload is a later slice behind the same catalog port;
 - malformed installation config is a configuration/infrastructure failure and must not be silently converted into an app-missing authorization result.
+- exact discovery characterization is pinned to Webasyst Framework 4.2.0 release commit `39c267a2fabfb0cd6d94f4dd86b23b4750328dd5`;
+- missing `wa-config/apps.php` is a startup/configuration failure; an enabled configured app with a missing manifest is omitted;
+- configured app enablement follows characterized PHP truth semantics, and the legacy WAID rule may force-enable Installer through a compatibility settings/policy seam;
+- `webasyst` is forced into the system-inclusive catalog and resolves from `wa-system/webasyst/lib/config/app.php`;
+- canonical names remain locale-neutral raw manifest names; locale-specific translation is a later projection and localized OAuth UI parity is not claimed in this slice;
+- legacy `build` metadata is intentionally excluded from the first Entity because current API/OAuth consumers do not require it;
 
 ---
 

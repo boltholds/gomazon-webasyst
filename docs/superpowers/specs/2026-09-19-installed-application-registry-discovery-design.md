@@ -131,6 +131,25 @@ Before implementation is declared compatible, exact edge behavior MUST be charac
 
 Do not inherit a behavior only because it exists on a newer public branch.
 
+### 3.1 Characterized 4.2.0 release snapshot
+
+Task 0 is pinned to release commit `39c267a2fabfb0cd6d94f4dd86b23b4750328dd5` (`Webasyst Framework v.4.2.0`, 2026-07-27). The detailed evidence record is `docs/superpowers/specs/2026-09-19-installed-application-registry-characterization.md`.
+
+The characterized rules are now fixed:
+
+- missing `wa-config/apps.php` is a configuration error (legacy exception code 600);
+- `webasyst` is forcibly added to the configured set and its manifest is loaded from `wa-system/webasyst/lib/config/app.php`;
+- configured falsey entries are disabled using PHP truth semantics;
+- when `installer` is empty/disabled, legacy may force-enable it from truthy `webasyst/waid_credentials`;
+- an enabled app with no `lib/config/app.php` is silently skipped;
+- build metadata comes from `build.php` or debug-time/zero fallback, but current API/OAuth consumers do not use it;
+- legacy discovery localizes app/header-item names and caches app info per locale;
+- scalar icons, icon-size maps, `img` fallback and header-item paths are normalized during discovery;
+- `webasyst` header item assets use the `wa-content/` prefix;
+- malformed config is not an ordinary “app missing” state;
+- legacy PHP `include` can execute code, but the Python compatibility parser intentionally rejects dynamic expressions.
+
+
 ## 4. Architectural decision
 
 There is exactly one canonical application-owned port named `InstalledApplicationCatalog`.
@@ -168,6 +187,10 @@ class InstalledApplication:
 ```
 
 The entity is a normalized runtime projection, not a lossless AST of `app.php`.
+
+`ApplicationDisplayName` is locale-neutral in this slice: it contains the manifest's default/raw name. Webasyst 4.2.0 localized app names while building its per-locale cache, but a single shared Python catalog must not capture the locale of whichever request/user happened to initialize it. Locale-specific display projection is deferred to the localization/application-presentation slice. OAuth therefore uses the raw manifest name until that projection exists and MUST NOT claim localized consent-screen parity yet.
+
+Legacy `build` is also excluded from the first Entity because it is runtime/cache-busting metadata and no current API/OAuth consumer needs it.
 
 Fields are non-nullable. Absence that is semantically allowed is represented by value objects with explicit empty collections or explicit variants, not `None`.
 
@@ -325,6 +348,10 @@ Normalization owns legacy rules such as:
 - extracting boolean capability keys into `ApplicationCapabilities`;
 - normalizing header items needed by current consumers;
 - preserving configured-app order.
+- applying characterized PHP truth semantics to enabled/disabled entries;
+- reproducing the optional WAID Installer auto-enable rule through an injected compatibility settings/policy seam;
+- keeping canonical names locale-neutral rather than embedding a per-user locale in the shared snapshot;
+- omitting legacy build/cache metadata until a concrete consumer requires it.
 
 Raw PHP dictionaries do not cross into application code.
 
@@ -392,6 +419,7 @@ Rules:
 - access policy runs after successful catalog resolution;
 - denied apps are omitted;
 - ordinary app display name/icons come from normalized installed metadata;
+- ordinary app name is the locale-neutral manifest default until a separate localization projection is implemented;
 - `webasyst` uses the characterized settings header-item icon rule;
 - the projector contains no filesystem I/O.
 

@@ -71,11 +71,11 @@ Before production code, copy the smallest source-backed fixture fragments needed
 - 4.2.0 Installer auto-enable behavior, if present;
 - malformed/non-array manifest handling.
 
-- [ ] **Step 1: Extract exact minimal fixtures from supplied 4.2.0 source**
+- [x] **Step 1: Extract exact minimal fixtures from supplied 4.2.0 source**
 
 Keep source comments identifying original legacy file/method where useful. Do not copy unrelated application code.
 
-- [ ] **Step 2: Record source observations**
+- [x] **Step 2: Record source observations**
 
 Write `2026-09-19-installed-application-registry-characterization.md` with a table:
 
@@ -83,15 +83,15 @@ Write `2026-09-19-installed-application-registry-characterization.md` with a tab
 
 Every behavior later asserted by compatibility tests must have a source row.
 
-- [ ] **Step 3: Add source-characterization guard**
+- [x] **Step 3: Add source-characterization guard**
 
 The first test may validate fixture provenance/shape and deliberately skip parser assertions until Task 2. It should make missing fixtures or undocumented ambiguous behavior fail review rather than silently default.
 
-- [ ] **Step 4: Review spec against findings**
+- [x] **Step 4: Review spec against findings**
 
 If supplied 4.2.0 behavior differs from the accepted spec, update the spec and `AGENTS.md` before implementing. Do not hide the discrepancy inside code.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tests/fixtures/webasyst_4_2/application_registry \
@@ -101,6 +101,10 @@ git add tests/fixtures/webasyst_4_2/application_registry \
   AGENTS.md
 git commit -m "test: characterize legacy application discovery"
 ```
+
+
+**Task 0 result:** Characterization is pinned to release commit `39c267a2fabfb0cd6d94f4dd86b23b4750328dd5`. It confirmed the missing-config exception, forced `webasyst` inclusion, PHP-truthy enablement, WAID Installer auto-enable, silent missing-manifest skip, locale-specific legacy name translation, asset normalization, and build injection. The design was refined so the shared canonical Python catalog is locale-neutral and excludes build/cache metadata; locale projection is explicitly deferred.
+
 
 ---
 
