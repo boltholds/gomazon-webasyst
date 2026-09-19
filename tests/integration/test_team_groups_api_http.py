@@ -182,6 +182,9 @@ async def test_team_groups_get_list_runs_through_production_runtime_and_legacy_d
                     ("filter[type][]", "location"),
                 ],
             )
+            post_rejected = await client.post(
+                f"/api.php/team.groups.getList?access_token={TOKEN}"
+            )
 
     assert response.status_code == 200
     assert response.json() == [
@@ -228,3 +231,6 @@ async def test_team_groups_get_list_runs_through_production_runtime_and_legacy_d
 
     assert repeated_types.status_code == 200
     assert repeated_types.json() == response.json()
+
+    assert post_rejected.status_code == 405
+    assert post_rejected.json()["error"] == "invalid_request"
