@@ -1,6 +1,10 @@
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Protocol
+from uuid import uuid4
 
+from gomazon_webasyst.application.auth_values import SessionId
 from gomazon_webasyst.application.ports.session_state import SessionStateStore
 from gomazon_webasyst.infrastructure.sessions.memory import InMemorySessionStateStore
 
@@ -63,9 +67,22 @@ class SessionStateProviderRegistry:
         return ProviderResolved(name=name, factory=self._factories[name])
 
 
+def _default_session_id() -> SessionId:
+    return SessionId(uuid4().hex)
+
+
+@dataclass(slots=True, frozen=True)
 class InMemorySessionStateStoreFactory:
+    session_id_factory: Callable[[], SessionId] = _default_session_id
+    clock: Callable[[], datetime] = datetime.now
+    ttl: timedelta = timedelta(minutes=30)
+
     def create(self) -> SessionStateStore:
-        return InMemorySessionStateStore()
+        return InMemorySessionStateStore(
+            session_id_factory=self.session_id_factory,
+            clock=self.clock,
+            ttl=self.ttl,
+        )
 
 
 class UnknownSessionStateProviderError(RuntimeError):
