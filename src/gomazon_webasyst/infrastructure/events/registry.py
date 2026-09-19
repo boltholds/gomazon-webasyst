@@ -14,6 +14,9 @@ from gomazon_webasyst.application.events.vo.patterns import (
 from gomazon_webasyst.application.ports.event_handlers import (
     EventHandlerMatchSet,
     EventHandlerRegistered,
+    EventHandlerRegistrationAvailable,
+    EventHandlerRegistrationCheck,
+    EventHandlerRegistrationConflict,
     EventHandlerRegistrationRejected,
     EventHandlerRegistrationResult,
 )
@@ -25,11 +28,22 @@ class InMemoryEventHandlerRegistry:
         self._definitions: list[EventHandlerDefinition] = []
         self._ids: set[EventHandlerId] = set()
 
+    def check(
+        self,
+        handler_id: EventHandlerId,
+    ) -> EventHandlerRegistrationCheck:
+        if handler_id in self._ids:
+            return EventHandlerRegistrationConflict(handler_id)
+        return EventHandlerRegistrationAvailable(handler_id)
+
     def register(
         self,
         definition: EventHandlerDefinition,
     ) -> EventHandlerRegistrationResult:
-        if definition.handler_id in self._ids:
+        if isinstance(
+            self.check(definition.handler_id),
+            EventHandlerRegistrationConflict,
+        ):
             return EventHandlerRegistrationRejected(definition.handler_id)
         self._ids.add(definition.handler_id)
         self._definitions.append(definition)
