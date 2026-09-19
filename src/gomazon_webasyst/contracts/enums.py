@@ -553,3 +553,14 @@ class InstalledPluginLookupKind(EnumStr):
 class PluginImageKind(EnumStr):
     PRESENT = "present"
     MISSING = "missing"
+
+
+class RuntimeLinkRejectReason(EnumStr):
+    APP_NOT_INSTALLED = "app_not_installed"
+    PLUGIN_NOT_INSTALLED = "plugin_not_installed"
+    DUPLICATE_APP_MODULE = "duplicate_app_module"
+    API_TARGET_CONFLICT = "api_target_conflict"
+    DISPATCH_TARGET_CONFLICT = "dispatch_target_conflict"
+    EVENT_HANDLER_CONFLICT = "event_handler_conflict"
+    FOREIGN_DISPATCH_TARGET = "foreign_dispatch_target"
+    FOREIGN_EVENT_OWNER = "foreign_event_owner"
