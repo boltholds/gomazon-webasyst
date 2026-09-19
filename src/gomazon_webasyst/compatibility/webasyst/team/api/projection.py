@@ -19,6 +19,11 @@ from gomazon_webasyst.application.team_directory.vo.states import (
     TeamTextMissing,
     TeamTextValue,
 )
+from gomazon_webasyst.contracts.team_directory import (
+    LegacyTeamGroupApiRead,
+    LegacyTeamPhoneApiRead,
+    LegacyTeamUserApiRead,
+)
 from gomazon_webasyst.compatibility.webasyst.team.api.datetime_policy import (
     LegacyTeamDateTimePolicy,
 )
@@ -40,54 +45,52 @@ class LegacyTeamApiProjector:
         self,
         user: TeamUser,
         origin: ApiRequestOrigin,
-    ) -> dict[str, JsonValue]:
+    ) -> LegacyTeamUserApiRead:
         resources = self._resources.project(user, origin)
-        return {
-            "id": user.id,
-            "name": user.name,
-            "firstname": user.firstname,
-            "lastname": user.lastname,
-            "middlename": user.middlename,
-            "company": user.company,
-            "login": user.login,
-            "email": [item.value for item in user.emails],
-            "phone": [
-                {
-                    "value": item.value,
-                    "ext": item.ext,
-                    "status": self._text_or_none(item.status),
-                }
+        return LegacyTeamUserApiRead(
+            id=user.id,
+            name=user.name,
+            firstname=user.firstname,
+            lastname=user.lastname,
+            middlename=user.middlename,
+            company=user.company,
+            login=user.login,
+            email=tuple(item.value for item in user.emails),
+            phone=tuple(
+                LegacyTeamPhoneApiRead(
+                    value=item.value,
+                    ext=item.ext,
+                    status=self._text_or_none(item.status),
+                )
                 for item in user.phones
-            ],
-            "locale": user.locale,
-            "jobtitle": user.jobtitle,
-            "last_datetime": self._datetime_or_none(
-                user.last_datetime
             ),
-            "birth_day": self._int_or_none(user.birth_day),
-            "birth_month": self._int_or_none(user.birth_month),
-            "create_datetime": self._datetime_policy.create_datetime(
+            locale=user.locale,
+            jobtitle=user.jobtitle,
+            last_datetime=self._datetime_or_none(user.last_datetime),
+            birth_day=self._int_or_none(user.birth_day),
+            birth_month=self._int_or_none(user.birth_month),
+            create_datetime=self._datetime_policy.create_datetime(
                 user.create_datetime
             ),
-            "_online_status": user.online_status.value,
-            "_event": self._event_or_empty(user),
-            "group_id": [
+            online_status=user.online_status,
+            current_event=self._event_or_empty(user),
+            group_id=tuple(
                 group_id.value for group_id in user.group_ids
-            ],
-            "userpic": resources.userpic,
-            "userpic_original_crop": resources.original_crop,
-            "userpic_uploaded": resources.uploaded,
-            "userpic_thumbs": resources.thumbs,
-        }
+            ),
+            userpic=resources.userpic,
+            userpic_original_crop=resources.original_crop,
+            userpic_uploaded=resources.uploaded,
+            userpic_thumbs=resources.thumbs,
+        )
 
-    def group(self, group: TeamGroup) -> dict[str, JsonValue]:
-        return {
-            "id": group.id.value,
-            "name": group.name,
-            "cnt": group.count,
-            "type": group.type.value,
-            "description": self._text_or_none(group.description),
-        }
+    def group(self, group: TeamGroup) -> LegacyTeamGroupApiRead:
+        return LegacyTeamGroupApiRead(
+            id=group.id.value,
+            name=group.name,
+            cnt=group.count,
+            type=group.type,
+            description=self._text_or_none(group.description),
+        )
 
     def _event_or_empty(
         self,
