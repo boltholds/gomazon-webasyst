@@ -21,3 +21,8 @@ visibility_threshold = 0
 API_BASE:
 path = wa-system/api/waAPIMethod.class.php
 default_http_method = GET
+
+WAUTILS_TO_STR_ARRAY:
+type_filter_scalar_trim = true
+explicit_empty_scalar = one_empty_string_item
+missing_filter_type = no_type_filter
