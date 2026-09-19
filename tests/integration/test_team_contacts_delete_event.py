@@ -137,7 +137,7 @@ async def test_team_contacts_delete_relay_performs_nested_dispatch_without_outer
     )
     await components.bootstrap.initialize()
 
-    payload = LegacyEventPayload(value={"id": (7, 8)})
+    payload = LegacyEventPayload(value={"id": [7, 8]})
     outer = await components.event_dispatcher.dispatch(
         EventDispatchRequest(
             event=EventKey(
