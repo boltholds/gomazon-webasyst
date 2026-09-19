@@ -18,6 +18,7 @@ Authoritative companion artifacts:
 - Persistent-login design: `docs/superpowers/specs/2026-09-14-persistent-login-design.md`
 - Access-control design: `docs/superpowers/specs/2026-09-15-access-control-design.md`
 - State backend + API OAuth2 design: `docs/superpowers/specs/2026-09-15-state-backends-api-oauth2-design.md`
+- API execution core design: `docs/superpowers/specs/2026-09-19-api-execution-core-design.md`
 - Official legacy documentation reference: `https://developers.webasyst.com/docs`
 
 ---
@@ -279,6 +280,23 @@ Status: accepted
 Date: 2026-09-15
 
 The credential core owns authorization-code issue/exchange, implicit token issue, token resolution/touch and revoke. Bearer/query token extraction, OAuth redirect/consent endpoints, installed-app filtering, ACL/scope authorization, API method dispatch, JSON/XML legacy envelopes and HTTP error mapping are a later presentation/API-framework slice. No FastAPI/Starlette dependency belongs in API credential application code.
+### ADR-035 — API Execution Core code is classified as Entity, VO, Service, or Composite
+Status: accepted
+Date: 2026-09-19
+
+Every new API Execution Core domain/application type MUST have one explicit responsibility category: Entity, Value Object, Service, or Composite. Entities carry stable domain identity; VOs are immutable validated equality-by-value values; Services own one coherent rule/operation; Composites orchestrate already-defined entities/VOs/services without becoming service locators or hiding primitive business rules. This taxonomy operates inside the existing application/contracts/ports/infrastructure/presentation dependency boundaries and does not replace them. SQLAlchemy rows and HTTP adapters are infrastructure/presentation types, not domain Entities. New API Execution Core code that cannot be classified cleanly is an architecture smell and must be redesigned before merge.
+
+### ADR-036 — API method execution is a typed staged Composite pipeline
+Status: accepted
+Date: 2026-09-19
+
+Webasyst-compatible API execution is normalized into one `ApiExecutionPipeline` Composite. Observable authorization order is preserved: resolve credential -> update compatibility activity -> installed app -> app access -> token scope -> license -> method registry -> HTTP method validation -> handler execution. Expected negative outcomes are typed variants and stop later stages. The pipeline owns sequencing only and MUST NOT contain SQL, FastAPI/Starlette request objects, response formatting, dynamic imports, access-right calculations, or handler-specific parameter parsing.
+
+### ADR-037 — API methods are registered Entities; legacy transport stays at compatibility boundaries
+Status: accepted
+Date: 2026-09-19
+
+PHP class-name construction and `class_exists()` lookup are replaced by an application-owned `ApiMethodRegistry` keyed by open `ApiMethodTarget`/`ApiMethodName` VOs and returning registered `ApiMethodDefinition` Entities. Adding a method requires registration, not a central dispatch branch or dynamic import. HTTP method tokens are open uppercase VOs; closed response/result/rejection domains use `EnumStr`. Query/form source distinction, Bearer/request-token extraction, JSON/XML/JSONP rendering, legacy error envelopes, API-disable behavior and HTTPS redirects remain compatibility/presentation concerns and MUST NOT leak into application method handlers.
 
 ---
 
@@ -313,6 +331,11 @@ src/gomazon_webasyst/
     persistent_login.py
     access_control.py
   application/
+    api_execution/
+      entities/
+      vo/
+      services/
+      composites/
     contacts.py
     auth.py
     persistent_login.py
@@ -421,6 +444,23 @@ The first auth slice is backend password authentication plus session create/reso
 
 ---
 
+## API execution compatibility rules
+
+- all new API Execution Core domain/application code is organized explicitly under Entity, VO, Services, or Composite;
+- `ApiMethodDefinition` is the registered method Entity and is identified by `ApiMethodTarget`;
+- `ApiMethodName`, `AppId`, and `ApiHttpMethod` remain open VOs; closed framework state/result/format domains use `EnumStr`;
+- the execution Composite reuses `ResolveApiAccessToken` and never queries `wa_api_tokens` directly;
+- legacy authorization order is app exists -> app access -> scope -> license -> method lookup -> HTTP method validation -> execute;
+- the `webasyst` backend-access exception is isolated behind `ApiAppAccessPolicy`, not hard-coded in the pipeline;
+- dynamic PHP method class discovery is replaced by explicit `ApiMethodRegistry` registration;
+- query and form parameters remain distinct through `ApiRequestParameters`;
+- legacy required-parameter falsy behavior is isolated in a compatibility parameter-reader Service;
+- JSON/XML/JSONP formatting and framework error envelopes stay outside application execution;
+- JSON recursively removes `_element`; XML preserves characterized `_element`/list/plural semantics; JSONP forces status 200 in the legacy adapter;
+- API user `last_datetime` compatibility touch is a separate Service with the characterized >30 second threshold;
+- `/api.php/auth` consent/redirect/CSRF remains a later slice.
+
+---
 ## Access-control compatibility rules
 
 - exact Webasyst 4.2.0 source is authoritative for rights/group behavior;
@@ -518,6 +558,9 @@ Cover DB wiring, ASGI compatibility flow, auth/session composition, persistent-l
 24. Treat ACL `backend` mutation as reserved structured behavior handled by app/global access operations and the legacy mutation planner, not a generic named right.
 25. Authorize ACL/group/membership mutations through application use cases inside the access-control UoW; never call ACL repositories directly from presentation.
 26. Keep API credential storage/policy separate from API HTTP transport and method authorization; presentation must consume the credential use cases rather than query OAuth tables directly.
+27. Classify all API Execution Core domain/application code explicitly as Entity, VO, Service, or Composite; keep application-owned ports separate from that taxonomy.
+28. Resolve API methods only through explicit `ApiMethodRegistry` registration; never construct/import handler classes from request strings.
+29. Keep API transport normalization and JSON/XML/JSONP rendering outside application execution; handlers receive typed context/parameters, never HTTP/ORM objects.
 
 ---
 
