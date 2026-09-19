@@ -230,6 +230,8 @@ Webasyst required-field semantics use PHP truthiness. Therefore values such as e
 
 The application flow receives an already validated typed request.
 
+Full authorization-request validation is action-level behavior. It occurs only after a backend subject is authenticated. Outer `waAPIController` dispatch handles `cancel` and unauthenticated login before `webasystApiAuthAction::checkRequest()`. Therefore an unauthenticated request with incomplete/invalid OAuth query fields still reaches the login surface first; after successful login and redirect back to the same URL, the authenticated authorization action validates the OAuth request.
+
 ## 7. OAuth response type
 
 `OAuthResponseType` is a closed `EnumStr`:
@@ -268,11 +270,12 @@ If `BackendCurrentSubjectFlow` returns unauthenticated, the authorization endpoi
 
 The login form:
 
-- preserves the OAuth request in the query string;
+- preserves the raw OAuth query string without requiring it to be valid yet;
 - posts credentials back to the same authorization surface;
 - uses `BackendPasswordLoginFlow`;
 - applies the returned session/persistent credential dispositions;
-- returns to the same authorization flow after successful login.
+- on successful login redirects to the same OAuth URL, matching the backend login action's current-URL redirect;
+- on the subsequent authenticated request, full OAuth request validation begins.
 
 The login form does not create a general public login endpoint.
 
@@ -641,7 +644,7 @@ Legacy revoke first calls outer:
 
 `waAPIController::checkToken()`.
 
-Therefore the request MUST authenticate before reaching revoke action.
+Therefore the request MUST authenticate before reaching revoke action. Controller-level `format` handling occurs only after this authentication succeeds. Missing/invalid token failures are framework `waAPIException` responses and retain framework format/status/JSONP semantics; an invalid controller `format` cannot override a prior `token_required` or `invalid_token` failure.
 
 Authentication credential precedence is the existing legacy API credential extraction order:
 
@@ -716,13 +719,15 @@ This quirk is isolated in Webasyst compatibility code and is not part of the gen
 
 ## 26. Revoke endpoint response semantics
 
-Like token controller:
+After successful outer authentication, revoke controller behavior is:
 
 - default JSON;
 - optional XML;
 - invalid explicit format → JSON `invalid_request`;
 - ordinary controller outcomes are HTTP 200;
 - no JSONP.
+
+Before successful authentication, framework-level API exception formatting remains in effect, including framework JSON/XML selection and JSONP behavior when requested.
 
 When a request target exists:
 
