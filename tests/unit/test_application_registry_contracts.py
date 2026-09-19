@@ -42,6 +42,7 @@ def test_application_descriptor_serializes_shared_app_id() -> None:
     assert payload["capabilities"]["frontend"] is True
     assert payload["capabilities"]["plugins"] is True
     assert payload["capabilities"]["system"] is False
+    assert payload["framework_system"] is False
 
 
 def test_application_descriptor_forbids_opaque_extra_metadata() -> None:
