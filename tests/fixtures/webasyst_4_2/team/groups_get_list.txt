@@ -1,0 +1,23 @@
+FIXTURE_KIND: source-characterized
+SOURCE_COMMIT: 39c267a2fabfb0cd6d94f4dd86b23b4750328dd5
+
+TEAM_MANIFEST:
+path = wa-apps/team/lib/config/app.php
+name = Team
+version = 2.3.4
+vendor = webasyst
+
+API_METHOD:
+path = wa-apps/team/api/v1/team.groups.getList.method.php
+target = team.groups.getList
+response_fields = id,name,cnt,type,description
+excluded_fields = icon,sort
+order_by = sort
+type_filter = filter[type]
+visibility_right_prefix = manage_users_in_group.
+visibility_operator = >=
+visibility_threshold = 0
+
+API_BASE:
+path = wa-system/api/waAPIMethod.class.php
+default_http_method = GET
