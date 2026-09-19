@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 
 from gomazon_webasyst.compatibility.webasyst.dispatch.errors import (
+    ApplicationUnavailable,
     DispatchTargetNotFound,
     PluginUnavailable,
 )
@@ -57,7 +58,11 @@ def create_legacy_compatibility_router(
             return await execute(outcome)
         except InvalidDispatchParameter as exc:
             return JSONResponse({"detail": str(exc)}, status_code=400)
-        except (DispatchTargetNotFound, PluginUnavailable) as exc:
+        except (
+            ApplicationUnavailable,
+            DispatchTargetNotFound,
+            PluginUnavailable,
+        ) as exc:
             return JSONResponse({"detail": str(exc)}, status_code=404)
 
     @router.api_route("/{path:path}", methods=_HTTP_METHODS)
@@ -79,7 +84,12 @@ def create_legacy_compatibility_router(
             return await execute(outcome)
         except InvalidDispatchParameter as exc:
             return JSONResponse({"detail": str(exc)}, status_code=400)
-        except (RouteNotFound, DispatchTargetNotFound, PluginUnavailable) as exc:
+        except (
+            ApplicationUnavailable,
+            RouteNotFound,
+            DispatchTargetNotFound,
+            PluginUnavailable,
+        ) as exc:
             return JSONResponse({"detail": str(exc)}, status_code=404)
 
     return router
