@@ -32,6 +32,9 @@ Authoritative companion artifacts:
 - Team contacts.delete event characterization: `docs/superpowers/specs/2026-09-20-team-contacts-delete-event-characterization.md`
 - Team contacts.delete event design: `docs/superpowers/specs/2026-09-20-team-contacts-delete-event-design.md`
 - Team contacts.delete event plan: `docs/superpowers/plans/2026-09-20-team-contacts-delete-event.md`
+- Contact delete characterization: `docs/superpowers/specs/2026-09-20-contact-delete-characterization.md`
+- Contact delete event-flow design: `docs/superpowers/specs/2026-09-20-contact-delete-event-flow-design.md`
+- Contact delete event-flow plan: `docs/superpowers/plans/2026-09-20-contact-delete-event-flow.md`
 - Official legacy documentation reference: `https://developers.webasyst.com/docs`
 
 ---
@@ -405,6 +408,12 @@ Date: 2026-09-20
 
 Event handlers that emit another event MUST depend on the application-owned `EventPublisher` port, never on a concrete registry/dispatcher implementation, global event bus, or composition singleton. `EventDispatcher` implements the publisher port by routing publication through the same already-linked event registry. Bundled application runtime modules that require runtime services during handler construction are created through explicit `KnownRuntimeModuleFactory(AppId, build)` declarations only after the dispatcher/publisher exists and after the canonical installed-app snapshot is available. A factory is invoked only when its declared app is installed, and startup rejects a factory whose produced module has a different `AppId`. This preserves installed-aware execution without late-bound mutable service locators or dynamic imports.
 
+### ADR-053 — Contact deletion publishes before cleanup but the destructive scope is immutable
+Status: accepted
+Date: 2026-09-20
+
+Webasyst 4.2.0 `waContactModel::delete()` emits `contacts.delete` before deleting contact-owned rows, and the Python `DeleteContacts` use case preserves that sequencing by publishing through `EventPublisher` before opening the destructive Unit of Work. Legacy PHP passes the id array by reference, so a handler could theoretically mutate the later deletion target. The Python rewrite intentionally hardens this boundary: `ContactDeletionBatch` is immutable, the event receives a typed immutable id tuple, and handlers cannot widen or replace the destructive scope. The contact repository owns the source-characterized core cleanup sequence inside one SQL transaction after publication. App-private `contacts_rights` cleanup and the verification model's unrelated global expired-asset purge remain separate later integrations rather than hidden side effects of the contact-core adapter.
+
 ---
 
 ## Target dependency direction
@@ -496,6 +505,24 @@ src/gomazon_webasyst/
 ```
 
 Compatibility may depend on contracts/application-owned ports. Application code must not import compatibility modules.
+
+---
+
+## Contact delete compatibility rules
+
+- source behavior is pinned to Webasyst Framework 4.2.0 `waContactModel::delete()`;
+- `contacts.delete` is published synchronously before any destructive contact cleanup;
+- scalar caller ids are represented internally as an immutable non-empty `ContactDeletionBatch`; event id order and duplicates are preserved;
+- unlike legacy by-reference PHP arrays, event handlers cannot mutate the later destructive deletion scope;
+- ordinary event-handler failures recorded by `EventDispatcher` do not cancel cleanup, while a publisher/framework failure before dispatch prevents the destructive UoW from starting;
+- contact cleanup removes personal ACL rows, tied verification assets, settings, app tokens, emails, memberships, contact data/text, category memberships, contact events, company references, and finally contact rows in source order;
+- tied verification assets are selected by deleted-contact email values and all `wa_contact_data.value` values;
+- the characterized category-counter quirk is preserved: categories with zero remaining members are absent from the legacy INNER JOIN recalc and keep their prior counter;
+- no semantic "contact missing" deletion result is introduced because legacy `deleteById()` reports SQL execution success rather than a row-existence branch;
+- private Contacts-app `contacts_rights` cleanup is deferred until that bundled app/schema is migrated;
+- the verification-assets model constructor's global expired-row purge is not coupled to contact deletion in Python;
+- `wa_contact_auths` and `wa_api_tokens` are not deleted by `waContactModel::delete()` and are not silently added to this compatibility cleanup;
+- `DELETE /api/v1/contacts/{id}` is a native Python architecture-proof endpoint, not a claim of legacy Webasyst route parity.
 
 ---
 
@@ -704,6 +731,7 @@ The first auth slice is backend password authentication plus session create/reso
 - existing legacy tables are mapped rather than blindly recreated;
 - ACL/group writes spanning `wa_group`, `wa_user_groups`, `wa_contact_rights`, and ACL-relevant `wa_contact` reads use the dedicated access-control UoW;
 - API credential writes spanning authorization-code exchange and token issue/reuse use the dedicated API credential UoW.
+- contact deletion cleanup spanning core legacy contact-owned tables executes inside the ordinary Contacts UoW only after pre-delete event publication completes;
 
 Initial examples:
 
@@ -778,6 +806,7 @@ Cover DB wiring, ASGI compatibility flow, auth/session composition, persistent-l
 35. Register bundled Python application runtime modules only through explicit composition factories and select them from the canonical installed-app snapshot; never package-scan or import from an app id.
 36. Reuse shared application policy across bundled apps, but introduce a narrow consumer-specific read port when a generic repository would alter source-characterized fields, ordering, or null normalization.
 37. Publish nested application events only through the application-owned `EventPublisher`; bundled handlers must not depend on concrete event registries/dispatchers, and runtime services must be injected through explicit installed-aware module factories.
+38. Keep destructive contact deletion scope immutable across event publication: preserve legacy event-before-delete ordering, but never allow an event payload mutation to widen the requested deletion batch.
 
 ---
 
