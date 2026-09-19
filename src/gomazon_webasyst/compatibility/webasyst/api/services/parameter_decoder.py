@@ -34,6 +34,11 @@ class _AppendSegment:
 _PathSegment: TypeAlias = _KeySegment | _AppendSegment
 
 
+@dataclass(slots=True, frozen=True)
+class _InsertSucceeded:
+    pass
+
+
 class _ScalarNode:
     def __init__(self, value: str) -> None:
         self.value = value
@@ -154,7 +159,7 @@ class LegacyApiParameterDecoder:
         path: tuple[_PathSegment, ...],
         value: str,
         raw_key: str,
-    ) -> LegacyApiParameterDecodeRejected | bool:
+    ) -> LegacyApiParameterDecodeRejected | _InsertSucceeded:
         current: _Node = root
         for index, segment in enumerate(path):
             last = index == len(path) - 1
@@ -168,7 +173,7 @@ class LegacyApiParameterDecoder:
                     if existing is not None and not isinstance(existing, _ScalarNode):
                         return self._shape_conflict(raw_key)
                     current.values[segment.value] = _ScalarNode(value)
-                    return True
+                    return _InsertSucceeded()
 
                 expected_list = isinstance(next_segment, _AppendSegment)
                 existing = current.values.get(segment.value)
@@ -192,7 +197,7 @@ class LegacyApiParameterDecoder:
                     raw_key,
                 )
             current.values.append(_ScalarNode(value))
-            return True
+            return _InsertSucceeded()
 
         raise AssertionError("parameter path must not be empty")
 
