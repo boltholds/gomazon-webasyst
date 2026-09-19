@@ -1,4 +1,5 @@
 from dataclasses import FrozenInstanceError
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -7,12 +8,22 @@ from gomazon_webasyst.composition.session_state_providers import (
     ProviderRegistrationRejected,
     ProviderResolved,
     ProviderUnknown,
+    InMemorySessionStateStoreFactory,
     SessionStateProviderRegistry,
     StateProviderName,
     UnknownSessionStateProviderError,
     create_default_session_state_provider_registry,
     resolve_session_state_store,
 )
+from gomazon_webasyst.application.auth_values import SessionId
+from gomazon_webasyst.contracts.auth import (
+    AuthenticatedSubject,
+    SessionCreateRequest,
+    SessionCreated,
+    SessionMetadata,
+    SessionStateError,
+)
+from gomazon_webasyst.contracts.enums import SessionStateErrorType
 from gomazon_webasyst.infrastructure.sessions.memory import InMemorySessionStateStore
 
 
@@ -62,6 +73,31 @@ def test_default_registry_resolves_memory_factory() -> None:
 
     assert isinstance(result, ProviderResolved)
     assert isinstance(result.factory.create(), InMemorySessionStateStore)
+
+
+@pytest.mark.asyncio
+async def test_memory_factory_applies_custom_id_clock_and_ttl() -> None:
+    current = [datetime(2026, 9, 19, 12, 0, 0)]
+    factory = InMemorySessionStateStoreFactory(
+        session_id_factory=lambda: SessionId("configured-session"),
+        clock=lambda: current[0],
+        ttl=timedelta(seconds=5),
+    )
+    store = factory.create()
+    request = SessionCreateRequest(
+        subject=AuthenticatedSubject(id=42, login="admin"),
+        credential_token="credential-v1",
+        metadata=SessionMetadata(user_agent="pytest"),
+    )
+
+    created = await store.create(request)
+    assert isinstance(created, SessionCreated)
+    assert created.state.key.session_id == SessionId("configured-session")
+
+    current[0] += timedelta(seconds=6)
+    expired = await store.resolve(SessionId("configured-session"))
+    assert isinstance(expired, SessionStateError)
+    assert expired.type is SessionStateErrorType.EXPIRED
 
 
 def test_resolve_session_state_store_uses_registered_factory_once() -> None:
