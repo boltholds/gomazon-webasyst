@@ -53,6 +53,6 @@ class TeamGroupsGetListApiMethod:
             "id": group.id,
             "name": group.name,
             "cnt": group.cnt,
-            "type": group.type,
+            "type": group.type.value,
             "description": description,
         }
