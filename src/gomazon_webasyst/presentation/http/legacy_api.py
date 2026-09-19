@@ -7,6 +7,7 @@ from fastapi.responses import RedirectResponse, Response
 from gomazon_webasyst.application.api_execution.composites.invocation import ApiInvocationRequest
 from gomazon_webasyst.application.api_execution.composites.results import ApiExecutionRejected
 from gomazon_webasyst.application.api_execution.vo.method import ApiHttpMethod
+from gomazon_webasyst.application.api_execution.vo.origin import ApiRequestOrigin
 from gomazon_webasyst.application.api_execution.vo.parameters import ApiParameterMap, ApiRequestParameters
 from gomazon_webasyst.compatibility.webasyst.api.composites.request import LegacyApiHttpRequestComposite
 from gomazon_webasyst.compatibility.webasyst.api.composites.response import ApiTransportResponse
@@ -233,6 +234,7 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
                     query=transport.query,
                     form=transport.form,
                 ),
+                origin=ApiRequestOrigin(str(request.base_url)),
             )
         )
         if (
