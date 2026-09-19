@@ -64,6 +64,7 @@ These are the five high-risk inputs/conditions that must be pinned by tests in t
 
 **Interfaces:**
 - Produces VO ApiMethodName(value: str), ApiMethodTarget(app_id: AppId, method: ApiMethodName), ApiHttpMethod(value: str), ApiParameterName(value: str), ApiParameterMap(values: Mapping[str, ApiParameterValue]), ApiRequestParameters(query, form), ApiApplicationErrorCode(value: str).
+- ApiParameterValue is a recursive JSON-compatible value alias: str | int | float | bool | tuple[ApiParameterValue, ...] | Mapping[str, ApiParameterValue]; transport adapters normalize mutable list/dict inputs into immutable tuple/mapping values before constructing ApiParameterMap.
 - ApiHttpMethod validates an RFC-token-compatible non-empty value and normalizes to uppercase. It is NOT an EnumStr.
 - Produces Composite ApiInvocationRequest(access_token: ApiAccessToken, target: ApiMethodTarget, http_method: ApiHttpMethod, parameters: ApiRequestParameters).
 - Produces Composite ApiPrincipalContext(contact_id: int, client_id: ApiClientId, scope: ApiScope) and ApiInvocationContext(principal, target).
@@ -460,14 +461,15 @@ git commit -m "feat: add api execution composite pipeline"
 - Create: tests/unit/test_legacy_api_transport_services.py
 
 **Interfaces:**
-- LegacyApiHttpRequestComposite contains request_path, query ApiParameterMap, form ApiParameterMap, authorization_header state, server_authorization state, http_method, is_https and requested format/callback data. Absence states are explicit transport variants, not None.
-- LegacyApiTargetParser.parse(path, query) -> ApiTargetParsed | ApiTargetMalformed | ApiTargetReservedEndpoint.
+- Produces transport VO ApiJsonpCallback(value: str), AuthorizationHeader(value: str), NoAuthorizationHeader, RequestedResponseFormat(value: str) and NoRequestedResponseFormat. Empty callback values are representable because PHP truthiness is evaluated by the renderer rather than by the VO constructor.
+- LegacyApiHttpRequestComposite contains request_path, query ApiParameterMap, form ApiParameterMap, authorization_header: AuthorizationHeader | NoAuthorizationHeader, server_authorization: AuthorizationHeader | NoAuthorizationHeader, http_method, is_https, requested_format: RequestedResponseFormat | NoRequestedResponseFormat, and callback: ApiJsonpCallback. Absence states are explicit transport variants, not None.
+- LegacyApiTargetParser.parse(path, query) -> ApiTargetParsed | ApiTargetMalformed | ApiTargetReservedEndpoint. These compatibility result variants are frozen dataclasses local to the transport compatibility package; reserved endpoint carries the normalized endpoint name.
 - Supported method forms normalize to one ApiMethodTarget:
   - api.php + GET app/method
   - api.php/shop/order.get
   - api.php/shop.order.get
 - Known special one-segment endpoints auth, token, revoke, token-headless, license-cache, profile-update and cron prefix return ApiTargetReservedEndpoint so method execution does not accidentally consume them.
-- LegacyApiCredentialExtractionService returns ApiCredentialExtracted(token, source) | ApiCredentialMissing.
+- LegacyApiCredentialExtractionService returns ApiCredentialExtracted(token, source) | ApiCredentialMissing; source is the closed ApiCredentialSourceKind from contracts/enums.py.
 - Source precedence exactly follows waRequest::request + checkToken:
   1. form access_token when the key exists;
   2. otherwise query access_token;
