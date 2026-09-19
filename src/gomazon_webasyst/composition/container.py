@@ -46,7 +46,15 @@ from gomazon_webasyst.composition.application_registry import (
 from gomazon_webasyst.composition.api_credentials import create_api_credential_use_cases
 from gomazon_webasyst.composition.api_execution import (
     ApiExecutionComponents,
-    create_default_api_execution_components,
+    create_api_execution_components,
+)
+from gomazon_webasyst.composition.application_runtime import (
+    ApplicationRuntimeComponents,
+    FilesystemPluginCatalogSource,
+    PluginCatalogSource,
+    ProvidedPluginCatalogSource,
+    create_application_runtime_components,
+    create_default_application_runtime_modules,
 )
 from gomazon_webasyst.composition.auth import create_auth_use_cases
 from gomazon_webasyst.composition.backend_session_bridge import (
@@ -64,8 +72,14 @@ from gomazon_webasyst.composition.session_state_providers import (
     resolve_session_state_store,
 )
 from gomazon_webasyst.composition.settings import Settings
+from gomazon_webasyst.compatibility.webasyst.api.services.license import (
+    AllowAllAppLicensePolicy,
+)
 from gomazon_webasyst.application.ports.installed_application_catalog import (
     InstalledApplicationCatalog,
+)
+from gomazon_webasyst.infrastructure.plugins.in_memory_catalog import (
+    InMemoryInstalledPluginCatalog,
 )
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.factory import (
     create_engine,
@@ -94,6 +108,7 @@ class Container:
     resolve_api_access_token: ResolveApiAccessToken
     revoke_api_access_token: RevokeApiAccessToken
     installed_application_catalog: InstalledApplicationCatalog
+    application_runtime: ApplicationRuntimeComponents
     api_execution: ApiExecutionComponents
     oauth_authorization: OAuthAuthorizationComponents
     get_group: GetGroup
@@ -114,6 +129,9 @@ class Container:
     set_app_access: SetAppAccess
     set_global_admin_access: SetGlobalAdminAccess
 
+    async def initialize(self) -> None:
+        await self.application_runtime.bootstrap.initialize()
+
     async def close(self) -> None:
         await self.engine.dispose()
 
@@ -123,6 +141,7 @@ def create_container(settings: Settings) -> Container:
         settings,
         session_state_registry=create_default_session_state_provider_registry(),
         installed_application_catalog=create_installed_application_catalog(settings),
+        plugin_source=FilesystemPluginCatalogSource(settings.webasyst_root),
     )
 
 
@@ -135,6 +154,9 @@ def create_container_with_application_catalog(
         settings,
         session_state_registry=create_default_session_state_provider_registry(),
         installed_application_catalog=installed_application_catalog,
+        plugin_source=ProvidedPluginCatalogSource(
+            InMemoryInstalledPluginCatalog(())
+        ),
     )
 
 
@@ -147,6 +169,7 @@ def create_container_with_session_state_registry(
         settings,
         session_state_registry=session_state_registry,
         installed_application_catalog=create_installed_application_catalog(settings),
+        plugin_source=FilesystemPluginCatalogSource(settings.webasyst_root),
     )
 
 
@@ -155,6 +178,7 @@ def create_container_with_registries(
     *,
     session_state_registry: SessionStateProviderRegistry,
     installed_application_catalog: InstalledApplicationCatalog,
+    plugin_source: PluginCatalogSource,
 ) -> Container:
     session_state = resolve_session_state_store(
         session_state_registry,
@@ -170,10 +194,17 @@ def create_container_with_registries(
     )
     api_credentials = create_api_credential_use_cases(session_factory)
     access = create_access_control_use_cases(session_factory)
-    api_execution = create_default_api_execution_components(
+    application_runtime = create_application_runtime_components(
+        installed_applications=installed_application_catalog,
+        plugin_source=plugin_source,
+        modules=create_default_application_runtime_modules(),
+    )
+    api_execution = create_api_execution_components(
         session_factory=session_factory,
         resolve_api_access_token=api_credentials.resolve_api_access_token,
+        method_registry=application_runtime.api_method_registry,
         installed_application_catalog=installed_application_catalog,
+        license_policy=AllowAllAppLicensePolicy(),
         api_enabled=settings.api_enabled,
         disable_message=settings.api_disable_message,
         force_https=settings.api_force_https,
@@ -212,6 +243,7 @@ def create_container_with_registries(
         resolve_api_access_token=api_credentials.resolve_api_access_token,
         revoke_api_access_token=api_credentials.revoke_api_access_token,
         installed_application_catalog=installed_application_catalog,
+        application_runtime=application_runtime,
         api_execution=api_execution,
         oauth_authorization=oauth_authorization,
         get_group=access.get_group,
