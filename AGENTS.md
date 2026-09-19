@@ -26,6 +26,9 @@ Authoritative companion artifacts:
 - Application runtime/events/plugins design: `docs/superpowers/specs/2026-09-19-application-runtime-events-plugins-design.md`
 - Application runtime/events/plugins characterization: `docs/superpowers/specs/2026-09-19-application-runtime-events-plugins-characterization.md`
 - Application runtime/events/plugins plan: `docs/superpowers/plans/2026-09-19-application-runtime-events-plugins.md`
+- Team first vertical slice design: `docs/superpowers/specs/2026-09-20-team-first-vertical-slice-design.md`
+- Team groups.getList characterization: `docs/superpowers/specs/2026-09-20-team-groups-get-list-characterization.md`
+- Team first vertical slice plan: `docs/superpowers/plans/2026-09-20-team-first-vertical-slice.md`
 - Official legacy documentation reference: `https://developers.webasyst.com/docs`
 
 ---
@@ -381,6 +384,18 @@ Date: 2026-09-19
 
 A single `ApplicationRuntimeLinker` validates all Python runtime declarations against canonical installed application/plugin catalogs before populating the existing dispatch/API registries and the new event registry. Validation completes before live registries are mutated so duplicate/foreign registrations fail composition instead of leaving a partial runtime. Runtime modules are imported only through explicit Python composition code; request/app/plugin strings MUST NOT select modules or classes. The first runtime graph is immutable after startup; live plugin/app enable/disable, import scanning, PHP execution, cron scheduling and installer-driven hot reload are later slices.
 
+### ADR-050 — Bundled Python runtime modules are explicitly known and selected by canonical installation state
+Status: accepted
+Date: 2026-09-20
+
+Production composition owns an explicit finite set of known Python bundled-application runtime module factories. It MUST NOT scan Python packages or import a module derived from a legacy/request app id. Startup constructs those known declarations with injected dependencies, obtains the canonical `InstalledApplicationSnapshot`, and links only modules whose `AppId` is installed. Thus a migrated Team implementation may exist in the codebase while remaining non-executable on installations where Team is absent. Explicit test composition may provide modules directly to exercise negative linker behavior.
+
+### ADR-051 — Compatibility read projections may be consumer-specific when a shared repository changes observable legacy behavior
+Status: accepted
+Date: 2026-09-20
+
+Bundled-app compatibility code MUST reuse shared domain policy such as `RightsEvaluator`, but it MUST NOT force a generic repository onto a legacy endpoint when that repository changes observable fields, ordering, or normalization. `team.groups.getList` therefore uses the narrow application-owned `TeamGroupReader` because the generic ACL `GroupRepository.list()` sorts by `type, sort, name` and exposes ACL-normalized data, whereas Webasyst 4.2.0 requires `wa_group` fields `id,name,cnt,type,description` ordered only by `sort`. Genuine legacy SQL NULL values are normalized into explicit application variants and projected back to `null` only at the Webasyst compatibility edge.
+
 ---
 
 ## Target dependency direction
@@ -608,6 +623,21 @@ The first auth slice is backend password authentication plus session create/reso
 
 ---
 
+## Team bundled-app compatibility rules
+
+- the first migrated Team endpoint is source-characterized `team.groups.getList` from Webasyst Framework 4.2.0;
+- the Team Python runtime module is an explicit composition declaration and is linked only when `AppId("team")` exists in the canonical installed-app snapshot;
+- `team.groups.getList` is GET-only because it inherits `waAPIMethod::$method = 'GET'`;
+- the Team group response contains exactly `id`, `name`, `cnt`, `type`, and `description`, preserving legacy `ORDER BY sort`;
+- `TeamGroupReader` is a consumer-specific application-owned read port; do not replace it with the generic ACL `GroupRepository` unless observable field/order parity is proven;
+- Team group visibility delegates to the shared ACL evaluator for `team/manage_users_in_group.<id>`; finite negative hides, zero/positive shows, and full/global access is unlimited;
+- dotted Team group rights preserve the existing exact-then-`.all` fallback policy;
+- nullable `wa_group.description` is normalized at the SQL adapter into explicit present/missing variants and converted back to JSON `null` only by the Webasyst Team API projector;
+- legacy API query transport preserves repeated keys as immutable tuples so PHP-style `filter[type][]` arrays are not collapsed;
+- `team.users.getList`, Team UI/Smarty, invitations, calendars, schedules, mutations, plugins, and Team event relays are not covered by this first bundled-app slice.
+
+---
+
 ## API execution compatibility rules
 
 - all new API Execution Core domain/application code is organized explicitly under Entity, VO, Services, or Composite;
@@ -732,6 +762,8 @@ Cover DB wiring, ASGI compatibility flow, auth/session composition, persistent-l
 32. Keep installed app/plugin metadata separate from executable runtime modules; discovery MUST NOT auto-register handlers or Python imports.
 33. Link application/plugin runtime contributions only through the startup `ApplicationRuntimeLinker` after full validation against installed catalogs.
 34. Resolve events only through explicit `EventHandlerRegistry` definitions and preserve characterized handler ordering/first-result behavior; never scan/execute PHP handlers at request time.
+35. Register bundled Python application runtime modules only through explicit composition factories and select them from the canonical installed-app snapshot; never package-scan or import from an app id.
+36. Reuse shared application policy across bundled apps, but introduce a narrow consumer-specific read port when a generic repository would alter source-characterized fields, ordering, or null normalization.
 
 ---
 
