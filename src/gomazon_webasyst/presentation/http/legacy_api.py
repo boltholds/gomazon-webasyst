@@ -113,7 +113,7 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
                         {},
                     ),
                     response_format,
-                    transport.transport.callback,
+                    transport.callback,
                 )
             )
         if isinstance(precondition, ApiHttpsRequired):
@@ -127,7 +127,7 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
                 components.response_renderer.render(
                     ApiExecutionRejected(error=format_result.error),
                     ApiResponseFormat.JSON,
-                    transport.transport.callback,
+                    transport.callback,
                 )
             )
 
@@ -145,7 +145,7 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
                         {},
                     ),
                     response_format,
-                    transport.transport.callback,
+                    transport.callback,
                 )
             )
         if isinstance(target_result, ApiTargetReservedEndpoint):
