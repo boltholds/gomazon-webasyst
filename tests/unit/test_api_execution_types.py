@@ -9,6 +9,7 @@ from gomazon_webasyst.application.access_values import AppId
 from gomazon_webasyst.application.api_credential_values import ApiAccessToken, ApiClientId, ApiScope
 from gomazon_webasyst.application.api_execution.entities.method_definition import ApiMethodDefinition
 from gomazon_webasyst.application.api_execution.vo.errors import ApiApplicationErrorCode
+from gomazon_webasyst.application.api_execution.vo.origin import ApiRequestOrigin
 from gomazon_webasyst.application.api_execution.vo.method import ApiHttpMethod, ApiMethodName, ApiMethodTarget
 from gomazon_webasyst.application.api_execution.vo.parameters import ApiParameterMap, ApiRequestParameters
 from gomazon_webasyst.application.api_execution.composites.invocation import (
@@ -85,7 +86,8 @@ def test_invocation_composites_reuse_existing_credential_values() -> None:
         client_id=ApiClientId("client"),
         scope=ApiScope.of("shop"),
     )
-    context = ApiInvocationContext(principal=principal, target=target)
+    origin = ApiRequestOrigin("https://example.test/")
+    context = ApiInvocationContext(principal=principal, target=target, origin=origin)
     request = ApiInvocationRequest(
         access_token=ApiAccessToken("a" * 32),
         target=target,
@@ -94,6 +96,7 @@ def test_invocation_composites_reuse_existing_credential_values() -> None:
             query=ApiParameterMap({}),
             form=ApiParameterMap({}),
         ),
+        origin=origin,
     )
     assert context.target == request.target
     assert request.http_method == ApiHttpMethod("GET")
