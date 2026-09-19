@@ -8,6 +8,7 @@ from gomazon_webasyst.application.api_execution.composites.invocation import Api
 from gomazon_webasyst.application.api_execution.composites.results import ApiExecutionRejected
 from gomazon_webasyst.application.api_execution.vo.method import ApiHttpMethod
 from gomazon_webasyst.application.api_execution.vo.parameters import ApiParameterMap, ApiRequestParameters
+from gomazon_webasyst.compatibility.webasyst.api.composites.request import LegacyApiHttpRequestComposite
 from gomazon_webasyst.compatibility.webasyst.api.composites.response import ApiTransportResponse
 from gomazon_webasyst.compatibility.webasyst.api.services.credential_extractor import ApiCredentialMissing
 from gomazon_webasyst.compatibility.webasyst.api.services.preconditions import ApiHttpsRequired, ApiTransportDisabled
@@ -62,15 +63,37 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
     async def execute(request: Request) -> Response:
         query = ApiParameterMap(dict(request.query_params))
         form = await _form_parameters(request)
-        callback = ApiJsonpCallback(
-            str(query["callback"]) if "callback" in query else ""
+        authorization_value = request.headers.get("authorization")
+        authorization = (
+            AuthorizationHeader(authorization_value)
+            if authorization_value is not None
+            else NoAuthorizationHeader()
         )
-        requested_format = (
-            RequestedResponseFormat(str(query["format"]))
-            if "format" in query and str(query["format"]) not in {"", "0"}
-            else NoRequestedResponseFormat()
+        server_authorization = (
+            AuthorizationHeader(str(request.scope["HTTP_AUTHORIZATION"]))
+            if "HTTP_AUTHORIZATION" in request.scope
+            else NoAuthorizationHeader()
         )
-        format_result = components.response_format_service.resolve(requested_format)
+        transport = LegacyApiHttpRequestComposite(
+            request_path=request.url.path.lstrip("/"),
+            query=query,
+            form=form,
+            authorization_header=authorization,
+            server_authorization=server_authorization,
+            http_method=ApiHttpMethod(request.method),
+            is_https=request.url.scheme.lower() == "https",
+            requested_format=(
+                RequestedResponseFormat(str(query["format"]))
+                if "format" in query and str(query["format"]) not in {"", "0"}
+                else NoRequestedResponseFormat()
+            ),
+            callback=ApiJsonpCallback(
+                str(query["callback"]) if "callback" in query else ""
+            ),
+        )
+        format_result = components.response_format_service.resolve(
+            transport.requested_format
+        )
         response_format = (
             ApiResponseFormat.JSON
             if isinstance(format_result, ApiResponseFormatRejected)
@@ -78,7 +101,7 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
         )
 
         precondition = components.preconditions.evaluate(
-            is_https=request.url.scheme.lower() == "https"
+            is_https=transport.is_https
         )
         if isinstance(precondition, ApiTransportDisabled):
             return _response(
@@ -90,7 +113,7 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
                         {},
                     ),
                     response_format,
-                    callback,
+                    transport.callback,
                 )
             )
         if isinstance(precondition, ApiHttpsRequired):
@@ -104,13 +127,13 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
                 components.response_renderer.render(
                     ApiExecutionRejected(error=format_result.error),
                     ApiResponseFormat.JSON,
-                    callback,
+                    transport.callback,
                 )
             )
 
         target_result = components.target_parser.parse(
-            request.url.path.lstrip("/"),
-            query,
+            transport.request_path,
+            transport.query,
         )
         if isinstance(target_result, ApiTargetMalformed):
             return _response(
@@ -122,7 +145,7 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
                         {},
                     ),
                     response_format,
-                    callback,
+                    transport.callback,
                 )
             )
         if isinstance(target_result, ApiTargetReservedEndpoint):
@@ -139,17 +162,11 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
                 )
             )
 
-        authorization_value = request.headers.get("authorization")
-        authorization = (
-            AuthorizationHeader(authorization_value)
-            if authorization_value is not None
-            else NoAuthorizationHeader()
-        )
         credential = components.credential_extractor.extract(
-            query=query,
-            form=form,
-            authorization=authorization,
-            server_authorization=NoAuthorizationHeader(),
+            query=transport.query,
+            form=transport.form,
+            authorization=transport.authorization_header,
+            server_authorization=transport.server_authorization,
         )
         if isinstance(credential, ApiCredentialMissing):
             return _response(
@@ -169,8 +186,11 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
             ApiInvocationRequest(
                 access_token=credential.token,
                 target=target_result.target,
-                http_method=ApiHttpMethod(request.method),
-                parameters=ApiRequestParameters(query=query, form=form),
+                http_method=transport.http_method,
+                parameters=ApiRequestParameters(
+                    query=transport.query,
+                    form=transport.form,
+                ),
             )
         )
         if (
