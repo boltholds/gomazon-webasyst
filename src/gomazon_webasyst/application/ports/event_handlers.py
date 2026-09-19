@@ -1,11 +1,16 @@
 from dataclasses import dataclass
-from typing import Protocol, TypeAlias
+from typing import TYPE_CHECKING, Protocol, TypeAlias
 
 from gomazon_webasyst.application.events.vo.identity import EventHandlerId, EventKey
 from gomazon_webasyst.application.events.vo.payload import (
     EventHandlerOutcome,
     EventPayload,
 )
+
+if TYPE_CHECKING:
+    from gomazon_webasyst.application.events.entities.handler_definition import (
+        EventHandlerDefinition,
+    )
 
 
 @dataclass(slots=True, frozen=True)
@@ -50,7 +55,3 @@ class EventHandlerRegistry(Protocol):
 
     def matching(self, key: EventKey) -> EventHandlerMatchSet: ...
 
-
-from gomazon_webasyst.application.events.entities.handler_definition import (  # noqa: E402
-    EventHandlerDefinition,
-)
