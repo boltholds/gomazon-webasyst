@@ -485,9 +485,9 @@ git commit -m "feat: add backend logout flow"
   - metadata uses exact supplied User-Agent or empty string.
 - Produces typed transport mutation variants:
   - `SetSessionCookie(value: str)`, `DeleteSessionCookie`, `KeepSessionCookie`;
-  - `SetPersistentCookie(value: str, max_age_seconds: int)`, `DeletePersistentCookie`, `KeepPersistentCookie`;
+  - `SetPersistentCookie(value: str, max_age_seconds: int, expires_at: datetime)`, `DeletePersistentCookie`, `KeepPersistentCookie`;
   - `BackendAuthCookieMutations(session, persistent)`.
-- `BackendAuthCookieMutationService.plan(session_disposition, persistent_disposition)` maps application dispositions one-to-one. `PersistentCredentialLifetime` is converted to positive integer seconds.
+- `BackendAuthCookieMutationService(clock: Callable[[], datetime]).plan(session_disposition, persistent_disposition)` maps application dispositions one-to-one. `PersistentCredentialLifetime` is converted to positive integer seconds and `expires_at = clock() + lifetime`.
 
 - [ ] **Step 1: Write failing extraction characterization tests including Review Focus #2**
 
@@ -519,7 +519,7 @@ Pin:
 - IssueSessionCredential -> SetSessionCookie exact SessionId value;
 - Clear -> Delete;
 - Keep -> Keep;
-- RefreshPersistentCredential -> SetPersistentCookie exact credential and `30 days == 2592000` seconds;
+- RefreshPersistentCredential -> SetPersistentCookie exact credential, `30 days == 2592000` seconds, and exact `expires_at == NOW + timedelta(days=30)`;
 - ClearPersistent -> Delete;
 - KeepPersistent -> Keep.
 
@@ -574,7 +574,7 @@ git commit -m "feat: add backend auth cookie compatibility"
   - `cookie_mutation_service`;
   - `cookie_policy`;
   - `persistent_login_mode`.
-- `create_backend_session_bridge_components(auth: AuthUseCases, settings: Settings)` wires existing use cases only.
+- `create_backend_session_bridge_components(auth: AuthUseCases, settings: Settings, *, clock: Callable[[], datetime] = datetime.now)` wires existing use cases and injects the same explicit clock into cookie mutation planning.
 - Settings add:
   - `backend_session_cookie_name: str = "gomazon_session"`;
   - `persistent_auth_cookie_name: str = "auth_token"`;
@@ -590,7 +590,7 @@ git commit -m "feat: add backend auth cookie compatibility"
 Cookie application:
 - SetSessionCookie -> `response.set_cookie(name, value, path="/", httponly=True, secure=policy.secure, samesite="lax")` with no max_age/expires/domain.
 - DeleteSessionCookie -> `response.delete_cookie(name, path="/", secure=policy.secure, httponly=True, samesite="lax")`.
-- SetPersistentCookie -> set cookie with max_age from mutation, HttpOnly/Secure/SameSite/path, no domain.
+- SetPersistentCookie -> set cookie with `max_age` and `expires` from the mutation, HttpOnly/Secure/SameSite/path, no domain.
 - DeletePersistentCookie -> delete same cookie/path/security.
 - Keep variants -> no header mutation.
 
@@ -640,7 +640,7 @@ def test_session_cookie_is_host_only_session_cookie_with_security_policy() -> No
     assert "Expires=" not in header
 ```
 
-Also pin persistent set Max-Age, clear operations, and Keep producing no Set-Cookie.
+Also pin persistent set Max-Age + Expires, clear operations, and Keep producing no Set-Cookie.
 
 - [ ] **Step 4: Assert no production auth router is mounted**
 
@@ -735,7 +735,7 @@ Verify in one coherent scenario:
 1. POST login with `RememberIntent.PERSIST` returns 200.
 2. Response contains `gomazon_session` and `auth_token`.
 3. Session cookie is HttpOnly/SameSite=Lax, has no Domain, Max-Age or Expires.
-4. Persistent cookie has HttpOnly/SameSite=Lax and 30-day Max-Age.
+4. Persistent cookie has HttpOnly/SameSite=Lax and matching 30-day Max-Age + Expires.
 5. GET current using client cookie jar returns subject 42.
 6. Replace `gomazon_session` with a stale opaque value while retaining `auth_token`.
 7. GET current restores from persistent credential, returns subject 42 and replaces `gomazon_session`.
