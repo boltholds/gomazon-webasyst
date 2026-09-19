@@ -7,7 +7,14 @@ from pydantic import SecretStr
 from gomazon_webasyst.application.api_execution.composites.results import (
     ApiExecutionRejected,
 )
-from gomazon_webasyst.application.api_execution.vo.parameters import ApiParameterMap
+from gomazon_webasyst.application.api_execution.vo.parameters import (
+    ApiParameterMap,
+    ApiRequestParameters,
+)
+from gomazon_webasyst.application.oauth_authorization.composites.revoke_authentication import (
+    OAuthRevokeAuthenticated,
+    OAuthRevokeAuthenticationRejected,
+)
 from gomazon_webasyst.application.backend_session_bridge.composites.requests import (
     BackendCurrentSubjectRequest,
     BackendLogoutRequest,
@@ -21,14 +28,25 @@ from gomazon_webasyst.application.ports.oauth_redirect_policy import (
     OAuthRedirectAccepted,
     OAuthRedirectRejected,
 )
+from gomazon_webasyst.compatibility.webasyst.api.services.credential_extractor import (
+    ApiCredentialMissing,
+)
 from gomazon_webasyst.compatibility.webasyst.api.services.preconditions import (
     ApiHttpsRequired,
     ApiTransportDisabled,
 )
-from gomazon_webasyst.compatibility.webasyst.api.vo.transport import ApiJsonpCallback
+from gomazon_webasyst.compatibility.webasyst.api.vo.transport import (
+    ApiJsonpCallback,
+    AuthorizationHeader,
+    NoAuthorizationHeader,
+)
 from gomazon_webasyst.compatibility.webasyst.oauth.services.cancel import (
     OAuthCancelFrameworkError,
     OAuthCancelRedirect,
+)
+from gomazon_webasyst.compatibility.webasyst.oauth.services.controller_format import (
+    OAuthControllerFormatRejected,
+    OAuthControllerFormatResolved,
 )
 from gomazon_webasyst.compatibility.webasyst.oauth.services.csrf import (
     OAuthCsrfAccepted,
@@ -73,6 +91,9 @@ from gomazon_webasyst.contracts.enums import (
     OAuthConsentDecision,
     RememberIntent,
 )
+from gomazon_webasyst.compatibility.webasyst.oauth.composites.controller_response import (
+    OAuthControllerRenderedResponse,
+)
 from gomazon_webasyst.contracts.oauth_authorization import (
     OAuthAuthorizationCodeGranted,
     OAuthAuthorizationDenied,
@@ -87,6 +108,9 @@ from gomazon_webasyst.presentation.http.backend_session import (
 )
 
 
+_HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"]
+
+
 def _php_truthy(value) -> bool:
     if value is False or value == 0 or value == 0.0:
         return False
@@ -98,6 +122,8 @@ def _php_truthy(value) -> bool:
 
 
 async def _form_parameters(request: Request) -> ApiParameterMap:
+    if request.method != "POST":
+        return ApiParameterMap({})
     content_type = request.headers.get("content-type", "")
     if not content_type.startswith("application/x-www-form-urlencoded"):
         return ApiParameterMap({})
@@ -117,11 +143,13 @@ def _request_text(
 def _framework_response(
     components: OAuthAuthorizationComponents,
     error: ApiFrameworkError,
+    *,
+    callback: ApiJsonpCallback = ApiJsonpCallback(""),
 ) -> Response:
     rendered = components.framework_response_renderer.render(
         ApiExecutionRejected(error=error),
         ApiResponseFormat.JSON,
-        ApiJsonpCallback(""),
+        callback,
     )
     return Response(
         content=rendered.body,
@@ -129,6 +157,59 @@ def _framework_response(
         media_type=rendered.media_type,
         headers=dict(rendered.headers),
     )
+
+
+def _controller_response(value: OAuthControllerRenderedResponse) -> Response:
+    return Response(
+        content=value.body,
+        status_code=value.status_code,
+        media_type=value.media_type,
+    )
+
+
+def _callback(query: ApiParameterMap) -> ApiJsonpCallback:
+    value = str(query["callback"]) if "callback" in query else ""
+    return ApiJsonpCallback(value)
+
+
+def _authorization_headers(request: Request):
+    raw = request.headers.get("authorization")
+    authorization = (
+        AuthorizationHeader(raw)
+        if raw is not None
+        else NoAuthorizationHeader()
+    )
+    server_authorization = (
+        AuthorizationHeader(str(request.scope["HTTP_AUTHORIZATION"]))
+        if "HTTP_AUTHORIZATION" in request.scope
+        else NoAuthorizationHeader()
+    )
+    return authorization, server_authorization
+
+
+def _precondition_response(
+    request: Request,
+    components: OAuthAuthorizationComponents,
+):
+    precondition = components.preconditions.evaluate(
+        is_https=request.url.scheme.lower() == "https"
+    )
+    if isinstance(precondition, ApiTransportDisabled):
+        return _framework_response(
+            components,
+            ApiFrameworkError(
+                code=ApiFrameworkErrorCode.DISABLED,
+                description=precondition.message,
+                http_status=404,
+                details={},
+            ),
+        )
+    if isinstance(precondition, ApiHttpsRequired):
+        return RedirectResponse(
+            url=str(request.url.replace(scheme="https")),
+            status_code=301,
+        )
+    return None
 
 
 def _html(body: str, *, status_code: int = 200) -> Response:
@@ -589,5 +670,107 @@ def create_legacy_oauth_router(
             persistent_disposition=current.persistent_disposition,
         )
         return response
+
+
+    @router.api_route("/api.php/token", methods=_HTTP_METHODS)
+    async def oauth_token(request: Request) -> Response:
+        precondition_response = _precondition_response(request, components)
+        if precondition_response is not None:
+            return precondition_response
+
+        query = ApiParameterMap(dict(request.query_params))
+        form = await _form_parameters(request)
+        format_result = components.controller_format_service.resolve(query)
+        if isinstance(format_result, OAuthControllerFormatRejected):
+            return _controller_response(
+                components.controller_renderer.render(
+                    payload=format_result.payload,
+                    response_format=format_result.format,
+                )
+            )
+        if not isinstance(format_result, OAuthControllerFormatResolved):
+            raise AssertionError("unsupported oauth controller format result")
+
+        result = await components.token_controller.execute(
+            ApiRequestParameters(query=query, form=form),
+            format_result.format,
+        )
+        return _controller_response(
+            components.controller_renderer.render(
+                payload=result.payload,
+                response_format=result.format,
+            )
+        )
+
+    @router.api_route("/api.php/revoke", methods=_HTTP_METHODS)
+    async def oauth_revoke(request: Request) -> Response:
+        precondition_response = _precondition_response(request, components)
+        if precondition_response is not None:
+            return precondition_response
+
+        query = ApiParameterMap(dict(request.query_params))
+        form = await _form_parameters(request)
+        authorization, server_authorization = _authorization_headers(request)
+        credential = components.credential_extractor.extract(
+            query=query,
+            form=form,
+            authorization=authorization,
+            server_authorization=server_authorization,
+        )
+        callback = _callback(query)
+        if isinstance(credential, ApiCredentialMissing):
+            return _framework_response(
+                components,
+                ApiFrameworkError(
+                    code=ApiFrameworkErrorCode.TOKEN_REQUIRED,
+                    description="Access token is missing",
+                    http_status=400,
+                    details={},
+                ),
+                callback=callback,
+            )
+
+        authenticated = await components.revoke_authentication_flow.authenticate(
+            credential.token
+        )
+        if isinstance(authenticated, OAuthRevokeAuthenticationRejected):
+            return _framework_response(
+                components,
+                ApiFrameworkError(
+                    code=ApiFrameworkErrorCode.INVALID_TOKEN,
+                    description="Invalid access token",
+                    http_status=401,
+                    details={},
+                ),
+                callback=callback,
+            )
+        if not isinstance(authenticated, OAuthRevokeAuthenticated):
+            raise AssertionError("unsupported oauth revoke authentication result")
+
+        format_result = components.controller_format_service.resolve(query)
+        if isinstance(format_result, OAuthControllerFormatRejected):
+            return _controller_response(
+                components.controller_renderer.render(
+                    payload=format_result.payload,
+                    response_format=format_result.format,
+                )
+            )
+        if not isinstance(format_result, OAuthControllerFormatResolved):
+            raise AssertionError("unsupported oauth controller format result")
+
+        target = components.revoke_target_extractor.extract(
+            query=query,
+            form=form,
+        )
+        result = await components.revoke_controller.execute(
+            target,
+            format_result.format,
+        )
+        return _controller_response(
+            components.controller_renderer.render(
+                payload=result.payload,
+                response_format=result.format,
+            )
+        )
 
     return router
