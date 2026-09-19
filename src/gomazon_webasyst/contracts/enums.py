@@ -406,3 +406,36 @@ class ApiAccessTokenResolveRejectReason(EnumStr):
 class ApiAccessTokenRevocationKind(EnumStr):
     REVOKED = "revoked"
     ALREADY_MISSING = "already_missing"
+
+
+class ApiResponseFormat(EnumStr):
+    JSON = "json"
+    XML = "xml"
+
+
+class ApiFrameworkErrorCode(EnumStr):
+    DISABLED = "disabled"
+    INVALID_REQUEST = "invalid_request"
+    TOKEN_REQUIRED = "token_required"
+    INVALID_TOKEN = "invalid_token"
+    APP_NOT_INSTALLED = "app_not_installed"
+    ACCESS_DENIED = "access_denied"
+    PAYMENT_REQUIRED = "payment_required"
+    INVALID_METHOD = "invalid_method"
+    INVALID_PARAM = "invalid_param"
+
+
+class ApiExecutionResultKind(EnumStr):
+    SUCCEEDED = "succeeded"
+    REJECTED = "rejected"
+
+
+class ApiMethodResultKind(EnumStr):
+    SUCCEEDED = "succeeded"
+    REJECTED = "rejected"
+
+
+class ApiCredentialSourceKind(EnumStr):
+    REQUEST = "request"
+    AUTHORIZATION_HEADER = "authorization_header"
+    SERVER_AUTHORIZATION = "server_authorization"
