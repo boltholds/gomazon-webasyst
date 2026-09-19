@@ -50,9 +50,14 @@ from gomazon_webasyst.composition.api_execution import (
 )
 from gomazon_webasyst.composition.application_runtime import (
     ApplicationRuntimeComponents,
+    DefaultRuntimeModulePlan,
+    ExplicitRuntimeModulePlan,
     FilesystemPluginCatalogSource,
+    InstalledKnownRuntimeModules,
     PluginCatalogSource,
     ProvidedPluginCatalogSource,
+    ProvidedRuntimeModules,
+    RuntimeModulePlan,
     create_application_runtime_components,
     create_default_application_runtime_modules,
 )
@@ -148,7 +153,7 @@ def create_container(settings: Settings) -> Container:
         session_state_registry=create_default_session_state_provider_registry(),
         installed_application_catalog=create_installed_application_catalog(settings),
         plugin_source=FilesystemPluginCatalogSource(settings.webasyst_root),
-        runtime_modules=create_default_application_runtime_modules(),
+        runtime_plan=DefaultRuntimeModulePlan(),
     )
 
 
@@ -164,7 +169,7 @@ def create_container_with_application_catalog(
         plugin_source=ProvidedPluginCatalogSource(
             InMemoryInstalledPluginCatalog(())
         ),
-        runtime_modules=(),
+        runtime_plan=ExplicitRuntimeModulePlan(()),
     )
 
 
@@ -180,7 +185,7 @@ def create_container_with_runtime_catalogs(
         session_state_registry=create_default_session_state_provider_registry(),
         installed_application_catalog=installed_application_catalog,
         plugin_source=ProvidedPluginCatalogSource(installed_plugin_catalog),
-        runtime_modules=runtime_modules,
+        runtime_plan=ExplicitRuntimeModulePlan(runtime_modules),
     )
 
 
@@ -194,7 +199,7 @@ def create_container_with_session_state_registry(
         session_state_registry=session_state_registry,
         installed_application_catalog=create_installed_application_catalog(settings),
         plugin_source=FilesystemPluginCatalogSource(settings.webasyst_root),
-        runtime_modules=create_default_application_runtime_modules(),
+        runtime_plan=DefaultRuntimeModulePlan(),
     )
 
 
@@ -204,7 +209,7 @@ def create_container_with_registries(
     session_state_registry: SessionStateProviderRegistry,
     installed_application_catalog: InstalledApplicationCatalog,
     plugin_source: PluginCatalogSource,
-    runtime_modules: tuple[ApplicationRuntimeModule, ...],
+    runtime_plan: RuntimeModulePlan,
 ) -> Container:
     session_state = resolve_session_state_store(
         session_state_registry,
@@ -213,6 +218,14 @@ def create_container_with_registries(
     engine = create_engine(settings)
     uow_factory = create_uow_factory(engine)
     session_factory = create_session_factory(engine)
+    if isinstance(runtime_plan, DefaultRuntimeModulePlan):
+        module_source = InstalledKnownRuntimeModules(
+            create_default_application_runtime_modules(session_factory)
+        )
+    else:
+        assert isinstance(runtime_plan, ExplicitRuntimeModulePlan)
+        module_source = ProvidedRuntimeModules(runtime_plan.modules)
+
     auth = create_auth_use_cases(session_factory, session_state=session_state)
     backend_session_bridge = create_backend_session_bridge_components(
         auth,
@@ -223,7 +236,7 @@ def create_container_with_registries(
     application_runtime = create_application_runtime_components(
         installed_applications=installed_application_catalog,
         plugin_source=plugin_source,
-        modules=runtime_modules,
+        module_source=module_source,
     )
     api_execution = create_api_execution_components(
         session_factory=session_factory,
