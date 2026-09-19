@@ -28,6 +28,21 @@ class EventHandler(Protocol):
 
 
 @dataclass(slots=True, frozen=True)
+class EventHandlerRegistrationAvailable:
+    handler_id: EventHandlerId
+
+
+@dataclass(slots=True, frozen=True)
+class EventHandlerRegistrationConflict:
+    handler_id: EventHandlerId
+
+
+EventHandlerRegistrationCheck: TypeAlias = (
+    EventHandlerRegistrationAvailable | EventHandlerRegistrationConflict
+)
+
+
+@dataclass(slots=True, frozen=True)
 class EventHandlerRegistered:
     handler_id: EventHandlerId
 
@@ -48,6 +63,11 @@ class EventHandlerMatchSet:
 
 
 class EventHandlerRegistry(Protocol):
+    def check(
+        self,
+        handler_id: EventHandlerId,
+    ) -> EventHandlerRegistrationCheck: ...
+
     def register(
         self,
         definition: "EventHandlerDefinition",
