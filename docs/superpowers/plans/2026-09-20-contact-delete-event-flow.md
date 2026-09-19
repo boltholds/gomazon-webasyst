@@ -21,6 +21,6 @@ Date: 2026-09-20
 - [x] Integration-test legacy cleanup persistence.
 - [x] Integration-test real DeleteContacts -> Team nested event -> cleanup.
 - [x] Integration-test production HTTP deletion path.
-- [ ] Add executable source-characterization fixture.
-- [ ] Update ADR/architecture record.
+- [x] Add executable source-characterization fixture.
+- [x] Update ADR/architecture record.
 - [ ] Run final full CI and record exact count.
