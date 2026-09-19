@@ -20,6 +20,7 @@ Authoritative companion artifacts:
 - State backend + API OAuth2 design: `docs/superpowers/specs/2026-09-15-state-backends-api-oauth2-design.md`
 - API execution core design: `docs/superpowers/specs/2026-09-19-api-execution-core-design.md`
 - Backend session HTTP bridge design: `docs/superpowers/specs/2026-09-19-backend-session-http-bridge-design.md`
+- OAuth authorization surface design: `docs/superpowers/specs/2026-09-19-oauth-authorization-surface-design.md`
 - Official legacy documentation reference: `https://developers.webasyst.com/docs`
 
 ---
@@ -318,6 +319,31 @@ Date: 2026-09-19
 
 Browser-authenticated surfaces resolve identity in a fixed order: valid Python session credential first; only if no subject is resolved may the bridge attempt persistent-login restoration. A valid session always wins and persistent restore is not invoked. A rejected supplied session credential is scheduled for clearing. If persistent login is globally disabled, persistent restore is not invoked and existing `auth_token` transport is left untouched. Session-only password login also leaves an existing persistent credential untouched. Logout is idempotent and clears both session and persistent credential transport.
 
+
+### ADR-041 — Webasyst OAuth authorization is a separate typed surface over existing auth and credential cores
+Status: accepted
+Date: 2026-09-19
+
+`/api.php/auth`, `/api.php/token`, and `/api.php/revoke` form a dedicated OAuth authorization surface. The authorization application layer owns typed consent/grant orchestration and reuses `BackendCurrentSubjectFlow`, `BackendPasswordLoginFlow`, `BackendLogoutFlow`, `IssueAuthorizationCode`, `IssueImplicitApiAccessToken`, `ExchangeAuthorizationCode`, `ResolveApiAccessToken`, and `RevokeApiAccessToken`. It MUST NOT query session/token tables directly or receive FastAPI/Starlette Request objects. Browser/HTTP behavior, CSRF, HTML, JSON/XML envelopes and Webasyst quirks remain compatibility/presentation concerns.
+
+### ADR-042 — Legacy unregistered redirect behavior is isolated behind an OAuth redirect policy
+Status: accepted
+Date: 2026-09-19
+
+Webasyst 4.2.0 does not maintain an OAuth client registry and accepts request-supplied `client_id`, `client_name`, and `redirect_uri`. Exact compatibility therefore uses an injected `OAuthRedirectPolicy`; the first `LegacyUnregisteredRedirectPolicy` preserves request-supplied redirects. Application orchestration MUST NOT assume that unregistered redirects are intrinsically valid. A future registered-client policy may validate client/redirect pairs without changing credential storage or authorization Composites.
+
+### ADR-043 — Revoke authentication credential and revoke target are distinct compatibility states
+Status: accepted
+Date: 2026-09-19
+
+For `/api.php/revoke`, outer API authentication follows normal legacy credential precedence (request token, Authorization header, server `HTTP_AUTHORIZATION`), but the controller separately reads only request-level `access_token` as the deletion target. Compatibility therefore models `RevokeTargetProvided | RevokeTargetMissing` separately from the authenticated credential. Header-only Bearer authentication succeeds but produces a no-op deletion and `{"access_token": ""}`; no invalid empty `ApiAccessToken` is constructed and the generic revocation use case remains strict.
+
+### ADR-044 — Legacy token/revoke controllers use HTTP 200 payload errors and no JSONP
+Status: accepted
+Date: 2026-09-19
+
+`/api.php/token` and controller-level `/api.php/revoke` responses preserve Webasyst 4.2.0 controller semantics: ordinary success/error payloads are HTTP 200, response format is JSON by default with optional XML, invalid explicit format becomes JSON `invalid_request`, and JSONP is not applied. Framework-level precondition/authentication failures that happen before those controllers keep their own HTTP statuses.
+
 ---
 
 ## Target dependency direction
@@ -352,6 +378,11 @@ src/gomazon_webasyst/
     access_control.py
   application/
     api_execution/
+      entities/
+      vo/
+      services/
+      composites/
+    oauth_authorization/
       entities/
       vo/
       services/
@@ -477,6 +508,26 @@ The first auth slice is backend password authentication plus session create/reso
 - default Python session cookie is `gomazon_session`; default persistent cookie remains `auth_token`;
 - Python session transport MUST NOT use `PHPSESSID` or decode PHP session files in this slice;
 - no standalone production login route is mounted by this bridge; the next OAuth authorization slice consumes it.
+
+---
+
+## OAuth authorization surface compatibility rules
+
+- `/api.php/auth` resolves browser identity only through the backend session HTTP bridge; OAuth code MUST NOT read session storage or authentication tables directly;
+- authorization query requires `client_id`, `client_name`, `response_type`, and `scope`; `response_type=token` additionally requires `redirect_uri`;
+- required legacy parameters use PHP-falsy compatibility semantics at the boundary;
+- outer POST `cancel` executes before authentication and CSRF, and remains distinct from authenticated consent denial;
+- backend login, authenticated approve/deny, and OAuth-surface logout use explicit CSRF handling outside auth credential use cases;
+- requested scope is filtered through `OAuthConsentAppCatalog` plus `OAuthConsentAccessPolicy`; absent/unauthorized apps are silently omitted and empty effective scope is invalid;
+- `OAuthConsentApplication` is the consent-screen Entity identified by `AppId`; client ids/names are request VOs, not registered client Entities in this compatibility slice;
+- consent access uses ordinary backend access semantics and MUST NOT reuse the API execution `webasyst` access exception implicitly;
+- code grants may display the authorization code when no redirect URI is supplied; implicit token grants always redirect via URI fragment;
+- legacy request-supplied redirects are accepted only through `LegacyUnregisteredRedirectPolicy`;
+- `/api.php/token` reads required fields from POST only and maps credential exchange failures to legacy payload codes;
+- token/revoke controller payload errors use HTTP 200, JSON default/optional XML, invalid format -> JSON `invalid_request`, and no JSONP;
+- revoke authentication credential and request-level revoke target are separate typed states; header-only Bearer revoke authenticates but performs a no-op deletion and returns an empty access-token value;
+- static OAuth routes MUST be mounted before generic `/api.php/{api_path:path}` method execution;
+- `token-headless`, Webasyst ID/social auth, registered clients, PKCE, refresh tokens, OIDC, license-cache/profile-update/cron are out of this slice.
 
 ---
 
