@@ -163,6 +163,7 @@ def create_container_with_session_state_registry(
         preconditions=api_execution.preconditions,
         credential_extractor=api_execution.credential_extractor,
         framework_response_renderer=api_execution.response_renderer,
+        application_registry=application_registry,
     )
     return Container(
         settings=settings,
