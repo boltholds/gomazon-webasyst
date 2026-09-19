@@ -1,6 +1,6 @@
 # Installed Application Registry & Legacy Discovery Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the independent empty API/OAuth application registries with one canonical, immutable `InstalledApplicationCatalog` discovered from a configured Webasyst 4.2.0 installation, while preserving explicit API method/dispatch registries and all existing authorization order.
 
@@ -152,7 +152,7 @@ git commit -m "test: characterize legacy application discovery"
 - snapshot preserves input order;
 - catalog lookup result exposes Entity, not raw metadata primitives.
 
-- [ ] **Step 1: Write failing Entity/VO immutability and validation tests**
+- [x] **Step 1: Write failing Entity/VO immutability and validation tests**
 
 Pin:
 - stable identity is `AppId`;
@@ -163,15 +163,15 @@ Pin:
 - duplicate header item id rejected;
 - open capability names are accepted without central enum changes.
 
-- [ ] **Step 2: Write failing catalog contract tests**
+- [x] **Step 2: Write failing catalog contract tests**
 
 Pin explicit resolved/missing variants and ordered immutable snapshot.
 
-- [ ] **Step 3: Write failing taxonomy/dependency guard**
+- [x] **Step 3: Write failing taxonomy/dependency guard**
 
 Reject FastAPI, Starlette, SQLAlchemy, pathlib/filesystem adapter imports, and `gomazon_webasyst.compatibility` inside `application/application_registry`.
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 ```bash
 python -m pytest \
@@ -182,17 +182,17 @@ python -m pytest \
 
 Expected: FAIL because the canonical application-registry types do not yet exist.
 
-- [ ] **Step 5: Implement minimal Entity/VO/port foundation**
+- [x] **Step 5: Implement minimal Entity/VO/port foundation**
 
 Use frozen/slotted dataclasses for internal domain state. Do not introduce filesystem discovery yet.
 
-- [ ] **Step 6: Run GREEN**
+- [x] **Step 6: Run GREEN**
 
 Run Step 4 command.
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/application_registry \
@@ -219,7 +219,7 @@ git commit -m "feat: add installed application catalog contracts"
 - `resolve()` and `snapshot()` are async to match the application-owned port.
 - Internal lookup may use a dict, but snapshot order is the constructor order.
 
-- [ ] **Step 1: Write failing resolve/snapshot tests**
+- [x] **Step 1: Write failing resolve/snapshot tests**
 
 Pin:
 - resolved entity identity;
@@ -228,7 +228,7 @@ Pin:
 - duplicate app rejection;
 - caller mutation cannot change catalog state.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 python -m pytest tests/unit/test_installed_application_catalog.py -v
@@ -236,15 +236,15 @@ python -m pytest tests/unit/test_installed_application_catalog.py -v
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement minimal in-memory catalog**
+- [x] **Step 3: Implement minimal in-memory catalog**
 
 No Webasyst/path/config logic here.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/gomazon_webasyst/infrastructure/application_registry \
@@ -309,11 +309,11 @@ Use explicit keyed/unkeyed entry state instead of a nullable key field.
 - maximum nesting depth;
 - maximum token count/array entries.
 
-- [ ] **Step 1: Write parser RED tests for supported syntax**
+- [x] **Step 1: Write parser RED tests for supported syntax**
 
 Use both synthetic tiny inputs and source-backed fixtures from Task 0.
 
-- [ ] **Step 2: Write fail-closed tests**
+- [x] **Step 2: Write fail-closed tests**
 
 Pin:
 - `return some_function();`;
@@ -326,11 +326,11 @@ Pin:
 
 All must raise explicit compatibility parser errors, never return an empty array.
 
-- [ ] **Step 3: Add a no-execution architecture/security assertion**
+- [x] **Step 3: Add a no-execution architecture/security assertion**
 
 Statically reject use of `eval`, `exec`, `subprocess`, PHP command invocation, `importlib` and dynamic `__import__` in the parser package.
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 ```bash
 python -m pytest \
@@ -340,17 +340,17 @@ python -m pytest \
 
 Expected: FAIL.
 
-- [ ] **Step 5: Implement bounded tokenizer + recursive-descent parser**
+- [x] **Step 5: Implement bounded tokenizer + recursive-descent parser**
 
 Do not use a general PHP runtime/parser that executes or resolves PHP code.
 
-- [ ] **Step 6: Run GREEN**
+- [x] **Step 6: Run GREEN**
 
 Run Step 4 command.
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/gomazon_webasyst/compatibility/webasyst/application_registry \
@@ -385,15 +385,15 @@ Reject ids containing:
 
 Resolve/canonicalize paths and prove the final path remains inside the configured root. Pin symlink escape behavior explicitly.
 
-- [ ] **Step 1: Write valid-path tests**
+- [x] **Step 1: Write valid-path tests**
 
 Pin ordinary app and `webasyst` manifest paths.
 
-- [ ] **Step 2: Write traversal/symlink RED tests**
+- [x] **Step 2: Write traversal/symlink RED tests**
 
 Include `../shop`, `shop/../../x`, backslashes, absolute forms and a symlink whose target leaves the root.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 ```bash
 python -m pytest tests/unit/test_application_registry_paths.py -v
@@ -401,15 +401,15 @@ python -m pytest tests/unit/test_application_registry_paths.py -v
 
 Expected: FAIL.
 
-- [ ] **Step 4: Implement minimal safe path service**
+- [x] **Step 4: Implement minimal safe path service**
 
 No file reading/parsing yet.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/gomazon_webasyst/compatibility/webasyst/application_registry/paths.py \
@@ -447,19 +447,19 @@ Introduce explicit raw config records between parser and application Entity. The
 
 Do not add OAuth's `webasyst` icon selection rule here.
 
-- [ ] **Step 1: Write failing apps-config normalization tests**
+- [x] **Step 1: Write failing apps-config normalization tests**
 
 Pin enabled/disabled ordering and exact 4.2.0 truth behavior from Task 0.
 
-- [ ] **Step 2: Write failing manifest normalization tests**
+- [x] **Step 2: Write failing manifest normalization tests**
 
 Pin all icon/img/header/capability cases.
 
-- [ ] **Step 3: Write malformed manifest tests**
+- [x] **Step 3: Write malformed manifest tests**
 
 Pin missing/invalid required metadata according to source characterization.
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 ```bash
 python -m pytest \
@@ -469,15 +469,15 @@ python -m pytest \
 
 Expected: FAIL.
 
-- [ ] **Step 5: Implement pure normalizer**
+- [x] **Step 5: Implement pure normalizer**
 
 No filesystem I/O and no OAuth/API imports.
 
-- [ ] **Step 6: Run GREEN**
+- [x] **Step 6: Run GREEN**
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/gomazon_webasyst/compatibility/webasyst/application_registry/normalizer.py \
@@ -519,7 +519,7 @@ Do not perform lazy per-request reads.
 - parser/manifest corruption -> explicit compatibility configuration error;
 - ordinary unknown app queried after construction -> typed `InstalledApplicationMissing`.
 
-- [ ] **Step 1: Write temporary-root integration RED tests**
+- [x] **Step 1: Write temporary-root integration RED tests**
 
 Build a minimal filesystem tree under `tmp_path`.
 
@@ -530,15 +530,15 @@ Pin:
 - snapshot order;
 - app with missing manifest behavior exactly per Task 0.
 
-- [ ] **Step 2: Write failure-semantics tests**
+- [x] **Step 2: Write failure-semantics tests**
 
 Malformed config must fail catalog construction, not create an empty catalog.
 
-- [ ] **Step 3: Write settings tests**
+- [x] **Step 3: Write settings tests**
 
 Pin env parsing for `GOMAZON_WEBASYST_ROOT` and Path typing.
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 ```bash
 python -m pytest \
@@ -548,15 +548,15 @@ python -m pytest \
 
 Expected: FAIL.
 
-- [ ] **Step 5: Implement filesystem snapshot factory/catalog**
+- [x] **Step 5: Implement filesystem snapshot factory/catalog**
 
 Prefer construction-time I/O followed by in-memory immutable lookup. Do not mix filesystem operations into `resolve()`.
 
-- [ ] **Step 6: Run GREEN**
+- [x] **Step 6: Run GREEN**
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/gomazon_webasyst/infrastructure/application_registry/filesystem_catalog.py \
@@ -584,26 +584,26 @@ git commit -m "feat: discover installed webasyst applications"
 - Do not change app-access/scope/license ordering.
 - Do not register API methods from discovered manifests.
 
-- [ ] **Step 1: Change tests first to canonical catalog fakes**
+- [x] **Step 1: Change tests first to canonical catalog fakes**
 
 Existing tests should fail while production types still expect the old port.
 
-- [ ] **Step 2: Pin authorization short-circuit order**
+- [x] **Step 2: Pin authorization short-circuit order**
 
 For a missing canonical app:
 - app access is not called;
 - scope/license are not reached;
 - method registry is not reached by pipeline.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Use the existing API execution focused suite plus new authorizer tests.
 
-- [ ] **Step 4: Implement cutover**
+- [x] **Step 4: Implement cutover**
 
 Update constructor types/wiring only; preserve error code/payload behavior.
 
-- [ ] **Step 5: Run GREEN + API compatibility suite**
+- [x] **Step 5: Run GREEN + API compatibility suite**
 
 ```bash
 python -m pytest \
@@ -615,7 +615,7 @@ python -m pytest \
 
 Adjust globs to existing filenames when executing.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/api_execution/services/authorizer.py \
@@ -651,15 +651,15 @@ Pin exact 4.2.0 behavior from Task 0:
 - `webasyst` settings header-item icon;
 - deterministic fallback when expected icon metadata is absent, if legacy source defines one.
 
-- [ ] **Step 1: Write projector RED tests**
+- [x] **Step 1: Write projector RED tests**
 
 Ordinary and `webasyst` cases.
 
-- [ ] **Step 2: Convert catalog/scope tests to async canonical backing**
+- [x] **Step 2: Convert catalog/scope tests to async canonical backing**
 
 Pin requested order + silent missing/denied filtering exactly as before.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 ```bash
 python -m pytest \
@@ -670,11 +670,11 @@ python -m pytest \
 
 Expected: FAIL.
 
-- [ ] **Step 4: Implement projection/cutover**
+- [x] **Step 4: Implement projection/cutover**
 
 Do not add filesystem I/O to OAuth packages.
 
-- [ ] **Step 5: Run GREEN + OAuth suite**
+- [x] **Step 5: Run GREEN + OAuth suite**
 
 ```bash
 python -m pytest \
@@ -683,7 +683,7 @@ python -m pytest \
   tests/integration/test_oauth_authorization_flow.py -v
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/gomazon_webasyst/compatibility/webasyst/oauth \
@@ -729,15 +729,15 @@ API Execution          OAuth projection
 - no separate production rediscovery;
 - no default empty production catalog.
 
-- [ ] **Step 1: Write identity-sharing RED test**
+- [x] **Step 1: Write identity-sharing RED test**
 
 Assert the object referenced by API authorizer and OAuth projection ultimately points to the same canonical catalog instance.
 
-- [ ] **Step 2: Write injection seam test**
+- [x] **Step 2: Write injection seam test**
 
 Create container/components with `InMemoryInstalledApplicationCatalog` and no filesystem dependency.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 ```bash
 python -m pytest \
@@ -745,15 +745,15 @@ python -m pytest \
   tests/unit/test_oauth_authorization_container.py -v
 ```
 
-- [ ] **Step 4: Implement composition module and shared wiring**
+- [x] **Step 4: Implement composition module and shared wiring**
 
 Construct discovery before API/OAuth components.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/gomazon_webasyst/composition/application_registry.py \
@@ -789,25 +789,25 @@ Pin:
 4. A configured missing/corrupt manifest follows characterized startup behavior before either surface can diverge.
 5. API method registry remains independent: installed app + missing method still gives `invalid_method`, not implicit execution.
 
-- [ ] **Step 1: Write failing cross-surface test**
+- [x] **Step 1: Write failing cross-surface test**
 
 The test should demonstrate the old architecture would require two independent registrations.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 python -m pytest tests/integration/test_application_registry_cross_surface.py -v
 ```
 
-- [ ] **Step 3: Make only minimal integration fixes**
+- [x] **Step 3: Make only minimal integration fixes**
 
 Do not introduce new domain behavior merely to satisfy the integration test.
 
-- [ ] **Step 4: Run GREEN**
+- [x] **Step 4: Run GREEN**
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tests/integration/test_application_registry_cross_surface.py \
@@ -839,15 +839,15 @@ git commit -m "test: verify shared app catalog across api and oauth"
 - `ApiMethodRegistry` and `DispatchRegistry` are still separate types;
 - no `Optional` lookup result added.
 
-- [ ] **Step 1: Write guards while obsolete files still exist**
+- [x] **Step 1: Write guards while obsolete files still exist**
 
 Expected RED.
 
-- [ ] **Step 2: Remove/migrate old imports and files**
+- [x] **Step 2: Remove/migrate old imports and files**
 
 Do not keep compatibility aliases merely to make dead architecture linger unless an external public contract truly requires them.
 
-- [ ] **Step 3: Run targeted architecture suite**
+- [x] **Step 3: Run targeted architecture suite**
 
 ```bash
 python -m pytest \
@@ -858,7 +858,7 @@ python -m pytest \
   tests/architecture/test_oauth_authorization_* -v
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add -A src/gomazon_webasyst tests/architecture AGENTS.md
@@ -874,11 +874,11 @@ git commit -m "refactor: remove duplicate installed app registries"
 - Modify: `docs/superpowers/specs/2026-09-19-installed-application-registry-discovery-design.md` only if implementation discovered source-backed corrections
 - Modify: `AGENTS.md`
 
-- [ ] **Step 1: Run formatter/static checks configured by repository**
+- [x] **Step 1: Run formatter/static checks configured by repository**
 
 Use the repository's actual configured commands; do not invent a new toolchain.
 
-- [ ] **Step 2: Run complete test suite**
+- [x] **Step 2: Run complete test suite**
 
 ```bash
 python -m pytest -q
@@ -886,7 +886,7 @@ python -m pytest -q
 
 Expected: PASS.
 
-- [ ] **Step 3: Run focused acceptance again**
+- [x] **Step 3: Run focused acceptance again**
 
 ```bash
 python -m pytest \
@@ -904,7 +904,7 @@ python -m pytest \
 
 Expected: PASS.
 
-- [ ] **Step 4: Verify repository search has no obsolete production path**
+- [x] **Step 4: Verify repository search has no obsolete production path**
 
 Search for:
 - `InstalledAppDirectory`;
@@ -915,7 +915,7 @@ Search for:
 
 Expected: no prohibited production matches.
 
-- [ ] **Step 5: Verify runtime invariants manually from code**
+- [x] **Step 5: Verify runtime invariants manually from code**
 
 Confirm:
 - one catalog per Container;
@@ -925,11 +925,11 @@ Confirm:
 - API method registry remains independent;
 - malformed config cannot be mistaken for ordinary app lookup miss.
 
-- [ ] **Step 6: Mark all plan checkboxes complete and update completion state in AGENTS.md**
+- [x] **Step 6: Mark all plan checkboxes complete and update completion state in AGENTS.md**
 
 Record the exact final test result count and any deliberately deferred behavior.
 
-- [ ] **Step 7: Commit completion record**
+- [x] **Step 7: Commit completion record**
 
 ```bash
 git add docs/superpowers/plans/2026-09-19-installed-application-registry-discovery.md \
@@ -939,6 +939,23 @@ git commit -m "docs: record installed application registry verification"
 ```
 
 ---
+
+## Verification Record
+
+Implementation head before completion-documentation commit: `afdade46807ad78cb2c8783810b0f52ab3dc7067`.
+
+GitHub Actions full CI completed successfully on that head with:
+
+- `693 passed`;
+- parser/normalizer/catalog/filesystem discovery tests green;
+- API Execution canonical catalog cutover green;
+- OAuth catalog projection and async scope lookup green;
+- shared Container composition green;
+- cross-surface API/OAuth integration green;
+- obsolete installed-app directory files removed;
+- architecture guards preventing duplicate production app universes and PHP/dynamic-import execution green.
+
+The exact Webasyst 4.2.0 source characterization is pinned to release commit `39c267a2fabfb0cd6d94f4dd86b23b4750328dd5`.
 
 ## Completion Definition
 
