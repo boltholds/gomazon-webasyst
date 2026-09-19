@@ -543,3 +543,13 @@ class OAuthControllerErrorCode(EnumStr):
 class InstalledApplicationLookupKind(EnumStr):
     RESOLVED = "resolved"
     MISSING = "missing"
+
+
+class InstalledPluginLookupKind(EnumStr):
+    RESOLVED = "resolved"
+    MISSING = "missing"
+
+
+class PluginImageKind(EnumStr):
+    PRESENT = "present"
+    MISSING = "missing"
