@@ -60,6 +60,7 @@ def test_container_exposes_auth_session_use_cases_as_first_class_dependencies():
         issue_persistent_credential=issue_persistent,
         restore_backend_session_from_persistent_credential=restore_persistent,
         revoke_persistent_credential=revoke_persistent,
+        api_execution=object(),
         **_api_credential_fields(),
         **_access_control_fields(),
     )
