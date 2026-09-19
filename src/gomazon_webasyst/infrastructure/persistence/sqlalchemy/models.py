@@ -77,6 +77,67 @@ class WaContactDataRow(Base):
     status: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
+class WaContactSettingRow(Base):
+    __tablename__ = "wa_contact_settings"
+
+    contact_id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
+    app_id: Mapped[str] = mapped_column(String(32), primary_key=True, nullable=False, server_default=text("''"))
+    name: Mapped[str] = mapped_column(String(64), primary_key=True, nullable=False)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class WaLoginLogRow(Base):
+    __tablename__ = "wa_login_log"
+    __table_args__ = (
+        Index("wa_login_log_contact_datetime", "contact_id", "datetime_out"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    contact_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    datetime_in: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    datetime_out: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+
+
+class WaContactCalendarRow(Base):
+    __tablename__ = "wa_contact_calendars"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    bg_color: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    font_color: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    status_bg_color: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    status_font_color: Mapped[str | None] = mapped_column(String(7), nullable=True)
+    icon: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sort: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    is_limited: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default=text("0"))
+    default_status: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
+class WaContactEventRow(Base):
+    __tablename__ = "wa_contact_events"
+    __table_args__ = (
+        Index("wa_contact_events_uid", "uid"),
+        Index("wa_contact_events_contact_id", "contact_id"),
+        Index("wa_contact_events_calendar_id", "calendar_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    uid: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    create_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    update_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    contact_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    calendar_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    summary: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    start: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    end: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    is_allday: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default=text("0"))
+    is_status: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default=text("0"))
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+
+
 class WaContactAuthRow(Base):
     __tablename__ = "wa_contact_auths"
     __table_args__ = (
