@@ -335,6 +335,8 @@ class AccessMutationRejectReason(EnumStr):
     GROUP_NOT_FOUND = "group_not_found"
     CONTACT_NOT_FOUND = "contact_not_found"
     CONTACT_NOT_USER = "contact_not_user"
+    APPLICATION_NOT_FOUND = "application_not_found"
+    APPLICATION_DISABLED = "application_disabled"
     RESERVED_RIGHT = "reserved_right"
     ZERO_VALUE = "zero_value"
     GLOBAL_CONTROL_APP = "global_control_app"
