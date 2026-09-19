@@ -37,3 +37,24 @@ def test_nested_filter_shape_is_supported_for_future_generic_php_query_parser() 
         _params({"filter": {"type": ("location", "group")}})
     )
     assert parsed.types == ("location", "group")
+
+
+def test_type_filter_trims_scalar_values_like_wautils_to_str_array() -> None:
+    parsed = LegacyTeamGroupFilterParser().parse(
+        _params({"filter[type]": "  group  "})
+    )
+    assert parsed.types == ("group",)
+
+
+def test_explicit_empty_type_filter_is_preserved_not_treated_as_missing() -> None:
+    parsed = LegacyTeamGroupFilterParser().parse(
+        _params({"filter[type]": ""})
+    )
+    assert parsed.types == ("",)
+
+
+def test_repeated_type_filter_preserves_empty_items_after_trim() -> None:
+    parsed = LegacyTeamGroupFilterParser().parse(
+        _params({"filter[type][]": (" group ", "", " location ")})
+    )
+    assert parsed.types == ("group", "", "location")
