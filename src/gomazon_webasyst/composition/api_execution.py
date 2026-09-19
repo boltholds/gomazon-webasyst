@@ -4,11 +4,6 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from gomazon_webasyst.application.api_credentials import ResolveApiAccessToken
-from gomazon_webasyst.application.application_registry import (
-    ApplicationCatalog,
-    InstallationManifest,
-    StaticApplicationRegistry,
-)
 from gomazon_webasyst.application.api_execution.composites.pipeline import ApiExecutionPipeline
 from gomazon_webasyst.application.api_execution.services.activity import ApiUserActivityService
 from gomazon_webasyst.application.api_execution.services.authorizer import ApiRequestAuthorizer
@@ -95,15 +90,13 @@ def create_default_api_execution_components(
     api_enabled: bool,
     disable_message: str,
     force_https: bool,
+    application_registry: ApplicationRegistry,
 ) -> ApiExecutionComponents:
     return create_api_execution_components(
         session_factory=session_factory,
         resolve_api_access_token=resolve_api_access_token,
         method_registry=InMemoryApiMethodRegistry(),
-        application_registry=StaticApplicationRegistry(
-            ApplicationCatalog(()),
-            InstallationManifest(()),
-        ),
+        application_registry=application_registry,
         license_policy=AllowAllAppLicensePolicy(),
         api_enabled=api_enabled,
         disable_message=disable_message,
