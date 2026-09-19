@@ -6,6 +6,7 @@ from gomazon_webasyst.application.api_execution.composites.invocation import Api
 from gomazon_webasyst.application.api_execution.composites.results import ApiMethodRejected, ApiMethodSucceeded
 from gomazon_webasyst.application.api_execution.entities.method_definition import ApiMethodDefinition
 from gomazon_webasyst.application.api_execution.services.method_executor import ApiMethodExecutor
+from gomazon_webasyst.application.api_execution.vo.origin import ApiRequestOrigin
 from gomazon_webasyst.application.api_execution.vo.method import ApiHttpMethod, ApiMethodName, ApiMethodTarget
 from gomazon_webasyst.application.api_execution.vo.parameters import ApiParameterMap, ApiRequestParameters
 from gomazon_webasyst.contracts.enums import ApiFrameworkErrorCode
@@ -15,6 +16,7 @@ TARGET = ApiMethodTarget(AppId("shop"), ApiMethodName("ping"))
 CONTEXT = ApiInvocationContext(
     principal=ApiPrincipalContext(42, ApiClientId("client"), ApiScope.of("shop")),
     target=TARGET,
+    origin=ApiRequestOrigin("https://example.test/"),
 )
 PARAMETERS = ApiRequestParameters(ApiParameterMap({}), ApiParameterMap({}))
 
