@@ -185,21 +185,32 @@ async def test_persistent_browser_flow_restores_stale_session_and_logout_clears_
 
         auth_token = client.cookies.get("auth_token")
         assert auth_token
-        client.cookies.delete("gomazon_session")
-        client.cookies.set("gomazon_session", "stale")
 
-        restored = await client.get("/fixture/current")
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+    ) as restored_client:
+        restored = await restored_client.get(
+            "/fixture/current",
+            headers={
+                "Cookie": (
+                    f"gomazon_session=stale; auth_token={auth_token}"
+                )
+            },
+        )
         assert restored.status_code == 200
         assert restored.json()["subject_id"] == 42
-        assert client.cookies.get("gomazon_session") != "stale"
-        assert client.cookies.get("auth_token") == auth_token
+        restored_session = restored_client.cookies.get("gomazon_session")
+        assert restored_session
+        assert restored_session != "stale"
+        assert restored_client.cookies.get("auth_token") == auth_token
 
-        logout = await client.post("/fixture/logout")
+        logout = await restored_client.post("/fixture/logout")
         assert logout.status_code == 204
-        assert client.cookies.get("gomazon_session") is None
-        assert client.cookies.get("auth_token") is None
+        assert restored_client.cookies.get("gomazon_session") is None
+        assert restored_client.cookies.get("auth_token") is None
 
-        after = await client.get("/fixture/current")
+        after = await restored_client.get("/fixture/current")
         assert after.status_code == 401
 
     await container.close()
@@ -261,13 +272,15 @@ async def test_persistent_disabled_clears_only_stale_session_and_keeps_auth_toke
         transport=httpx.ASGITransport(app=disabled_app),
         base_url="http://testserver",
     ) as client:
-        client.cookies.set("gomazon_session", "stale")
-        client.cookies.set("auth_token", auth_token)
-
-        current = await client.get("/fixture/current")
+        current = await client.get(
+            "/fixture/current",
+            headers={
+                "Cookie": (
+                    f"gomazon_session=stale; auth_token={auth_token}"
+                )
+            },
+        )
         assert current.status_code == 401
-        assert client.cookies.get("gomazon_session") is None
-        assert client.cookies.get("auth_token") == auth_token
         headers = _set_cookie_headers(current)
         assert any(
             header.startswith("gomazon_session=") and "Max-Age=0" in header
