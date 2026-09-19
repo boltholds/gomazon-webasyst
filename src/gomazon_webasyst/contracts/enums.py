@@ -53,10 +53,6 @@ class HandlerRegistryLookupKind(EnumStr):
     MISSING = "missing"
 
 
-class PluginRegistryLookupKind(EnumStr):
-    AVAILABLE = "available"
-    MISSING = "missing"
-
 
 class LegacyDispatchOutcomeKind(EnumStr):
     HANDLER = "handler"
