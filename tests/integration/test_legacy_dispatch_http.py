@@ -1,7 +1,16 @@
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from gomazon_webasyst.compatibility.webasyst.dispatch.registry import InMemoryDispatchRegistry
+from gomazon_webasyst.application.app_values import AppId
+from gomazon_webasyst.application.application_registry import (
+    ApplicationCatalog,
+    InstallationManifest,
+    InstalledApplication,
+    StaticApplicationRegistry,
+)
+from gomazon_webasyst.compatibility.webasyst.dispatch.registry import (
+    InMemoryHandlerRegistry,
+)
 from gomazon_webasyst.compatibility.webasyst.dispatch.resolver import DispatchResolver
 from gomazon_webasyst.compatibility.webasyst.dispatch.strategies import DispatchStrategyRegistry
 from gomazon_webasyst.compatibility.webasyst.routing.app_resolver import AppRouteResolver
@@ -12,6 +21,7 @@ from gomazon_webasyst.compatibility.webasyst.routing.legacy_parser import (
 )
 from gomazon_webasyst.compatibility.webasyst.routing.system_resolver import SystemRouteResolver
 from gomazon_webasyst.compatibility.webasyst.service import LegacyCompatibilityService
+from gomazon_webasyst.contracts.applications import ApplicationDescriptor
 from gomazon_webasyst.contracts.dispatch import (
     ActionHandlerKey,
     AppNamespace,
@@ -38,7 +48,7 @@ def build_app() -> FastAPI:
         )
     }
 
-    handlers = InMemoryDispatchRegistry()
+    handlers = InMemoryHandlerRegistry()
     blog_key = ActionHandlerKey(
         namespace=AppNamespace(app="blog"), module="frontend", action="post"
     )
@@ -48,7 +58,21 @@ def build_app() -> FastAPI:
     handlers.register_action(blog_key, "blog-post")
     handlers.register_action(team_key, "team-users-list")
 
-    resolver = DispatchResolver(handlers)
+    applications = StaticApplicationRegistry(
+        ApplicationCatalog(
+            applications=(
+                ApplicationDescriptor(id=AppId("blog"), name="Blog"),
+                ApplicationDescriptor(id=AppId("team"), name="Team"),
+            ),
+        ),
+        InstallationManifest(
+            apps=(
+                InstalledApplication(AppId("blog")),
+                InstalledApplication(AppId("team")),
+            )
+        ),
+    )
+    resolver = DispatchResolver(handlers, applications)
     strategies = DispatchStrategyRegistry(resolver)
     service = LegacyCompatibilityService(
         system_resolver=system,
