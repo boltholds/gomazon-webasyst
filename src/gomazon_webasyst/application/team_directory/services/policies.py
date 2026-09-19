@@ -18,6 +18,7 @@ from gomazon_webasyst.application.team_directory.vo.states import (
     TeamDateTimeMissing,
     TeamDateTimeState,
     TeamDateTimeValue,
+    TeamIntValue,
 )
 from gomazon_webasyst.application.ports.team_memberships import (
     TeamMembershipSnapshot,
@@ -103,11 +104,21 @@ class TeamGroupVisibilityService:
             item.group_id: item.value
             for item in principal_rights.rights
         }
-        return tuple(
-            group
-            for group in groups
-            if values.get(group.id, 0) >= 0
+        fallback = (
+            principal_rights.all_groups_fallback.value
+            if isinstance(
+                principal_rights.all_groups_fallback,
+                TeamIntValue,
+            )
+            else 0
         )
+        visible: list[TeamGroup] = []
+        for group in groups:
+            exact = values.get(group.id, 0)
+            effective = exact if exact != 0 else fallback
+            if effective >= 0:
+                visible.append(group)
+        return tuple(visible)
 
 
 class TeamOnlineStateService:
