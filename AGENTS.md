@@ -606,7 +606,7 @@ The first auth slice is backend password authentication plus session create/reso
 - `wa_group.cnt` is recomputed from memberships joined to contacts with `is_user > 0`;
 - group deletion intentionally removes group-owned rights as an integrity improvement over 4.2.0;
 - ACL mutation authorization is checked inside the same transaction as the write;
-- application installation/catalog validation is deferred until the application registry slice; callers must use installed/configured app ids in this slice;
+- canonical installed-application identity/metadata is now available through `InstalledApplicationCatalog`; ACL mutation-time installation validation is still a separate consumer integration and must use that catalog rather than inventing another app source;
 - no global/static rights cache is introduced in the first Python ACL slice.
 
 ---
@@ -708,5 +708,5 @@ The foundation is considered proven when CI confirms:
 - access-control slice passes contracts/evaluator/fallback/mutation-policy/authorization/group/membership/persistence/integration/characterization tests;
 - runtime session-state provider selection passes registry/composition/architecture tests;
 - API credential core passes contracts/policy/repository/UoW/issue/exchange/resolve/revoke/characterization/SQLite vertical-flow tests;
-- installed application registry/discovery slice passes parser/normalizer/catalog/composition/cross-surface integration tests;
+- installed application registry/discovery slice is verified complete: exact 4.2.0 characterization is pinned to release commit `39c267a2fabfb0cd6d94f4dd86b23b4750328dd5`, obsolete duplicate app directories are removed, API/OAuth share one canonical catalog, and the completion head passed full CI with 693 tests;
 - every new architectural decision is reflected here.
