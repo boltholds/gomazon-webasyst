@@ -70,11 +70,15 @@ class IssueAuthorizationCode:
         generator: ApiCredentialGenerator,
         lifetime_policy: AuthorizationCodeLifetimePolicy,
         clock: Callable[[], datetime],
+        max_generation_attempts: int = 3,
     ) -> None:
+        if max_generation_attempts < 1:
+            raise ValueError("max generation attempts must be positive")
         self._uow_factory = uow_factory
         self._generator = generator
         self._lifetime_policy = lifetime_policy
         self._clock = clock
+        self._max_generation_attempts = max_generation_attempts
 
     async def __call__(
         self,
@@ -83,21 +87,24 @@ class IssueAuthorizationCode:
         scope: ApiScope,
     ) -> AuthorizationCodeIssueResult:
         now = self._clock()
-        record = StoredAuthorizationCode(
-            code=self._generator.authorization_code(),
-            contact_id=subject.id,
-            client_id=client_id,
-            scope=scope,
-            expires_at=self._lifetime_policy.expires_at(now),
-        )
+        expires_at = self._lifetime_policy.expires_at(now)
         async with self._uow_factory() as uow:
-            created = await uow.authorization_codes.create(record)
-            if isinstance(created, AuthorizationCodeCreateCollision):
-                return AuthorizationCodeIssueRejected(
-                    reason=AuthorizationCodeIssueRejectReason.COLLISION
+            for _ in range(self._max_generation_attempts):
+                record = StoredAuthorizationCode(
+                    code=self._generator.authorization_code(),
+                    contact_id=subject.id,
+                    client_id=client_id,
+                    scope=scope,
+                    expires_at=expires_at,
                 )
-            await uow.commit()
-        return AuthorizationCodeIssued(record=record)
+                created = await uow.authorization_codes.create(record)
+                if isinstance(created, AuthorizationCodeCreateCollision):
+                    continue
+                await uow.commit()
+                return AuthorizationCodeIssued(record=record)
+        return AuthorizationCodeIssueRejected(
+            reason=AuthorizationCodeIssueRejectReason.COLLISION
+        )
 
 
 class ExchangeAuthorizationCode:
