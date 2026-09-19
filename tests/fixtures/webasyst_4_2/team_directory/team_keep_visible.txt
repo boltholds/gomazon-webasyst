@@ -1,0 +1,9 @@
+SOURCE_COMMIT: 39c267a2fabfb0cd6d94f4dd86b23b4750328dd5
+SOURCE_PATH: wa-apps/team/lib/classes/teamUser.class.php::keepVisible
+
+Full Team admin: keep every candidate.
+Self: always visible.
+Non-self user with no groups: visible.
+Grouped user: visible when at least one group is not hidden.
+Hidden groups: manage_users_in_group.* effective value < 0.
+If every target group is hidden: omit user.
