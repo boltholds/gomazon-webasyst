@@ -1,6 +1,6 @@
 # Backend Session HTTP Bridge Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add a transport-neutral backend-session bridge that resolves the current browser subject, orchestrates password login/logout and persistent-login fallback, and maps explicit credential dispositions to HTTP cookies without introducing a new authentication system or public login route.
 
@@ -82,7 +82,7 @@
   - `BackendPasswordLoginRejected(authentication_type, session_disposition, persistent_disposition)`;
   - `BackendLogoutCompleted(session_status, session_disposition, persistent_disposition)`.
 
-- [ ] **Step 1: Write failing VO/request tests**
+- [x] **Step 1: Write failing VO/request tests**
 
 ```python
 from dataclasses import FrozenInstanceError
@@ -111,7 +111,7 @@ def test_remember_and_persistent_mode_are_closed_enumstr_domains() -> None:
     assert PersistentLoginMode.DISABLED.value == "disabled"
 ```
 
-- [ ] **Step 2: Write failing disposition/result serialization tests**
+- [x] **Step 2: Write failing disposition/result serialization tests**
 
 ```python
 from pydantic import TypeAdapter
@@ -135,14 +135,14 @@ def test_session_disposition_accepts_raw_discriminator_and_serializes_string() -
 
 Also assert every result/disposition Pydantic model is frozen and no result field annotation contains `NoneType`.
 
-- [ ] **Step 3: Write failing taxonomy guard**
+- [x] **Step 3: Write failing taxonomy guard**
 
 The architecture test must assert:
 - every non-`__init__.py` file under `application/backend_session_bridge` is under `vo/`, `services/` or `composites/`;
 - no `entities/` directory exists in this slice;
 - no FastAPI, Starlette, SQLAlchemy or compatibility import appears below `application/backend_session_bridge`.
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 Run:
 
@@ -152,19 +152,19 @@ python -m pytest   tests/unit/test_backend_session_bridge_contracts.py   tests/a
 
 Expected: FAIL because bridge packages/contracts/enums do not exist.
 
-- [ ] **Step 5: Implement minimal VO, requests and Pydantic contracts**
+- [x] **Step 5: Implement minimal VO, requests and Pydantic contracts**
 
 Use frozen/slotted dataclasses for internal VO/Composite requests and Pydantic frozen models with `arbitrary_types_allowed=True` where `SessionId`/`PersistentCredential` are carried.
 
 Do not add a bridge Entity.
 
-- [ ] **Step 6: Run GREEN**
+- [x] **Step 6: Run GREEN**
 
 Run the same command from Step 4.
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/backend_session_bridge   src/gomazon_webasyst/contracts/backend_session_bridge.py   src/gomazon_webasyst/contracts/enums.py   tests/unit/test_backend_session_bridge_contracts.py   tests/architecture/test_backend_session_bridge_taxonomy.py   tests/architecture/test_no_optional_result_contracts.py
@@ -187,7 +187,7 @@ git commit -m "feat: add backend session bridge contracts"
 - When persistent restore rejects, preserve its persistent disposition exactly.
 - Infrastructure exceptions propagate.
 
-- [ ] **Step 1: Write failing valid-session precedence test**
+- [x] **Step 1: Write failing valid-session precedence test**
 
 ```python
 @pytest.mark.asyncio
@@ -217,7 +217,7 @@ async def test_valid_session_wins_and_persistent_restore_is_not_called() -> None
     assert resolver.calls == [KEY.session_id]
 ```
 
-- [ ] **Step 2: Write failing stale-session + persistent-restore test for Review Focus #3**
+- [x] **Step 2: Write failing stale-session + persistent-restore test for Review Focus #3**
 
 ```python
 @pytest.mark.asyncio
@@ -246,7 +246,7 @@ async def test_rejected_session_falls_back_to_persistent_and_issues_new_session(
     assert result.persistent_disposition == REFRESH
 ```
 
-- [ ] **Step 3: Write failing malformed/missing/disabled/rejection tests**
+- [x] **Step 3: Write failing malformed/missing/disabled/rejection tests**
 
 Pin all of:
 - missing session + missing persistent -> unauthenticated, keep/keep, reason NO_CREDENTIAL;
@@ -256,17 +256,17 @@ Pin all of:
 - valid credential but session-establishment failure with `KeepPersistentCredential` -> result reason SESSION_UNAVAILABLE and preserves KEEP;
 - resolver/restore `RuntimeError("backend down")` propagates.
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 Run: `python -m pytest tests/unit/test_backend_current_subject_flow.py -v`
 
 Expected: FAIL because `BackendCurrentSubjectFlow` does not exist.
 
-- [ ] **Step 5: Implement orchestration only**
+- [x] **Step 5: Implement orchestration only**
 
 No cookie names, HTTP objects, SQL, token parsing or compatibility imports in this file.
 
-- [ ] **Step 6: Run GREEN + taxonomy guard**
+- [x] **Step 6: Run GREEN + taxonomy guard**
 
 Run:
 
@@ -276,7 +276,7 @@ python -m pytest   tests/unit/test_backend_current_subject_flow.py   tests/archi
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/backend_session_bridge/composites/current_subject.py   tests/unit/test_backend_current_subject_flow.py
@@ -299,7 +299,7 @@ git commit -m "feat: add backend current subject flow"
 - `RememberIntent.PERSIST` + enabled + issued credential -> `RefreshPersistentCredential`; status ISSUED.
 - Persistent issuance rejection -> login remains successful; `KeepPersistentCredential`; status UNAVAILABLE.
 
-- [ ] **Step 1: Write failing auth-rejection/session-only tests**
+- [x] **Step 1: Write failing auth-rejection/session-only tests**
 
 ```python
 @pytest.mark.asyncio
@@ -327,7 +327,7 @@ async def test_session_only_success_never_calls_persistent_issuer() -> None:
 
 Also assert primary rejection never calls issuer.
 
-- [ ] **Step 2: Write failing persistent issuance tests including Review Focus #4**
+- [x] **Step 2: Write failing persistent issuance tests including Review Focus #4**
 
 ```python
 @pytest.mark.asyncio
@@ -352,24 +352,24 @@ async def test_persistent_issue_failure_does_not_turn_login_into_failure() -> No
 
 Pin successful issue -> exact `RefreshPersistentCredential`; disabled mode -> issuer not called.
 
-- [ ] **Step 3: Assert the primary credential contract still has no remember field**
+- [x] **Step 3: Assert the primary credential contract still has no remember field**
 
 ```python
 def test_backend_password_credentials_still_has_no_remember_field() -> None:
     assert "remember" not in BackendPasswordCredentials.model_fields
 ```
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 Run: `python -m pytest tests/unit/test_backend_password_login_flow.py -v`
 
 Expected: FAIL because login Composite does not exist.
 
-- [ ] **Step 5: Implement minimal login Composite**
+- [x] **Step 5: Implement minimal login Composite**
 
 Do not mutate persistent credential transport on SESSION_ONLY, disabled mode, auth rejection, or issuance rejection.
 
-- [ ] **Step 6: Run GREEN**
+- [x] **Step 6: Run GREEN**
 
 Run:
 
@@ -379,7 +379,7 @@ python -m pytest   tests/unit/test_backend_password_login_flow.py   tests/unit/t
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/backend_session_bridge/composites/login.py   tests/unit/test_backend_password_login_flow.py
@@ -400,7 +400,7 @@ git commit -m "feat: add backend password login flow"
 - Always invokes `RevokePersistentCredential`.
 - Always returns `ClearSessionCredential` and the returned `ClearPersistentCredential`.
 
-- [ ] **Step 1: Write failing provided-session test**
+- [x] **Step 1: Write failing provided-session test**
 
 ```python
 @pytest.mark.asyncio
@@ -425,7 +425,7 @@ async def test_logout_revokes_runtime_session_and_clears_both_transports() -> No
     assert persistent.calls == 1
 ```
 
-- [ ] **Step 2: Write failing missing/malformed idempotency tests**
+- [x] **Step 2: Write failing missing/malformed idempotency tests**
 
 Assert both missing and malformed session credentials:
 - do not invoke session logout;
@@ -433,23 +433,23 @@ Assert both missing and malformed session credentials:
 - still invoke persistent revoke once;
 - still clear both transports.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 Run: `python -m pytest tests/unit/test_backend_logout_flow.py -v`
 
 Expected: FAIL because logout Composite does not exist.
 
-- [ ] **Step 4: Implement minimal logout Composite**
+- [x] **Step 4: Implement minimal logout Composite**
 
 Infrastructure exceptions from actual logout/revoke calls propagate.
 
-- [ ] **Step 5: Run GREEN**
+- [x] **Step 5: Run GREEN**
 
 Run: `python -m pytest tests/unit/test_backend_logout_flow.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/gomazon_webasyst/application/backend_session_bridge/composites/logout.py   tests/unit/test_backend_logout_flow.py
@@ -489,7 +489,7 @@ git commit -m "feat: add backend logout flow"
   - `BackendAuthCookieMutations(session, persistent)`.
 - `BackendAuthCookieMutationService(clock: Callable[[], datetime]).plan(session_disposition, persistent_disposition)` maps application dispositions one-to-one. `PersistentCredentialLifetime` is converted to positive integer seconds and `expires_at = clock() + lifetime`.
 
-- [ ] **Step 1: Write failing extraction characterization tests including Review Focus #2**
+- [x] **Step 1: Write failing extraction characterization tests including Review Focus #2**
 
 ```python
 @pytest.mark.parametrize("raw", ["", "0"])
@@ -513,7 +513,7 @@ def test_empty_session_cookie_is_malformed_not_missing() -> None:
 
 Also pin custom cookie names, `"0"` session id remaining a valid opaque session value, and exact User-Agent propagation.
 
-- [ ] **Step 2: Write failing mutation-planning tests**
+- [x] **Step 2: Write failing mutation-planning tests**
 
 Pin:
 - IssueSessionCredential -> SetSessionCookie exact SessionId value;
@@ -523,11 +523,11 @@ Pin:
 - ClearPersistent -> Delete;
 - KeepPersistent -> Keep.
 
-- [ ] **Step 3: Write failing policy tests for Review Focus #5**
+- [x] **Step 3: Write failing policy tests for Review Focus #5**
 
 Assert policy has no domain attribute, validates non-empty/token-safe cookie names, defaults path `/`, SameSite.LAX and explicit secure flag.
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 Run:
 
@@ -537,17 +537,17 @@ python -m pytest   tests/compatibility/test_backend_session_http_characterizatio
 
 Expected: FAIL because HTTP compatibility package does not exist.
 
-- [ ] **Step 5: Implement pure compatibility Services/VO/Composites**
+- [x] **Step 5: Implement pure compatibility Services/VO/Composites**
 
 Do not import FastAPI/Starlette here. These services operate on plain mappings and typed dispositions.
 
-- [ ] **Step 6: Run GREEN**
+- [x] **Step 6: Run GREEN**
 
 Run the Step 4 command.
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/gomazon_webasyst/compatibility/webasyst/auth_http   tests/compatibility/test_backend_session_http_characterization.py   tests/unit/test_backend_auth_cookie_services.py
@@ -594,7 +594,7 @@ Cookie application:
 - DeletePersistentCookie -> delete same cookie/path/security.
 - Keep variants -> no header mutation.
 
-- [ ] **Step 1: Write failing composition tests**
+- [x] **Step 1: Write failing composition tests**
 
 ```python
 def test_bridge_composition_reuses_existing_auth_use_cases() -> None:
@@ -613,11 +613,11 @@ def test_bridge_composition_reuses_existing_auth_use_cases() -> None:
 
 Also assert disabled setting produces `PersistentLoginMode.DISABLED`, and invalid empty cookie name raises at composition creation.
 
-- [ ] **Step 2: Write failing HTTP normalization tests**
+- [x] **Step 2: Write failing HTTP normalization tests**
 
 Use a Starlette/FastAPI `Request` fixture with cookies/User-Agent and assert exact `BackendAuthHttpCredentialState` variants. Do not exercise auth use cases here.
 
-- [ ] **Step 3: Write failing cookie application tests for Review Focus #5**
+- [x] **Step 3: Write failing cookie application tests for Review Focus #5**
 
 ```python
 def test_session_cookie_is_host_only_session_cookie_with_security_policy() -> None:
@@ -642,7 +642,7 @@ def test_session_cookie_is_host_only_session_cookie_with_security_policy() -> No
 
 Also pin persistent set Max-Age + Expires, clear operations, and Keep producing no Set-Cookie.
 
-- [ ] **Step 4: Assert no production auth router is mounted**
+- [x] **Step 4: Assert no production auth router is mounted**
 
 ```python
 def test_main_does_not_mount_backend_session_router() -> None:
@@ -651,7 +651,7 @@ def test_main_does_not_mount_backend_session_router() -> None:
     assert "create_backend_session_router" not in source
 ```
 
-- [ ] **Step 5: Run RED**
+- [x] **Step 5: Run RED**
 
 Run:
 
@@ -661,17 +661,17 @@ python -m pytest   tests/unit/test_backend_session_bridge_container.py   tests/u
 
 Expected: FAIL because bridge composition/presentation helper does not exist.
 
-- [ ] **Step 6: Implement composition/settings/container/presentation helpers**
+- [x] **Step 6: Implement composition/settings/container/presentation helpers**
 
 Do not modify `main.py`.
 
-- [ ] **Step 7: Run GREEN**
+- [x] **Step 7: Run GREEN**
 
 Run the Step 5 command.
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/gomazon_webasyst/composition/backend_session_bridge.py   src/gomazon_webasyst/presentation/http/backend_session.py   src/gomazon_webasyst/composition/settings.py   src/gomazon_webasyst/composition/container.py   tests/unit/test_backend_session_bridge_container.py   tests/unit/test_backend_session_http_helpers.py   tests/unit/test_auth_container.py
@@ -691,7 +691,7 @@ git commit -m "feat: wire backend session http bridge"
   - `POST /fixture/logout`.
 - These fixture routes are not imported by production code.
 
-- [ ] **Step 1: Seed a real backend user**
+- [x] **Step 1: Seed a real backend user**
 
 Use the existing characterization pattern:
 
@@ -708,7 +708,7 @@ session.add(
 )
 ```
 
-- [ ] **Step 2: Build test-only login/current/logout endpoints**
+- [x] **Step 2: Build test-only login/current/logout endpoints**
 
 Login endpoint:
 - constructs `BackendPasswordCredentials` from fixture constants;
@@ -728,7 +728,7 @@ Logout endpoint:
 - plans/applies clear mutations;
 - returns 204.
 
-- [ ] **Step 3: Write the full persistent-login browser flow**
+- [x] **Step 3: Write the full persistent-login browser flow**
 
 Verify in one coherent scenario:
 
@@ -742,23 +742,23 @@ Verify in one coherent scenario:
 8. POST logout clears both cookies.
 9. Subsequent GET current returns 401.
 
-- [ ] **Step 4: Add session-only preservation scenario**
+- [x] **Step 4: Add session-only preservation scenario**
 
 Login persistently once, then login again with `RememberIntent.SESSION_ONLY` and assert the existing `auth_token` value is unchanged.
 
 This pins ADR-025 at the HTTP boundary.
 
-- [ ] **Step 5: Add persistent-disabled scenario**
+- [x] **Step 5: Add persistent-disabled scenario**
 
 Build a second container/bridge with `persistent_login_enabled=False`; present a stale session cookie plus a valid legacy `auth_token`; assert current-subject resolution returns unauthenticated, clears only the stale session credential, and emits no persistent cookie mutation.
 
-- [ ] **Step 6: Run RED/GREEN**
+- [x] **Step 6: Run RED/GREEN**
 
 Run: `python -m pytest tests/integration/test_backend_session_http_bridge_flow.py -v`
 
 Expected after implementation: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add tests/integration/test_backend_session_http_bridge_flow.py
@@ -777,7 +777,7 @@ git commit -m "test: verify backend session http bridge flow"
 **Interfaces:**
 - No new runtime interface; this task pins the architecture and records verification evidence.
 
-- [ ] **Step 1: Add application dependency guards**
+- [x] **Step 1: Add application dependency guards**
 
 Reject the following below `application/backend_session_bridge`:
 - `fastapi`;
@@ -788,7 +788,7 @@ Reject the following below `application/backend_session_bridge`:
 - `PHPSESSID`;
 - `set_cookie` / `delete_cookie`.
 
-- [ ] **Step 2: Add auth-contract regression guards**
+- [x] **Step 2: Add auth-contract regression guards**
 
 ```python
 def test_password_credentials_do_not_gain_remember_transport_state() -> None:
@@ -806,11 +806,11 @@ def test_bridge_does_not_claim_php_session_interoperability() -> None:
     assert "PHPSESSID" not in bridge_sources
 ```
 
-- [ ] **Step 3: Add presentation scope guard**
+- [x] **Step 3: Add presentation scope guard**
 
 Assert `main.py` still mounts contacts + legacy API execution only and contains no backend-session/login/logout router registration.
 
-- [ ] **Step 4: Run focused verification**
+- [x] **Step 4: Run focused verification**
 
 ```bash
 python -m pytest   tests/unit/test_backend_session_bridge_contracts.py   tests/unit/test_backend_current_subject_flow.py   tests/unit/test_backend_password_login_flow.py   tests/unit/test_backend_logout_flow.py   tests/unit/test_backend_auth_cookie_services.py   tests/unit/test_backend_session_bridge_container.py   tests/unit/test_backend_session_http_helpers.py   tests/compatibility/test_backend_session_http_characterization.py   tests/integration/test_backend_session_http_bridge_flow.py   tests/architecture/test_backend_session_bridge_taxonomy.py   tests/architecture/test_backend_session_bridge_boundaries.py   tests/architecture/test_no_optional_result_contracts.py -v
@@ -818,7 +818,7 @@ python -m pytest   tests/unit/test_backend_session_bridge_contracts.py   tests/u
 
 Expected: PASS.
 
-- [ ] **Step 5: Run complete verification**
+- [x] **Step 5: Run complete verification**
 
 ```bash
 python -m compileall -q src tests
@@ -827,7 +827,7 @@ python -m pytest -v
 
 Expected: compile success and zero test failures.
 
-- [ ] **Step 6: Inspect scope against main**
+- [x] **Step 6: Inspect scope against main**
 
 Run:
 
@@ -845,7 +845,7 @@ Confirm no:
 - Redis/Supabase adapter;
 - `remember` field in primary password credentials.
 
-- [ ] **Step 7: Update this plan with exact verification evidence**
+- [x] **Step 7: Update this plan with exact verification evidence**
 
 Append:
 - branch SHA;
@@ -854,7 +854,7 @@ Append:
 - statement that no production auth route was mounted;
 - statement that bridge is ready for the OAuth authorization/consent slice.
 
-- [ ] **Step 8: Commit completion record**
+- [x] **Step 8: Commit completion record**
 
 ```bash
 git add tests/architecture/test_backend_session_bridge_boundaries.py   tests/architecture/test_dependency_boundaries.py   tests/architecture/test_no_optional_result_contracts.py   docs/superpowers/plans/2026-09-19-backend-session-http-bridge.md   AGENTS.md
@@ -880,3 +880,33 @@ Before integration, the feature-branch tip must prove all of the following:
 - no `PHPSESSID` compatibility is claimed;
 - no standalone auth route is mounted in production;
 - no OAuth authorization/consent logic entered this branch.
+
+
+## Implementation Status
+
+Implemented on `feature/backend-session-http-bridge`.
+
+Verified implementation head: `78928b7de7668fdf26d1956c735219ed8a97ceaf`.
+
+Fresh GitHub Actions verification on that implementation head:
+
+- Python 3.12 compile source tree: **success**.
+- Full pytest suite: **452 passed, 0 failed, 0 skipped** (2 existing FastAPI/Starlette TestClient deprecation warnings).
+- No standalone production login/logout/current-user route was mounted.
+- `main.py` was not modified by this slice.
+- The bridge is ready to be consumed by the next OAuth authorization/consent slice.
+
+Implementation notes confirmed by the completed TDD cycle:
+
+1. valid runtime session short-circuits persistent restore;
+2. stale/malformed session may fall back to persistent credential and issue a replacement session credential;
+3. persistent-login disabled mode never invokes restore and never mutates existing `auth_token`;
+4. session-only password login preserves existing persistent transport;
+5. persistent issuance failure leaves successful primary authentication successful;
+6. logout is idempotent and clears both browser credential transports;
+7. legacy PHP-falsy `auth_token` values are normalized before persistent strategies;
+8. persistent cookie refresh carries both `Max-Age` and absolute UTC `Expires`;
+9. Python session transport remains host-only `gomazon_session` with no `PHPSESSID` interoperability;
+10. real SQLite + ASGI fixture flow covers login, current-subject resolution, persistent restore and logout.
+
+Task 7 initially exposed an `httpx` test-cookie domain/path conflict caused by manually injected unscoped cookies. The test harness was corrected to send stale credentials through an explicit request `Cookie` header; production cookie behavior was unchanged.
