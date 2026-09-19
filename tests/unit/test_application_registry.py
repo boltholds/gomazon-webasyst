@@ -35,6 +35,7 @@ def _app(
         id=AppId(app_id),
         name=app_id.title(),
         capabilities=ApplicationCapabilities(system=system),
+        framework_system=system,
     )
 
 
