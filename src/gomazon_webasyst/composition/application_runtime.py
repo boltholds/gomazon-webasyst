@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypeAlias
+from typing import Protocol, TypeAlias
 
+from gomazon_webasyst.application.access_values import AppId
 from gomazon_webasyst.application.events.composites.dispatcher import EventDispatcher
 from gomazon_webasyst.application.events.services.pattern_matcher import EventPatternMatcher
 from gomazon_webasyst.application.ports.api_method_registry import ApiMethodRegistry
@@ -10,6 +11,7 @@ from gomazon_webasyst.application.ports.dispatch_registration import (
 )
 from gomazon_webasyst.application.ports.dispatch_registry import DispatchRegistry
 from gomazon_webasyst.application.ports.event_handlers import EventHandlerRegistry
+from gomazon_webasyst.application.ports.event_publisher import EventPublisher
 from gomazon_webasyst.application.ports.installed_application_catalog import (
     InstalledApplicationCatalog,
     InstalledApplicationSnapshot,
@@ -64,13 +66,26 @@ class ProvidedRuntimeModules:
     modules: tuple[ApplicationRuntimeModule, ...]
 
 
+class RuntimeModuleFactory(Protocol):
+    def __call__(
+        self,
+        event_publisher: EventPublisher,
+    ) -> ApplicationRuntimeModule: ...
+
+
 @dataclass(slots=True, frozen=True)
-class InstalledKnownRuntimeModules:
-    modules: tuple[ApplicationRuntimeModule, ...]
+class KnownRuntimeModuleFactory:
+    app_id: AppId
+    build: RuntimeModuleFactory
+
+
+@dataclass(slots=True, frozen=True)
+class InstalledKnownRuntimeModuleFactories:
+    factories: tuple[KnownRuntimeModuleFactory, ...]
 
 
 RuntimeModuleSource: TypeAlias = (
-    ProvidedRuntimeModules | InstalledKnownRuntimeModules
+    ProvidedRuntimeModules | InstalledKnownRuntimeModuleFactories
 )
 
 
@@ -111,6 +126,10 @@ class ApplicationRuntimeInitializationError(RuntimeError):
         super().__init__(f"application runtime linking rejected: {details}")
 
 
+class RuntimeModuleFactoryMismatch(RuntimeError):
+    pass
+
+
 class ApplicationRuntimeBootstrap:
     def __init__(
         self,
@@ -118,6 +137,7 @@ class ApplicationRuntimeBootstrap:
         installed_applications: InstalledApplicationCatalog,
         plugin_source: PluginCatalogSource,
         module_source: RuntimeModuleSource,
+        event_publisher: EventPublisher,
         api_methods: ApiMethodRegistry,
         dispatch: DispatchRegistrationSink,
         events: EventHandlerRegistry,
@@ -125,6 +145,7 @@ class ApplicationRuntimeBootstrap:
         self._installed_applications = installed_applications
         self._plugin_source = plugin_source
         self._module_source = module_source
+        self._event_publisher = event_publisher
         self._api_methods = api_methods
         self._dispatch = dispatch
         self._events = events
@@ -179,16 +200,29 @@ class ApplicationRuntimeBootstrap:
     ) -> tuple[ApplicationRuntimeModule, ...]:
         if isinstance(self._module_source, ProvidedRuntimeModules):
             return self._module_source.modules
-        if isinstance(self._module_source, InstalledKnownRuntimeModules):
+
+        if isinstance(
+            self._module_source,
+            InstalledKnownRuntimeModuleFactories,
+        ):
             installed_ids = {
                 application.app_id
                 for application in application_snapshot.applications
             }
-            return tuple(
-                module
-                for module in self._module_source.modules
-                if module.app_id in installed_ids
-            )
+            modules: list[ApplicationRuntimeModule] = []
+            for known in self._module_source.factories:
+                if known.app_id not in installed_ids:
+                    continue
+                module = known.build(self._event_publisher)
+                if module.app_id != known.app_id:
+                    raise RuntimeModuleFactoryMismatch(
+                        "runtime module factory identity mismatch: "
+                        f"declared={known.app_id.value}, "
+                        f"built={module.app_id.value}"
+                    )
+                modules.append(module)
+            return tuple(modules)
+
         raise AssertionError("unsupported runtime module source")
 
 
@@ -198,6 +232,7 @@ class ApplicationRuntimeComponents:
     dispatch_registry: DispatchRegistry
     dispatch_registration: DispatchRegistrationSink
     event_registry: EventHandlerRegistry
+    event_publisher: EventPublisher
     event_dispatcher: EventDispatcher
     bootstrap: ApplicationRuntimeBootstrap
 
@@ -213,10 +248,12 @@ def create_application_runtime_components(
     events = InMemoryEventHandlerRegistry(
         EventPatternMatcher(RejectUnsupportedLegacyRegexMatcher())
     )
+    event_dispatcher = EventDispatcher(events)
     bootstrap = ApplicationRuntimeBootstrap(
         installed_applications=installed_applications,
         plugin_source=plugin_source,
         module_source=module_source,
+        event_publisher=event_dispatcher,
         api_methods=api_methods,
         dispatch=dispatch,
         events=events,
@@ -226,14 +263,23 @@ def create_application_runtime_components(
         dispatch_registry=dispatch,
         dispatch_registration=dispatch,
         event_registry=events,
-        event_dispatcher=EventDispatcher(events),
+        event_publisher=event_dispatcher,
+        event_dispatcher=event_dispatcher,
         bootstrap=bootstrap,
     )
 
 
-def create_default_application_runtime_modules(
+def create_default_application_runtime_module_factories(
     session_factory,
-) -> tuple[ApplicationRuntimeModule, ...]:
+) -> tuple[KnownRuntimeModuleFactory, ...]:
     from gomazon_webasyst.composition.team import create_team_runtime_module
 
-    return (create_team_runtime_module(session_factory),)
+    return (
+        KnownRuntimeModuleFactory(
+            app_id=AppId("team"),
+            build=lambda event_publisher: create_team_runtime_module(
+                session_factory,
+                event_publisher=event_publisher,
+            ),
+        ),
+    )
