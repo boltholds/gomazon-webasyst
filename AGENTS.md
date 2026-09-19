@@ -29,6 +29,9 @@ Authoritative companion artifacts:
 - Team first vertical slice design: `docs/superpowers/specs/2026-09-20-team-first-vertical-slice-design.md`
 - Team groups.getList characterization: `docs/superpowers/specs/2026-09-20-team-groups-get-list-characterization.md`
 - Team first vertical slice plan: `docs/superpowers/plans/2026-09-20-team-first-vertical-slice.md`
+- Team contacts.delete event characterization: `docs/superpowers/specs/2026-09-20-team-contacts-delete-event-characterization.md`
+- Team contacts.delete event design: `docs/superpowers/specs/2026-09-20-team-contacts-delete-event-design.md`
+- Team contacts.delete event plan: `docs/superpowers/plans/2026-09-20-team-contacts-delete-event.md`
 - Official legacy documentation reference: `https://developers.webasyst.com/docs`
 
 ---
@@ -396,6 +399,12 @@ Date: 2026-09-20
 
 Bundled-app compatibility code MUST reuse shared domain policy such as `RightsEvaluator`, but it MUST NOT force a generic repository onto a legacy endpoint when that repository changes observable fields, ordering, or normalization. `team.groups.getList` therefore uses the narrow application-owned `TeamGroupReader` because the generic ACL `GroupRepository.list()` sorts by `type, sort, name` and exposes ACL-normalized data, whereas Webasyst 4.2.0 requires `wa_group` fields `id,name,cnt,type,description` ordered only by `sort`. Genuine legacy SQL NULL values are normalized into explicit application variants and projected back to `null` only at the Webasyst compatibility edge.
 
+### ADR-052 — Nested event publication uses an application-owned publisher and runtime factories built after dispatcher creation
+Status: accepted
+Date: 2026-09-20
+
+Event handlers that emit another event MUST depend on the application-owned `EventPublisher` port, never on a concrete registry/dispatcher implementation, global event bus, or composition singleton. `EventDispatcher` implements the publisher port by routing publication through the same already-linked event registry. Bundled application runtime modules that require runtime services during handler construction are created through explicit `KnownRuntimeModuleFactory(AppId, build)` declarations only after the dispatcher/publisher exists and after the canonical installed-app snapshot is available. A factory is invoked only when its declared app is installed, and startup rejects a factory whose produced module has a different `AppId`. This preserves installed-aware execution without late-bound mutable service locators or dynamic imports.
+
 ---
 
 ## Target dependency direction
@@ -619,6 +628,8 @@ The first auth slice is backend password authentication plus session create/reso
 - compatibility result-key formatting and `array_keys` padding remain Webasyst adapters, not event-core rules;
 - raw PCRE event patterns are isolated behind a compatibility matcher boundary and MUST NOT become arbitrary unbounded regex evaluation in application code;
 - installed-but-unmigrated apps/plugins remain visible in catalogs but non-executable;
+- nested event emission is synchronous through the application-owned `EventPublisher`; handlers MUST NOT reach into concrete event registries or global buses;
+- known bundled runtime modules that need runtime services are built from explicit `KnownRuntimeModuleFactory` declarations after EventDispatcher creation and only for canonically installed apps;
 - plugin install/update/uninstall, settings UI, templates/assets, widgets, cron execution, CLI execution and live runtime reload are out of the first runtime slice.
 
 ---
@@ -634,7 +645,9 @@ The first auth slice is backend password authentication plus session create/reso
 - dotted Team group rights preserve the existing exact-then-`.all` fallback policy;
 - nullable `wa_group.description` is normalized at the SQL adapter into explicit present/missing variants and converted back to JSON `null` only by the Webasyst Team API projector;
 - legacy API query transport preserves repeated keys as immutable tuples so PHP-style `filter[type][]` arrays are not collapsed;
-- `team.users.getList`, Team UI/Smarty, invitations, calendars, schedules, mutations, plugins, and Team event relays are not covered by this first bundled-app slice.
+- `contacts.delete -> team.contacts_delete` is now source-characterized and implemented as a synchronous Team relay that republishes the exact same payload object and returns no outer result;
+- nested Team event results are intentionally ignored by the relay, matching the missing PHP `return` in `teamContactsDeleteHandler::execute()`;
+- `team.users.getList`, Team UI/Smarty, invitations, calendars, schedules, mutations, plugins, and other Team event handlers remain later slices.
 
 ---
 
@@ -764,6 +777,7 @@ Cover DB wiring, ASGI compatibility flow, auth/session composition, persistent-l
 34. Resolve events only through explicit `EventHandlerRegistry` definitions and preserve characterized handler ordering/first-result behavior; never scan/execute PHP handlers at request time.
 35. Register bundled Python application runtime modules only through explicit composition factories and select them from the canonical installed-app snapshot; never package-scan or import from an app id.
 36. Reuse shared application policy across bundled apps, but introduce a narrow consumer-specific read port when a generic repository would alter source-characterized fields, ordering, or null normalization.
+37. Publish nested application events only through the application-owned `EventPublisher`; bundled handlers must not depend on concrete event registries/dispatchers, and runtime services must be injected through explicit installed-aware module factories.
 
 ---
 
