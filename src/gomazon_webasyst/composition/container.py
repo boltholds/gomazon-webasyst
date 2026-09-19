@@ -53,13 +53,13 @@ from gomazon_webasyst.composition.application_runtime import (
     DefaultRuntimeModulePlan,
     ExplicitRuntimeModulePlan,
     FilesystemPluginCatalogSource,
-    InstalledKnownRuntimeModules,
+    InstalledKnownRuntimeModuleFactories,
     PluginCatalogSource,
     ProvidedPluginCatalogSource,
     ProvidedRuntimeModules,
     RuntimeModulePlan,
     create_application_runtime_components,
-    create_default_application_runtime_modules,
+    create_default_application_runtime_module_factories,
 )
 from gomazon_webasyst.composition.auth import create_auth_use_cases
 from gomazon_webasyst.composition.backend_session_bridge import (
@@ -219,8 +219,10 @@ def create_container_with_registries(
     uow_factory = create_uow_factory(engine)
     session_factory = create_session_factory(engine)
     if isinstance(runtime_plan, DefaultRuntimeModulePlan):
-        module_source = InstalledKnownRuntimeModules(
-            create_default_application_runtime_modules(session_factory)
+        module_source = InstalledKnownRuntimeModuleFactories(
+            create_default_application_runtime_module_factories(
+                session_factory
+            )
         )
     else:
         assert isinstance(runtime_plan, ExplicitRuntimeModulePlan)
