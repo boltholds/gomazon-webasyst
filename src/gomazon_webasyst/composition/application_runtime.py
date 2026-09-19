@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, TypeAlias
 
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
 from gomazon_webasyst.application.api_execution.entities.method_definition import (
     ApiMethodDefinition,
 )
@@ -86,7 +88,7 @@ class RuntimeModuleFactory(Protocol):
 class RuntimeModuleFactoryBuilder(Protocol):
     def create(
         self,
-        session_factory: object,
+        session_factory: async_sessionmaker[AsyncSession],
     ) -> RuntimeModuleFactory: ...
 
 
@@ -108,7 +110,7 @@ class StaticRuntimeModuleFactoryBuilder:
 
     def create(
         self,
-        session_factory: object,
+        session_factory: async_sessionmaker[AsyncSession],
     ) -> RuntimeModuleFactory:
         return StaticRuntimeModuleFactory(self.modules)
 
