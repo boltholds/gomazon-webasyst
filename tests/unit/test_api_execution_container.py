@@ -9,6 +9,9 @@ from gomazon_webasyst.application.application_registry import (
 from gomazon_webasyst.compatibility.webasyst.api.services.license import (
     AllowAllAppLicensePolicy,
 )
+from gomazon_webasyst.composition.applications import (
+    create_default_application_registry,
+)
 from gomazon_webasyst.composition.api_execution import (
     create_api_execution_components,
     create_default_api_execution_components,
@@ -18,13 +21,15 @@ from gomazon_webasyst.infrastructure.api_execution.method_registry import (
 )
 
 
-def test_default_api_execution_composition_uses_empty_explicit_registries() -> None:
+def test_default_api_execution_composition_uses_injected_registry() -> None:
+    application_registry = create_default_application_registry()
     components = create_default_api_execution_components(
         session_factory=object(),
         resolve_api_access_token=object(),
         api_enabled=True,
         disable_message="",
         force_https=False,
+        application_registry=application_registry,
     )
 
     assert isinstance(components.pipeline, ApiExecutionPipeline)
@@ -32,11 +37,8 @@ def test_default_api_execution_composition_uses_empty_explicit_registries() -> N
         components.method_registry,
         InMemoryApiMethodRegistry,
     )
-    assert isinstance(
-        components.application_registry,
-        StaticApplicationRegistry,
-    )
-    assert components.application_registry.list_catalog_apps() == ()
+    assert isinstance(application_registry, StaticApplicationRegistry)
+    assert components.application_registry is application_registry
 
 
 def test_custom_composition_preserves_registry_and_policy_identity() -> None:
