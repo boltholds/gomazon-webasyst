@@ -99,6 +99,16 @@ def test_https_precondition_redirects_before_pipeline() -> None:
     assert pipeline.requests == []
 
 
+def test_invalid_explicit_format_uses_legacy_200_error_response() -> None:
+    client, pipeline = client_for(components())
+    response = client.get(
+        "/api.php/shop/ping?access_token=abc&format=yaml",
+    )
+    assert response.status_code == 200
+    assert response.json()["error"] == "invalid_request"
+    assert pipeline.requests == []
+
+
 def test_xml_format_is_rendered_by_compatibility_renderer() -> None:
     client, _ = client_for(components())
     response = client.get(
