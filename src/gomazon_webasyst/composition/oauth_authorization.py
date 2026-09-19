@@ -12,9 +12,13 @@ from gomazon_webasyst.application.oauth_authorization.composites.authorization i
 from gomazon_webasyst.application.oauth_authorization.composites.revoke_authentication import (
     OAuthRevokeAuthenticationFlow,
 )
+from gomazon_webasyst.application.oauth_authorization.services.app_catalog import (
+    RegistryBackedOAuthConsentAppCatalog,
+)
 from gomazon_webasyst.application.oauth_authorization.services.scope import (
     OAuthConsentScopeService,
 )
+from gomazon_webasyst.application.ports.application_registry import ApplicationRegistry
 from gomazon_webasyst.application.ports.oauth_consent_apps import OAuthConsentAppCatalog
 from gomazon_webasyst.application.ports.oauth_redirect_policy import OAuthRedirectPolicy
 from gomazon_webasyst.compatibility.webasyst.api.composites.response_renderer import (
@@ -71,9 +75,6 @@ from gomazon_webasyst.infrastructure.access_control.sqlalchemy.unit_of_work impo
 )
 from gomazon_webasyst.infrastructure.api_execution.activity import (
     SQLAlchemyApiUserActivityStore,
-)
-from gomazon_webasyst.infrastructure.oauth_authorization.app_catalog import (
-    InMemoryOAuthConsentAppCatalog,
 )
 
 
@@ -178,6 +179,7 @@ def create_default_oauth_authorization_components(
     preconditions: LegacyApiTransportPreconditionService,
     credential_extractor: LegacyApiCredentialExtractionService,
     framework_response_renderer: LegacyApiResponseRenderer,
+    application_registry: ApplicationRegistry,
     csrf_generator: Callable[[], str] = _csrf_generator,
 ) -> OAuthAuthorizationComponents:
     return create_oauth_authorization_components(
@@ -191,7 +193,9 @@ def create_default_oauth_authorization_components(
         preconditions=preconditions,
         credential_extractor=credential_extractor,
         framework_response_renderer=framework_response_renderer,
-        consent_catalog=InMemoryOAuthConsentAppCatalog(()),
+        consent_catalog=RegistryBackedOAuthConsentAppCatalog(
+            application_registry
+        ),
         redirect_policy=LegacyUnregisteredRedirectPolicy(),
         csrf_generator=csrf_generator,
     )
