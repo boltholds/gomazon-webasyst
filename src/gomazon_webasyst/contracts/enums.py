@@ -538,3 +538,47 @@ class OAuthControllerErrorCode(EnumStr):
     INVALID_REQUEST = "invalid_request"
     UNSUPPORTED_GRANT_TYPE = "unsupported_grant_type"
     INVALID_GRANT = "invalid_grant"
+
+
+class ApplicationUiVersion(EnumStr):
+    LEGACY_1_3 = "1.3"
+    UI_2_0 = "2.0"
+
+
+class ApplicationHeaderAccessKind(EnumStr):
+    PUBLIC = "public"
+    REQUIRES_PERMISSION = "requires_permission"
+
+
+class PluginIntegrationKind(EnumStr):
+    NONE = "none"
+    EXTERNAL_CALENDAR = "external_calendar"
+
+
+class ExternalCalendarIntegrationLevel(EnumStr):
+    FULL = "full"
+    SUBSCRIPTION = "subscription"
+
+
+class PluginHandlerKind(EnumStr):
+    OWNED_APP = "owned_app"
+    CROSS_APPLICATION = "cross_application"
+
+
+class ApplicationResolutionKind(EnumStr):
+    ENABLED = "enabled"
+    DISABLED = "disabled"
+    UNKNOWN = "unknown"
+
+
+class PluginResolutionKind(EnumStr):
+    ENABLED = "enabled"
+    DISABLED = "disabled"
+    OWNER_DISABLED = "owner_disabled"
+    UNKNOWN = "unknown"
+
+
+class PluginListResultKind(EnumStr):
+    LISTED = "listed"
+    OWNER_DISABLED = "owner_disabled"
+    OWNER_UNKNOWN = "owner_unknown"
