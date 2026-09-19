@@ -19,6 +19,12 @@ class EventDispatcher:
     def __init__(self, registry: EventHandlerRegistry) -> None:
         self._registry = registry
 
+    async def publish(
+        self,
+        request: EventDispatchRequest,
+    ) -> EventDispatchReport:
+        return await self.dispatch(request)
+
     async def dispatch(
         self,
         request: EventDispatchRequest,
