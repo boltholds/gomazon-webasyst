@@ -150,6 +150,43 @@ async def test_issue_authorization_code_uses_policy_lifetime_persists_and_commit
 
 
 @pytest.mark.asyncio
+async def test_issue_authorization_code_retries_collision_and_commits_first_success() -> None:
+    first = AuthorizationCode("c" * 32)
+    second = AuthorizationCode("d" * 32)
+
+    class SequencedGenerator:
+        def __init__(self) -> None:
+            self.codes = [first, second]
+
+        def authorization_code(self) -> AuthorizationCode:
+            return self.codes.pop(0)
+
+        def access_token(self):
+            raise AssertionError("token generation belongs to shared issuer")
+
+    def create_result(record):
+        if record.code == first:
+            return AuthorizationCodeCreateCollision(code=first)
+        return AuthorizationCodeStored(record=record)
+
+    codes = FakeCodes(create_result=create_result)
+    uow = FakeUow(codes)
+    use_case = IssueAuthorizationCode(
+        uow_factory=lambda: uow,
+        generator=SequencedGenerator(),
+        lifetime_policy=Lifetime180(),
+        clock=lambda: NOW,
+    )
+
+    result = await use_case(SUBJECT, CLIENT, SCOPE)
+
+    assert isinstance(result, AuthorizationCodeIssued)
+    assert result.record.code == second
+    assert [record.code for record in codes.created] == [first, second]
+    assert uow.commits == 1
+
+
+@pytest.mark.asyncio
 async def test_issue_authorization_code_collision_is_explicit_rejection_without_commit() -> None:
     codes = FakeCodes(create_result=AuthorizationCodeCreateCollision(code=CODE))
     uow = FakeUow(codes)
