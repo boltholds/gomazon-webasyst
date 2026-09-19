@@ -24,6 +24,7 @@ Authoritative companion artifacts:
 - Installed application registry/discovery design: `docs/superpowers/specs/2026-09-19-installed-application-registry-discovery-design.md`
 - Installed application registry/discovery plan: `docs/superpowers/plans/2026-09-19-installed-application-registry-discovery.md`
 - Application runtime/events/plugins design: `docs/superpowers/specs/2026-09-19-application-runtime-events-plugins-design.md`
+- Application runtime/events/plugins characterization: `docs/superpowers/specs/2026-09-19-application-runtime-events-plugins-characterization.md`
 - Application runtime/events/plugins plan: `docs/superpowers/plans/2026-09-19-application-runtime-events-plugins.md`
 - Official legacy documentation reference: `https://developers.webasyst.com/docs`
 
@@ -751,4 +752,5 @@ The foundation is considered proven when CI confirms:
 - runtime session-state provider selection passes registry/composition/architecture tests;
 - API credential core passes contracts/policy/repository/UoW/issue/exchange/resolve/revoke/characterization/SQLite vertical-flow tests;
 - installed application registry/discovery slice is verified complete: exact 4.2.0 characterization is pinned to release commit `39c267a2fabfb0cd6d94f4dd86b23b4750328dd5`, obsolete duplicate app directories are removed, API/OAuth share one canonical catalog, and the completion head passed full CI with 693 tests;
+- application runtime/events/plugins slice is verified complete: enabled plugin metadata is discovered without PHP execution, executable app/plugin capabilities require explicit Python runtime modules, event dispatch preserves characterized ordering/first-result/failure continuation, runtime linking is startup-only and atomic, and the verification head passed full CI with 782 tests;
 - every new architectural decision is reflected here.
