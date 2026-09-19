@@ -16,6 +16,6 @@ Date: 2026-09-20
 - [x] Integration-test nested dispatch into a linked Python handler.
 - [x] Test factory not invoked for an uninstalled app.
 - [x] Test factory identity mismatch fails startup.
-- [ ] Add source-characterization executable fixture.
-- [ ] Update architecture record/ADR.
+- [x] Add source-characterization executable fixture.
+- [x] Update architecture record/ADR.
 - [ ] Run final full CI and record exact test count.
