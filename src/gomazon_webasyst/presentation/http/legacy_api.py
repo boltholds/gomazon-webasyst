@@ -113,7 +113,7 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
                         {},
                     ),
                     response_format,
-                    transport.callback,
+                    transport.transport.callback,
                 )
             )
         if isinstance(precondition, ApiHttpsRequired):
@@ -127,7 +127,7 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
                 components.response_renderer.render(
                     ApiExecutionRejected(error=format_result.error),
                     ApiResponseFormat.JSON,
-                    transport.callback,
+                    transport.transport.callback,
                 )
             )
 
@@ -145,7 +145,7 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
                         {},
                     ),
                     response_format,
-                    transport.callback,
+                    transport.transport.callback,
                 )
             )
         if isinstance(target_result, ApiTargetReservedEndpoint):
@@ -158,7 +158,7 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
                         {"endpoint": target_result.endpoint},
                     ),
                     response_format,
-                    callback,
+                    transport.callback,
                 )
             )
 
@@ -178,7 +178,7 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
                         {},
                     ),
                     response_format,
-                    callback,
+                    transport.callback,
                 )
             )
 
@@ -210,7 +210,7 @@ def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
             components.response_renderer.render(
                 result,
                 response_format,
-                callback,
+                transport.callback,
             )
         )
 
