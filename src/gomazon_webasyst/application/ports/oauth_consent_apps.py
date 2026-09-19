@@ -34,4 +34,7 @@ OAuthConsentApplicationResolution: TypeAlias = (
 
 
 class OAuthConsentAppCatalog(Protocol):
-    def resolve(self, app_id: AppId) -> OAuthConsentApplicationResolution: ...
+    async def resolve(
+        self,
+        app_id: AppId,
+    ) -> OAuthConsentApplicationResolution: ...

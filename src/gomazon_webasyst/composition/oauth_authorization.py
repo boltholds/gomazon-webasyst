@@ -15,6 +15,9 @@ from gomazon_webasyst.application.oauth_authorization.composites.revoke_authenti
 from gomazon_webasyst.application.oauth_authorization.services.scope import (
     OAuthConsentScopeService,
 )
+from gomazon_webasyst.application.ports.installed_application_catalog import (
+    InstalledApplicationCatalog,
+)
 from gomazon_webasyst.application.ports.oauth_consent_apps import OAuthConsentAppCatalog
 from gomazon_webasyst.application.ports.oauth_redirect_policy import OAuthRedirectPolicy
 from gomazon_webasyst.compatibility.webasyst.api.composites.response_renderer import (
@@ -73,7 +76,10 @@ from gomazon_webasyst.infrastructure.api_execution.activity import (
     SQLAlchemyApiUserActivityStore,
 )
 from gomazon_webasyst.infrastructure.oauth_authorization.app_catalog import (
-    InMemoryOAuthConsentAppCatalog,
+    InstalledApplicationOAuthConsentAppCatalog,
+)
+from gomazon_webasyst.compatibility.webasyst.oauth.services.consent_application_projector import (
+    LegacyOAuthConsentApplicationProjector,
 )
 
 
@@ -178,6 +184,7 @@ def create_default_oauth_authorization_components(
     preconditions: LegacyApiTransportPreconditionService,
     credential_extractor: LegacyApiCredentialExtractionService,
     framework_response_renderer: LegacyApiResponseRenderer,
+    installed_application_catalog: InstalledApplicationCatalog,
     csrf_generator: Callable[[], str] = _csrf_generator,
 ) -> OAuthAuthorizationComponents:
     return create_oauth_authorization_components(
@@ -191,7 +198,10 @@ def create_default_oauth_authorization_components(
         preconditions=preconditions,
         credential_extractor=credential_extractor,
         framework_response_renderer=framework_response_renderer,
-        consent_catalog=InMemoryOAuthConsentAppCatalog(()),
+        consent_catalog=InstalledApplicationOAuthConsentAppCatalog(
+            installed_application_catalog,
+            LegacyOAuthConsentApplicationProjector(),
+        ),
         redirect_policy=LegacyUnregisteredRedirectPolicy(),
         csrf_generator=csrf_generator,
     )

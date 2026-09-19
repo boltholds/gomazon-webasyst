@@ -140,10 +140,11 @@ def create_container_with_session_state_registry(
     )
     api_credentials = create_api_credential_use_cases(session_factory)
     access = create_access_control_use_cases(session_factory)
+    installed_application_catalog = InMemoryInstalledApplicationCatalog(())
     api_execution = create_default_api_execution_components(
         session_factory=session_factory,
         resolve_api_access_token=api_credentials.resolve_api_access_token,
-        installed_application_catalog=InMemoryInstalledApplicationCatalog(()),
+        installed_application_catalog=installed_application_catalog,
         api_enabled=settings.api_enabled,
         disable_message=settings.api_disable_message,
         force_https=settings.api_force_https,
@@ -159,6 +160,7 @@ def create_container_with_session_state_registry(
         preconditions=api_execution.preconditions,
         credential_extractor=api_execution.credential_extractor,
         framework_response_renderer=api_execution.response_renderer,
+        installed_application_catalog=installed_application_catalog,
     )
     return Container(
         settings=settings,

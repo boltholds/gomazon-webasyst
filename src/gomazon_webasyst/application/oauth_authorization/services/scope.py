@@ -56,7 +56,7 @@ class OAuthConsentScopeService:
         applications = []
 
         for app_id in requested.apps:
-            resolved = self._catalog.resolve(app_id)
+            resolved = await self._catalog.resolve(app_id)
             if isinstance(resolved, OAuthConsentApplicationMissing):
                 continue
             if not isinstance(resolved, OAuthConsentApplicationResolved):
