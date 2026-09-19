@@ -1,6 +1,6 @@
 # Installed Application Registry & Legacy Discovery — Design Specification
 
-Status: accepted baseline
+Status: implemented
 Date: 2026-09-19
 Repository: `boltholds/gomazon-webasyst`
 
