@@ -1,0 +1,45 @@
+FIXTURE_KIND: source-characterized
+SOURCE_COMMIT: 39c267a2fabfb0cd6d94f4dd86b23b4750328dd5
+
+WA_CONTACT_MODEL_DELETE:
+source = wa-system/webasyst/lib/models/waContact.model.php
+scalar_id_normalized_to_array_before_event = true
+event_app_id = contacts
+event_name = delete
+event_before_cleanup = true
+event_params_by_reference = true
+
+cleanup_01 = wa_contact_rights negative principal ids
+cleanup_02 = conditional contacts_rights
+cleanup_03 = verification assets by email and wa_contact_data values
+cleanup_04 = wa_contact_settings
+cleanup_05 = wa_app_tokens
+cleanup_06 = wa_contact_emails
+cleanup_07 = wa_user_groups
+cleanup_08 = wa_contact_data
+cleanup_09 = wa_contact_data_text
+cleanup_10 = wa_contact_categories and category counters
+cleanup_11 = wa_contact_events
+cleanup_12 = company_contact_id references set to zero
+cleanup_13 = wa_contact rows
+
+DELETE_BY_ID:
+semantic_missing_result = false
+sql_success_result = true
+
+VERIFICATION_ASSETS:
+email_source = wa_contact_emails.email
+data_source = wa_contact_data.value
+model_constructor_also_purges_expired_globally = true
+
+CATEGORY_RECALC:
+update_uses_inner_join_membership_subquery = true
+zero_remaining_members_keeps_previous_counter = true
+
+NOT_DELETED_BY_WA_CONTACT_MODEL:
+wa_contact_auths = true
+wa_api_tokens = true
+
+PYTHON_SAFETY_BOUNDARY:
+destructive_target_mutable_by_event_handler = false
+event_payload_ids_preserve_order_and_duplicates = true
