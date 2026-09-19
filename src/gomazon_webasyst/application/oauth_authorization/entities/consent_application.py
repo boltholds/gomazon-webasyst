@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from gomazon_webasyst.application.access_values import AppId
+from gomazon_webasyst.application.app_values import AppId
 from gomazon_webasyst.application.oauth_authorization.vo.client import (
     OAuthAppDisplayName,
     OAuthAppIconReference,
