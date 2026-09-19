@@ -40,5 +40,8 @@ def test_team_groups_source_contract_is_pinned() -> None:
         "visibility_operator = >=",
         "visibility_threshold = 0",
         "version = 2.3.4",
+        "type_filter_scalar_trim = true",
+        "explicit_empty_scalar = one_empty_string_item",
+        "missing_filter_type = no_type_filter",
     ):
         assert expected in text
