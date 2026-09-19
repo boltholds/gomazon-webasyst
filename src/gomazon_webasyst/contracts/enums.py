@@ -564,3 +564,8 @@ class RuntimeLinkRejectReason(EnumStr):
     EVENT_HANDLER_CONFLICT = "event_handler_conflict"
     FOREIGN_DISPATCH_TARGET = "foreign_dispatch_target"
     FOREIGN_EVENT_OWNER = "foreign_event_owner"
+
+
+class TeamGroupDescriptionKind(EnumStr):
+    PRESENT = "present"
+    MISSING = "missing"
