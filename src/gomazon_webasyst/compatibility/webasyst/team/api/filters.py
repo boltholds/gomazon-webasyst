@@ -66,7 +66,7 @@ class LegacyTeamApiFilterParser:
         value: object,
     ) -> tuple[TeamAppAccessRequirement, ...]:
         normalized: dict[AppId, TeamAccessLevel] = {}
-        if isinstance(value, Mapping):
+        if isinstance(value, Mapping) and not LegacyTeamApiFilterParser._is_indexed_mapping(value):
             for raw_app_id, raw_level in value.items():
                 if not isinstance(raw_app_id, str) or not raw_app_id:
                     continue
@@ -99,4 +99,13 @@ class LegacyTeamApiFilterParser:
             return value
         if isinstance(value, str):
             return (value,)
+        if isinstance(value, Mapping) and LegacyTeamApiFilterParser._is_indexed_mapping(value):
+            return tuple(value.values())
         return ()
+
+    @staticmethod
+    def _is_indexed_mapping(value: Mapping) -> bool:
+        return bool(value) and all(
+            isinstance(key, str) and key.isdigit()
+            for key in value
+        )
