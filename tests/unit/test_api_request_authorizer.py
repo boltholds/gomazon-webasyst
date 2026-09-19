@@ -2,31 +2,72 @@ import pytest
 
 from gomazon_webasyst.application.access_values import AppId
 from gomazon_webasyst.application.api_credential_values import ApiClientId, ApiScope
-from gomazon_webasyst.application.api_execution.composites.authorization import ApiAuthorizationGranted, ApiAuthorizationRejected
+from gomazon_webasyst.application.api_execution.composites.authorization import (
+    ApiAuthorizationGranted,
+    ApiAuthorizationRejected,
+)
 from gomazon_webasyst.application.api_execution.composites.invocation import ApiPrincipalContext
 from gomazon_webasyst.application.api_execution.services.authorizer import ApiRequestAuthorizer
 from gomazon_webasyst.application.api_execution.vo.method import ApiMethodName, ApiMethodTarget
-from gomazon_webasyst.application.ports.api_app_access import ApiAppAccessDenied, ApiAppAccessGranted
-from gomazon_webasyst.application.ports.app_license import AppLicenseBlocked, AppLicenseGranted
-from gomazon_webasyst.application.ports.installed_apps import InstalledAppMissing, InstalledAppResolved
+from gomazon_webasyst.application.application_registry.entities.installed_application import (
+    InstalledApplication,
+)
+from gomazon_webasyst.application.application_registry.vo.capabilities import (
+    ApplicationCapabilities,
+)
+from gomazon_webasyst.application.application_registry.vo.header_items import (
+    ApplicationHeaderItems,
+)
+from gomazon_webasyst.application.application_registry.vo.icons import ApplicationIconSet
+from gomazon_webasyst.application.application_registry.vo.metadata import (
+    ApplicationDisplayName,
+    ApplicationVendor,
+    ApplicationVersion,
+)
+from gomazon_webasyst.application.ports.api_app_access import (
+    ApiAppAccessDenied,
+    ApiAppAccessGranted,
+)
+from gomazon_webasyst.application.ports.app_license import (
+    AppLicenseBlocked,
+    AppLicenseGranted,
+)
+from gomazon_webasyst.application.ports.installed_application_catalog import (
+    InstalledApplicationMissing,
+    InstalledApplicationResolved,
+)
 from gomazon_webasyst.contracts.enums import ApiFrameworkErrorCode
 
 
 TARGET = ApiMethodTarget(AppId("shop"), ApiMethodName("ping"))
 PRINCIPAL = ApiPrincipalContext(42, ApiClientId("client"), ApiScope.of("shop"))
+APP = InstalledApplication(
+    app_id=TARGET.app_id,
+    display_name=ApplicationDisplayName("Shop"),
+    icons=ApplicationIconSet(()),
+    vendor=ApplicationVendor("webasyst"),
+    version=ApplicationVersion("1.0.0"),
+    capabilities=ApplicationCapabilities(frozenset()),
+    header_items=ApplicationHeaderItems(()),
+)
 
 
-class Directory:
+class Catalog:
     def __init__(self, log, result):
         self.log, self.result = log, result
+
     async def resolve(self, app_id):
         self.log.append("app")
         return self.result
+
+    async def snapshot(self):
+        raise AssertionError("snapshot must not be called during API authorization")
 
 
 class Access:
     def __init__(self, log, result):
         self.log, self.result = log, result
+
     async def authorize(self, contact_id, app_id):
         self.log.append("access")
         return self.result
@@ -35,6 +76,7 @@ class Access:
 class License:
     def __init__(self, log, result):
         self.log, self.result = log, result
+
     async def check(self, app_id):
         self.log.append("license")
         return self.result
@@ -54,7 +96,10 @@ class FailLicense:
 async def test_missing_app_stops_all_later_authorization_stages() -> None:
     log = []
     authorizer = ApiRequestAuthorizer(
-        installed_apps=Directory(log, InstalledAppMissing(app_id=TARGET.app_id)),
+        installed_apps=Catalog(
+            log,
+            InstalledApplicationMissing(app_id=TARGET.app_id),
+        ),
         app_access=FailAccess(),
         license_policy=FailLicense(),
     )
@@ -68,7 +113,7 @@ async def test_missing_app_stops_all_later_authorization_stages() -> None:
 async def test_access_denial_stops_scope_and_license() -> None:
     log = []
     authorizer = ApiRequestAuthorizer(
-        installed_apps=Directory(log, InstalledAppResolved(app_id=TARGET.app_id)),
+        installed_apps=Catalog(log, InstalledApplicationResolved(APP)),
         app_access=Access(log, ApiAppAccessDenied(contact_id=42, app_id=TARGET.app_id)),
         license_policy=FailLicense(),
     )
@@ -83,7 +128,7 @@ async def test_scope_denial_stops_license() -> None:
     log = []
     principal = ApiPrincipalContext(42, ApiClientId("client"), ApiScope.of("site"))
     authorizer = ApiRequestAuthorizer(
-        installed_apps=Directory(log, InstalledAppResolved(app_id=TARGET.app_id)),
+        installed_apps=Catalog(log, InstalledApplicationResolved(APP)),
         app_access=Access(log, ApiAppAccessGranted(contact_id=42, app_id=TARGET.app_id)),
         license_policy=FailLicense(),
     )
@@ -97,7 +142,7 @@ async def test_scope_denial_stops_license() -> None:
 async def test_license_block_maps_payment_required_after_scope() -> None:
     log = []
     authorizer = ApiRequestAuthorizer(
-        installed_apps=Directory(log, InstalledAppResolved(app_id=TARGET.app_id)),
+        installed_apps=Catalog(log, InstalledApplicationResolved(APP)),
         app_access=Access(log, ApiAppAccessGranted(contact_id=42, app_id=TARGET.app_id)),
         license_policy=License(log, AppLicenseBlocked(app_id=TARGET.app_id)),
     )
@@ -112,7 +157,7 @@ async def test_license_block_maps_payment_required_after_scope() -> None:
 async def test_all_authorization_stages_grant() -> None:
     log = []
     authorizer = ApiRequestAuthorizer(
-        installed_apps=Directory(log, InstalledAppResolved(app_id=TARGET.app_id)),
+        installed_apps=Catalog(log, InstalledApplicationResolved(APP)),
         app_access=Access(log, ApiAppAccessGranted(contact_id=42, app_id=TARGET.app_id)),
         license_policy=License(log, AppLicenseGranted(app_id=TARGET.app_id)),
     )
