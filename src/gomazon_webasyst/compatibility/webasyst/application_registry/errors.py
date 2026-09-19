@@ -12,3 +12,7 @@ class LegacyPhpConfigUnsupportedExpression(LegacyPhpConfigError):
 
 class LegacyPhpConfigLimitError(LegacyPhpConfigError):
     """A configured parser safety budget was exceeded."""
+
+
+class LegacyApplicationConfigError(ValueError):
+    """Legacy installed-application configuration is structurally invalid."""
