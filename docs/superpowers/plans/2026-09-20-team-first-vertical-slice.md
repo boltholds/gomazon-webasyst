@@ -22,8 +22,24 @@ Date: 2026-09-20
 - [x] Test exact Team API response projection.
 - [x] Prove production ASGI flow with real legacy tables/token/ACL.
 - [x] Prove repeated `filter[type][]` transport.
-- [ ] Run final full CI on completion head and record exact count.
-- [ ] Update `AGENTS.md` completion state.
+- [x] Run final full CI on completion head and record exact count.
+- [x] Update `AGENTS.md` completion state.
+
+## Verification record
+
+Final code head before completion-documentation commits: `d795762d8b208a5c01e31147e15fb53e80ac0ab7`.
+
+GitHub Actions completed successfully on that head:
+
+- source-tree compile passed;
+- `800 passed, 9 warnings`;
+- exact Webasyst 4.2.0 Team characterization passed;
+- Team application architecture guards passed;
+- SQL legacy group projection passed;
+- rights/fallback/full-access semantics passed;
+- scalar, repeated, trimmed, and explicit-empty type filters passed;
+- GET-only behavior passed;
+- production `create_app_with_settings()` ASGI path linked Team from `apps.php`, resolved a real legacy API token, authorized Team, read legacy `wa_group`/`wa_contact_rights`, and returned the characterized response.
 
 ## Follow-on
 
