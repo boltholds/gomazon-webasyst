@@ -12,6 +12,7 @@ from gomazon_webasyst.application.events.vo.identity import (
 from gomazon_webasyst.application.events.vo.payload import (
     EventHandlerOutcome,
     EventHandlerReturned,
+    EventPayload,
     LegacyEventPayload,
 )
 from gomazon_webasyst.application.ports.event_handlers import (
@@ -27,7 +28,7 @@ class TeamContactsCollectionBridge(EventHandler):
     async def handle(
         self,
         context: EventHandlerContext,
-        payload: LegacyEventPayload,
+        payload: EventPayload,
     ) -> EventHandlerOutcome:
         report = await self._dispatcher.dispatch(
             EventDispatchRequest(
