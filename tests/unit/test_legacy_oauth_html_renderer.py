@@ -78,8 +78,8 @@ def test_code_and_error_pages_escape_values() -> None:
             description='<script>alert("x")</script>',
         )
     )
-    assert "<code>" not in code
-    assert "&lt;code&gt;" in code
+    assert "<code>&lt;code&gt;</code>" in code
+    assert "<code><code></code></code>" not in code
     assert "<script>" not in error
     assert "&lt;script&gt;" in error
     assert "&lt;bad&gt;" in error
