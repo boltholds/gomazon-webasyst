@@ -56,13 +56,17 @@ class AccessControlUseCases:
     set_global_admin_access: SetGlobalAdminAccess
 
 
+def create_webasyst_rights_evaluator() -> RightsEvaluator:
+    return RightsEvaluator(
+        app_semantics=WebasystAccessSemantics(),
+        fallback_policy=ExactThenLegacyAllFallback(),
+    )
+
+
 def create_access_control_use_cases(session_factory) -> AccessControlUseCases:
     uow_factory = SQLAlchemyAccessControlUnitOfWorkFactory(session_factory)
     app_semantics = WebasystAccessSemantics()
-    evaluator = RightsEvaluator(
-        app_semantics=app_semantics,
-        fallback_policy=ExactThenLegacyAllFallback(),
-    )
+    evaluator = create_webasyst_rights_evaluator()
     mutation_policy = LegacyRightsMutationPolicy(app_semantics=app_semantics)
     admin_policy = GlobalAdminAccessAdministrationPolicy(evaluator=evaluator)
 
