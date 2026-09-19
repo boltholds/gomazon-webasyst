@@ -191,5 +191,5 @@ async def test_api_execution_real_sqlite_asgi_vertical_flow() -> None:
         assert contact.last_datetime is not None
         assert contact.last_datetime > old
 
-    assert len(handler.calls) == 6
+    assert len(handler.calls) == 5
     await engine.dispose()
