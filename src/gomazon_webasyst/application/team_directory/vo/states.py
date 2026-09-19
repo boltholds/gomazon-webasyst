@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
 from gomazon_webasyst.contracts.enums import (
     TeamCurrentEventKind,
@@ -71,7 +73,7 @@ TeamCurrentEventState: TypeAlias = (
     TeamCurrentEventMissing | TeamCurrentEventPresent
 )
 
-
-from gomazon_webasyst.application.team_directory.entities.current_event import (  # noqa: E402
-    TeamCurrentEvent,
-)
+if TYPE_CHECKING:
+    from gomazon_webasyst.application.team_directory.entities.current_event import (
+        TeamCurrentEvent,
+    )
