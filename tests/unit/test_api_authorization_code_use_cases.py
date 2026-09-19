@@ -201,6 +201,7 @@ async def test_issue_authorization_code_collision_is_explicit_rejection_without_
 
     assert isinstance(result, AuthorizationCodeIssueRejected)
     assert result.reason is AuthorizationCodeIssueRejectReason.COLLISION
+    assert len(codes.created) == 3
     assert uow.commits == 0
 
 
