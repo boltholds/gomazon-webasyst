@@ -21,6 +21,7 @@ Authoritative companion artifacts:
 - API execution core design: `docs/superpowers/specs/2026-09-19-api-execution-core-design.md`
 - Backend session HTTP bridge design: `docs/superpowers/specs/2026-09-19-backend-session-http-bridge-design.md`
 - OAuth authorization surface design: `docs/superpowers/specs/2026-09-19-oauth-authorization-surface-design.md`
+- Installed application registry/discovery design: `docs/superpowers/specs/2026-09-19-installed-application-registry-discovery-design.md`
 - Official legacy documentation reference: `https://developers.webasyst.com/docs`
 
 ---
@@ -344,6 +345,12 @@ Date: 2026-09-19
 
 `/api.php/token` and controller-level `/api.php/revoke` responses preserve Webasyst 4.2.0 controller semantics: ordinary success/error payloads are HTTP 200, response format is JSON by default with optional XML, invalid explicit format becomes JSON `invalid_request`, and JSONP is not applied. Framework-level precondition/authentication failures that happen before those controllers keep their own HTTP statuses.
 
+### ADR-045 — Installed application identity and metadata come from one canonical shared catalog
+Status: accepted
+Date: 2026-09-19
+
+Runtime-installed application identity is represented by one application-owned `InstalledApplicationCatalog` shared by production composition. Webasyst compatibility discovery normalizes `wa-config/apps.php` plus per-app `lib/config/app.php` metadata into immutable `InstalledApplication` Entities/VOs; raw PHP arrays, filesystem paths and parser types do not cross into application code. API Execution consumes the canonical catalog for app-existence authorization, while OAuth consent uses a consumer-specific projection over the same catalog for display metadata. `ApiMethodRegistry` and `DispatchRegistry` remain separate registries because installation, executable API methods and dispatch handlers are distinct concepts. The first implementation uses one startup snapshot per container and does not execute arbitrary PHP, perform request-time filesystem discovery, or recreate `waSystem` as a service locator.
+
 ---
 
 ## Target dependency direction
@@ -531,6 +538,21 @@ The first auth slice is backend password authentication plus session create/reso
 
 ---
 
+## Installed application registry compatibility rules
+
+- `wa-config/apps.php` plus normalized per-app `lib/config/app.php` metadata are the compatibility source for runtime-installed application identity;
+- the framework `webasyst` application is a special system identity and must be characterized against the supplied 4.2.0 source rather than treated as an ordinary optional app entry;
+- one `InstalledApplicationCatalog` instance is shared by API Execution and OAuth consent production composition;
+- expected app lookup miss is an explicit typed result, never `None`, `False`, or an empty metadata bag;
+- application registry Entity/VO state is immutable and does not expose filesystem paths, raw PHP arrays, parser nodes, routers, handlers, repositories, sessions, or service instances;
+- API method registration and dispatch registration remain separate from installation discovery;
+- OAuth consent metadata is projected from the canonical installed app entity; the characterized `webasyst` settings-header icon rule remains in the Webasyst OAuth compatibility projector;
+- production discovery uses a configured Webasyst root and a restricted declarative PHP return-array parser; arbitrary PHP evaluation or subprocess execution is forbidden;
+- the first implementation builds one startup snapshot per container; installer-driven hot reload is a later slice behind the same catalog port;
+- malformed installation config is a configuration/infrastructure failure and must not be silently converted into an app-missing authorization result.
+
+---
+
 ## API execution compatibility rules
 
 - all new API Execution Core domain/application code is organized explicitly under Entity, VO, Services, or Composite;
@@ -650,6 +672,8 @@ Cover DB wiring, ASGI compatibility flow, auth/session composition, persistent-l
 27. Classify all API Execution Core domain/application code explicitly as Entity, VO, Service, or Composite; keep application-owned ports separate from that taxonomy.
 28. Resolve API methods only through explicit `ApiMethodRegistry` registration; never construct/import handler classes from request strings.
 29. Keep API transport normalization and JSON/XML/JSONP rendering outside application execution; handlers receive typed context/parameters, never HTTP/ORM objects.
+30. Resolve runtime-installed application identity/metadata through the canonical `InstalledApplicationCatalog`; do not introduce consumer-owned production app universes.
+31. Parse legacy PHP application configuration only through the restricted compatibility parser; never evaluate arbitrary PHP or derive executable Python imports from app/request strings.
 
 ---
 
@@ -669,4 +693,5 @@ The foundation is considered proven when CI confirms:
 - access-control slice passes contracts/evaluator/fallback/mutation-policy/authorization/group/membership/persistence/integration/characterization tests;
 - runtime session-state provider selection passes registry/composition/architecture tests;
 - API credential core passes contracts/policy/repository/UoW/issue/exchange/resolve/revoke/characterization/SQLite vertical-flow tests;
+- installed application registry/discovery slice passes parser/normalizer/catalog/composition/cross-surface integration tests;
 - every new architectural decision is reflected here.
