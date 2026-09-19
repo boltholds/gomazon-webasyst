@@ -5,9 +5,18 @@ from gomazon_webasyst.application.api_execution.composites.authorization import 
 )
 from gomazon_webasyst.application.api_execution.composites.invocation import ApiPrincipalContext
 from gomazon_webasyst.application.api_execution.vo.method import ApiMethodTarget
-from gomazon_webasyst.application.ports.api_app_access import ApiAppAccessGranted, ApiAppAccessPolicy
-from gomazon_webasyst.application.ports.app_license import AppLicenseBlocked, AppLicensePolicy
-from gomazon_webasyst.application.ports.installed_apps import InstalledAppDirectory, InstalledAppMissing
+from gomazon_webasyst.application.ports.api_app_access import (
+    ApiAppAccessGranted,
+    ApiAppAccessPolicy,
+)
+from gomazon_webasyst.application.ports.app_license import (
+    AppLicenseBlocked,
+    AppLicensePolicy,
+)
+from gomazon_webasyst.application.ports.installed_application_catalog import (
+    InstalledApplicationCatalog,
+    InstalledApplicationMissing,
+)
 from gomazon_webasyst.contracts.api_execution import ApiFrameworkError
 from gomazon_webasyst.contracts.enums import ApiFrameworkErrorCode
 
@@ -16,7 +25,7 @@ class ApiRequestAuthorizer:
     def __init__(
         self,
         *,
-        installed_apps: InstalledAppDirectory,
+        installed_apps: InstalledApplicationCatalog,
         app_access: ApiAppAccessPolicy,
         license_policy: AppLicensePolicy,
     ) -> None:
@@ -30,7 +39,7 @@ class ApiRequestAuthorizer:
         target: ApiMethodTarget,
     ) -> ApiAuthorizationResult:
         installed = await self._installed_apps.resolve(target.app_id)
-        if isinstance(installed, InstalledAppMissing):
+        if isinstance(installed, InstalledApplicationMissing):
             return ApiAuthorizationRejected(
                 error=ApiFrameworkError(
                     code=ApiFrameworkErrorCode.APP_NOT_INSTALLED,

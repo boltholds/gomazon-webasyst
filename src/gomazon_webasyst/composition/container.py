@@ -61,6 +61,9 @@ from gomazon_webasyst.composition.session_state_providers import (
     resolve_session_state_store,
 )
 from gomazon_webasyst.composition.settings import Settings
+from gomazon_webasyst.infrastructure.application_registry.in_memory_catalog import (
+    InMemoryInstalledApplicationCatalog,
+)
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.factory import (
     create_engine,
     create_session_factory,
@@ -140,6 +143,7 @@ def create_container_with_session_state_registry(
     api_execution = create_default_api_execution_components(
         session_factory=session_factory,
         resolve_api_access_token=api_credentials.resolve_api_access_token,
+        installed_application_catalog=InMemoryInstalledApplicationCatalog(()),
         api_enabled=settings.api_enabled,
         disable_message=settings.api_disable_message,
         force_https=settings.api_force_https,
