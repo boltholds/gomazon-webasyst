@@ -22,6 +22,7 @@ Authoritative companion artifacts:
 - Backend session HTTP bridge design: `docs/superpowers/specs/2026-09-19-backend-session-http-bridge-design.md`
 - OAuth authorization surface design: `docs/superpowers/specs/2026-09-19-oauth-authorization-surface-design.md`
 - Installed application registry/discovery design: `docs/superpowers/specs/2026-09-19-installed-application-registry-discovery-design.md`
+- Installed application registry/discovery plan: `docs/superpowers/plans/2026-09-19-installed-application-registry-discovery.md`
 - Official legacy documentation reference: `https://developers.webasyst.com/docs`
 
 ---
