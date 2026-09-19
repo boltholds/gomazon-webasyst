@@ -37,7 +37,7 @@ class LegacyApiResponseFormatService:
             error=ApiFrameworkError(
                 code=ApiFrameworkErrorCode.INVALID_REQUEST,
                 description=f"Invalid response format: {requested.value.upper()}",
-                http_status=400,
+                http_status=200,
                 details={},
             )
         )
