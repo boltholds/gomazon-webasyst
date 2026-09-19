@@ -43,7 +43,7 @@ class ApiMethodSucceeded(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     kind: Literal[ApiMethodResultKind.SUCCEEDED] = ApiMethodResultKind.SUCCEEDED
-    payload: Any
+    payload: JsonValue
     status_code: Annotated[int, Field(ge=100, le=599)] = 200
 
 
