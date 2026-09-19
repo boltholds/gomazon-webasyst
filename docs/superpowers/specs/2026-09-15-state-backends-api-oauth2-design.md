@@ -19,6 +19,7 @@ The design preserves the existing architectural rules:
 - application code depends on application-owned ports, not infrastructure implementations;
 - expected negative outcomes use explicit typed variants, not `None`, `Optional`, empty values, or bool sentinels;
 - cross-boundary contracts are Pydantic discriminated unions;
+- closed serialized string domains use `EnumStr`; open extension identifiers such as `StateProviderName` remain open immutable values;
 - infrastructure failures propagate unless an expected domain result explicitly models them;
 - legacy storage conventions stay at compatibility/persistence boundaries;
 - SQLAlchemy, FastAPI, Redis, Supabase, and other concrete technologies must not leak into application use cases.
