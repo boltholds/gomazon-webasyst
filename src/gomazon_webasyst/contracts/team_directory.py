@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated, Literal, TypeAlias
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from gomazon_webasyst.contracts.enums import (
     GroupType,
@@ -147,3 +147,52 @@ class TeamGroupRead(BaseModel):
     cnt: int
     type: GroupType
     description: TeamTextReadState
+
+
+class LegacyTeamPhoneApiRead(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    value: str
+    ext: str
+    status: JsonValue
+
+
+class LegacyTeamUserApiRead(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        populate_by_name=True,
+    )
+
+    id: int
+    name: str
+    firstname: str
+    lastname: str
+    middlename: str
+    company: str
+    login: str
+    email: tuple[str, ...]
+    phone: tuple[LegacyTeamPhoneApiRead, ...]
+    locale: str
+    jobtitle: str
+    last_datetime: JsonValue
+    birth_day: JsonValue
+    birth_month: JsonValue
+    create_datetime: str
+    online_status: TeamOnlineStatus = Field(alias="_online_status")
+    current_event: JsonValue = Field(alias="_event")
+    group_id: tuple[int, ...]
+    userpic: str
+    userpic_original_crop: str
+    userpic_uploaded: bool
+    userpic_thumbs: dict[str, str]
+
+
+class LegacyTeamGroupApiRead(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: int
+    name: str
+    cnt: int
+    type: GroupType
+    description: JsonValue
