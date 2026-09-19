@@ -2,7 +2,7 @@ from typing import Annotated, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from gomazon_webasyst.contracts.enums import TeamGroupDescriptionKind
+from gomazon_webasyst.contracts.enums import GroupType, TeamGroupDescriptionKind
 
 
 class TeamGroupDescriptionPresent(BaseModel):
@@ -34,7 +34,7 @@ class TeamGroupRead(BaseModel):
     id: int = Field(gt=0)
     name: str
     cnt: int = Field(ge=0)
-    type: str
+    type: GroupType
     description: TeamGroupDescription
 
 
