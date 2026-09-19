@@ -36,7 +36,7 @@ class RecordingPublisher:
 async def test_team_contacts_delete_relay_publishes_team_event_with_same_payload() -> None:
     publisher = RecordingPublisher()
     handler = TeamContactsDeleteRelayHandler(publisher)
-    payload = LegacyEventPayload(value={"id": (7, 8)})
+    payload = LegacyEventPayload(value={"id": [7, 8]})
     context = EventHandlerContext(
         event=EventKey(AppId("contacts"), EventName("delete")),
         handler_id=EventHandlerId("team-contacts-delete-relay"),
