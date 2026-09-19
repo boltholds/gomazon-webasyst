@@ -394,9 +394,11 @@ Implemented on `feature/state-backends-api-oauth2`.
 
 Verification on branch head lineage:
 
-- GitHub Actions Python 3.12: **313 passed, 0 failed, 0 skipped**.
+- GitHub Actions Python 3.12: **316 passed, 0 failed, 0 skipped**.
 - CI **Compile source tree** step: success.
 - Session-state backend selection is registry/factory based; auth composition no longer constructs the concrete memory store.
 - Default provider remains `memory`; custom providers can be registered without application-layer changes.
+- `InMemorySessionStateStoreFactory` forwards configurable session-id generation, clock and TTL into the concrete memory adapter.
+- A reusable `SessionStateStore` contract suite now pins collision, TTL refresh/expiry, wrong-key revoke and idempotent revoke semantics for future Redis/Supabase adapters.
 - API OAuth2 credential core maps the existing `wa_api_auth_codes` and `wa_api_tokens` tables and exposes issue/exchange/implicit/resolve/revoke use cases without mounting HTTP OAuth routes.
 - Architecture and Optional/nullability guards pass.
