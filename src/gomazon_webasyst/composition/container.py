@@ -50,6 +50,10 @@ from gomazon_webasyst.composition.backend_session_bridge import (
     BackendSessionBridgeComponents,
     create_backend_session_bridge_components,
 )
+from gomazon_webasyst.composition.oauth_authorization import (
+    OAuthAuthorizationComponents,
+    create_default_oauth_authorization_components,
+)
 from gomazon_webasyst.composition.session_state_providers import (
     SessionStateProviderRegistry,
     StateProviderName,
@@ -84,6 +88,7 @@ class Container:
     resolve_api_access_token: ResolveApiAccessToken
     revoke_api_access_token: RevokeApiAccessToken
     api_execution: ApiExecutionComponents
+    oauth_authorization: OAuthAuthorizationComponents
     get_group: GetGroup
     list_groups: ListGroups
     list_user_groups: ListUserGroups
@@ -139,6 +144,18 @@ def create_container_with_session_state_registry(
         disable_message=settings.api_disable_message,
         force_https=settings.api_force_https,
     )
+    oauth_authorization = create_default_oauth_authorization_components(
+        session_factory=session_factory,
+        backend_session_bridge=backend_session_bridge,
+        issue_authorization_code=api_credentials.issue_authorization_code,
+        issue_implicit_api_access_token=api_credentials.issue_implicit_api_access_token,
+        exchange_authorization_code=api_credentials.exchange_authorization_code,
+        resolve_api_access_token=api_credentials.resolve_api_access_token,
+        revoke_api_access_token=api_credentials.revoke_api_access_token,
+        preconditions=api_execution.preconditions,
+        credential_extractor=api_execution.credential_extractor,
+        framework_response_renderer=api_execution.response_renderer,
+    )
     return Container(
         settings=settings,
         engine=engine,
@@ -160,6 +177,7 @@ def create_container_with_session_state_registry(
         resolve_api_access_token=api_credentials.resolve_api_access_token,
         revoke_api_access_token=api_credentials.revoke_api_access_token,
         api_execution=api_execution,
+        oauth_authorization=oauth_authorization,
         get_group=access.get_group,
         list_groups=access.list_groups,
         list_user_groups=access.list_user_groups,
