@@ -12,6 +12,10 @@ from gomazon_webasyst.application.api_execution.vo.parameters import ApiParamete
 from gomazon_webasyst.compatibility.webasyst.api.composites.request import LegacyApiHttpRequestComposite
 from gomazon_webasyst.compatibility.webasyst.api.composites.response import ApiTransportResponse
 from gomazon_webasyst.compatibility.webasyst.api.services.credential_extractor import ApiCredentialMissing
+from gomazon_webasyst.compatibility.webasyst.api.services.parameter_decoder import (
+    LegacyApiParameterDecoder,
+    LegacyApiParameterDecodeRejected,
+)
 from gomazon_webasyst.compatibility.webasyst.api.services.preconditions import ApiHttpsRequired, ApiTransportDisabled
 from gomazon_webasyst.compatibility.webasyst.api.services.response_format import ApiResponseFormatRejected
 from gomazon_webasyst.compatibility.webasyst.api.services.target_parser import ApiTargetMalformed, ApiTargetReservedEndpoint
