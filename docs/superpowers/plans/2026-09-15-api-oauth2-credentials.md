@@ -485,9 +485,10 @@ Implemented on `feature/state-backends-api-oauth2`.
 
 Verification on branch head lineage:
 
-- GitHub Actions Python 3.12: **313 passed, 0 failed, 0 skipped**.
+- GitHub Actions Python 3.12: **316 passed, 0 failed, 0 skipped**.
 - CI **Compile source tree** step: success.
 - Session-state backend selection is registry/factory based; auth composition no longer constructs the concrete memory store.
 - Default provider remains `memory`; custom providers can be registered without application-layer changes.
 - API OAuth2 credential core maps the existing `wa_api_auth_codes` and `wa_api_tokens` tables and exposes issue/exchange/implicit/resolve/revoke use cases without mounting HTTP OAuth routes.
+- Authorization-code primary-key collisions use bounded regeneration (three attempts by default) before returning the typed `COLLISION` rejection.
 - Architecture and Optional/nullability guards pass.
