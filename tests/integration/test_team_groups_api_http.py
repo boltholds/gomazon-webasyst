@@ -174,6 +174,14 @@ async def test_team_groups_get_list_runs_through_production_runtime_and_legacy_d
                 f"/api.php/team.groups.getList?access_token={TOKEN}"
                 "&filter[type]=group"
             )
+            repeated_types = await client.get(
+                "/api.php/team.groups.getList",
+                params=[
+                    ("access_token", TOKEN),
+                    ("filter[type][]", "group"),
+                    ("filter[type][]", "location"),
+                ],
+            )
 
     assert response.status_code == 200
     assert response.json() == [
@@ -217,3 +225,6 @@ async def test_team_groups_get_list_runs_through_production_runtime_and_legacy_d
             "description": None,
         },
     ]
+
+    assert repeated_types.status_code == 200
+    assert repeated_types.json() == response.json()
