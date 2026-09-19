@@ -31,8 +31,16 @@ def test_method_registry_does_not_build_classes_from_request_strings() -> None:
 
 def test_handler_port_accepts_typed_context_not_http_or_orm_objects() -> None:
     source = HANDLER_PORT.read_text()
-    for forbidden in ("Request", "Response", "AsyncSession", "WaContactRow"):
+    forbidden_imports = (
+        "fastapi",
+        "starlette",
+        "sqlalchemy",
+        "gomazon_webasyst.infrastructure.persistence.sqlalchemy.models",
+    )
+    for forbidden in forbidden_imports:
         assert forbidden not in source
+    assert "ApiInvocationContext" in source
+    assert "ApiRequestParameters" in source
 
 
 def test_taxonomy_has_no_unclassified_application_modules() -> None:
