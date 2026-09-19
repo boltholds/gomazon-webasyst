@@ -439,3 +439,47 @@ class ApiCredentialSourceKind(EnumStr):
     REQUEST = "request"
     AUTHORIZATION_HEADER = "authorization_header"
     SERVER_AUTHORIZATION = "server_authorization"
+
+
+class RememberIntent(EnumStr):
+    SESSION_ONLY = "session_only"
+    PERSIST = "persist"
+
+
+class PersistentLoginMode(EnumStr):
+    ENABLED = "enabled"
+    DISABLED = "disabled"
+
+
+class SessionCredentialDispositionKind(EnumStr):
+    ISSUE = "issue"
+    CLEAR = "clear"
+    KEEP = "keep"
+
+
+class CurrentBackendSubjectKind(EnumStr):
+    RESOLVED = "resolved"
+    UNAUTHENTICATED = "unauthenticated"
+
+
+class CurrentBackendSubjectReason(EnumStr):
+    NO_CREDENTIAL = "no_credential"
+    SESSION_REJECTED = "session_rejected"
+    PERSISTENT_REJECTED = "persistent_rejected"
+    SESSION_UNAVAILABLE = "session_unavailable"
+
+
+class BackendPasswordLoginKind(EnumStr):
+    SUCCEEDED = "succeeded"
+    REJECTED = "rejected"
+
+
+class BackendLoginPersistenceStatus(EnumStr):
+    SESSION_ONLY = "session_only"
+    ISSUED = "issued"
+    UNAVAILABLE = "unavailable"
+    DISABLED = "disabled"
+
+
+class BackendLogoutKind(EnumStr):
+    COMPLETED = "completed"
