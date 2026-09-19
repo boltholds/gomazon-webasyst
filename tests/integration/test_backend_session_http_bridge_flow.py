@@ -15,7 +15,7 @@ from gomazon_webasyst.application.backend_session_bridge.composites.requests imp
     BackendLogoutRequest,
     BackendPasswordLoginRequest,
 )
-from gomazon_webasyst.composition.container import create_container
+from gomazon_webasyst.composition.container import create_container_with_application_catalog
 from gomazon_webasyst.composition.settings import Settings
 from gomazon_webasyst.contracts.auth import (
     BackendPasswordCredentials,
@@ -26,6 +26,9 @@ from gomazon_webasyst.contracts.backend_session_bridge import (
     CurrentBackendSubjectResolved,
 )
 from gomazon_webasyst.contracts.enums import RememberIntent
+from gomazon_webasyst.infrastructure.application_registry.in_memory_catalog import (
+    InMemoryInstalledApplicationCatalog,
+)
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.base import Base
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.models import WaContactRow
 from gomazon_webasyst.presentation.http.backend_session import (
@@ -39,11 +42,12 @@ async def _seed_container(
     *,
     persistent_login_enabled: bool = True,
 ):
-    container = create_container(
+    container = create_container_with_application_catalog(
         Settings(
             database_url=f"sqlite+aiosqlite:///{db_path}",
             persistent_login_enabled=persistent_login_enabled,
-        )
+        ),
+        installed_application_catalog=InMemoryInstalledApplicationCatalog(()),
     )
     async with container.engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
