@@ -49,20 +49,62 @@ def _rejected(code, description, status, details):
     )
 
 
-async def _form_parameters(request: Request) -> ApiParameterMap:
+async def _form_parameter_pairs(
+    request: Request,
+) -> tuple[tuple[str, str], ...]:
     content_type = request.headers.get("content-type", "")
     if not content_type.startswith("application/x-www-form-urlencoded"):
-        return ApiParameterMap({})
+        return ()
     body = (await request.body()).decode("utf-8")
-    return ApiParameterMap(dict(parse_qsl(body, keep_blank_values=True)))
+    return tuple(parse_qsl(body, keep_blank_values=True))
 
 
 def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
     router = APIRouter()
+    parameter_decoder = LegacyApiParameterDecoder()
 
     async def execute(request: Request) -> Response:
-        query = ApiParameterMap(dict(request.query_params))
-        form = await _form_parameters(request)
+        query_result = parameter_decoder.decode(
+            tuple(request.query_params.multi_items())
+        )
+        if isinstance(query_result, LegacyApiParameterDecodeRejected):
+            return _response(
+                components.response_renderer.render(
+                    _rejected(
+                        ApiFrameworkErrorCode.INVALID_REQUEST,
+                        "Invalid API parameters",
+                        400,
+                        {
+                            "reason": query_result.reason.value,
+                            "key": query_result.key,
+                        },
+                    ),
+                    ApiResponseFormat.JSON,
+                    ApiJsonpCallback(""),
+                )
+            )
+        query = query_result.parameters
+
+        form_result = parameter_decoder.decode(
+            await _form_parameter_pairs(request)
+        )
+        if isinstance(form_result, LegacyApiParameterDecodeRejected):
+            return _response(
+                components.response_renderer.render(
+                    _rejected(
+                        ApiFrameworkErrorCode.INVALID_REQUEST,
+                        "Invalid API parameters",
+                        400,
+                        {
+                            "reason": form_result.reason.value,
+                            "key": form_result.key,
+                        },
+                    ),
+                    ApiResponseFormat.JSON,
+                    ApiJsonpCallback(""),
+                )
+            )
+        form = form_result.parameters
         authorization_value = request.headers.get("authorization")
         authorization = (
             AuthorizationHeader(authorization_value)
