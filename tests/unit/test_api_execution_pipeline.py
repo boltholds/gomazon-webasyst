@@ -12,6 +12,7 @@ from gomazon_webasyst.application.api_execution.composites.results import (
 )
 from gomazon_webasyst.application.api_execution.entities.method_definition import ApiMethodDefinition
 from gomazon_webasyst.application.api_execution.services.activity import ApiActivitySkipped
+from gomazon_webasyst.application.api_execution.vo.origin import ApiRequestOrigin
 from gomazon_webasyst.application.api_execution.vo.method import ApiHttpMethod, ApiMethodName, ApiMethodTarget
 from gomazon_webasyst.application.api_execution.vo.parameters import ApiParameterMap, ApiRequestParameters
 from gomazon_webasyst.application.ports.api_method_registry import ApiMethodMissing, ApiMethodResolved
@@ -27,6 +28,7 @@ REQUEST = ApiInvocationRequest(
     target=TARGET,
     http_method=ApiHttpMethod("GET"),
     parameters=ApiRequestParameters(ApiParameterMap({}), ApiParameterMap({})),
+    origin=ApiRequestOrigin("https://example.test/"),
 )
 
 
