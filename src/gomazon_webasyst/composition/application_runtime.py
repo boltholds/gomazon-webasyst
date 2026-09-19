@@ -83,6 +83,13 @@ class RuntimeModuleFactory(Protocol):
     ) -> tuple[ApplicationRuntimeModule, ...]: ...
 
 
+class RuntimeModuleFactoryBuilder(Protocol):
+    def create(
+        self,
+        session_factory: object,
+    ) -> RuntimeModuleFactory: ...
+
+
 @dataclass(slots=True, frozen=True)
 class StaticRuntimeModuleFactory:
     modules: tuple[ApplicationRuntimeModule, ...]
@@ -93,6 +100,17 @@ class StaticRuntimeModuleFactory:
         event_dispatcher: EventDispatcher,
     ) -> tuple[ApplicationRuntimeModule, ...]:
         return self.modules
+
+
+@dataclass(slots=True, frozen=True)
+class StaticRuntimeModuleFactoryBuilder:
+    modules: tuple[ApplicationRuntimeModule, ...]
+
+    def create(
+        self,
+        session_factory: object,
+    ) -> RuntimeModuleFactory:
+        return StaticRuntimeModuleFactory(self.modules)
 
 
 class ApplicationRuntimeInitializationError(RuntimeError):
