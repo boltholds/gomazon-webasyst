@@ -87,3 +87,22 @@ def test_execution_result_serializes_closed_enumstr_code() -> None:
     assert payload["error"]["code"] == "invalid_method"
     restored = adapter.validate_python(payload)
     assert restored == result
+
+
+def test_execution_payload_rejects_non_json_python_objects() -> None:
+    class NotJson:
+        pass
+
+    with pytest.raises(Exception):
+        from gomazon_webasyst.contracts.api_execution import ApiMethodSucceeded
+        ApiMethodSucceeded(payload=NotJson(), status_code=200)
+
+
+def test_framework_error_details_reject_non_json_python_objects() -> None:
+    with pytest.raises(Exception):
+        ApiFrameworkError(
+            code=ApiFrameworkErrorCode.INVALID_REQUEST,
+            description="bad",
+            http_status=400,
+            details={"bad": object()},
+        )
