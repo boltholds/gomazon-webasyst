@@ -31,10 +31,12 @@ from gomazon_webasyst.application.runtime.entities.application_module import (
     ApplicationRuntimeModule,
 )
 from gomazon_webasyst.application.team.groups import ListVisibleTeamGroups
+from gomazon_webasyst.application.team.invitation import InviteTeamUser
 from gomazon_webasyst.application.team.users import ListVisibleTeamUsers
 from gomazon_webasyst.compatibility.webasyst.team.api import (
     TeamGroupsGetListApiMethod,
     TeamUsersGetListApiMethod,
+    TeamUsersInviteApiMethod,
 )
 from gomazon_webasyst.compatibility.webasyst.team.events import (
     TeamContactsDeleteRelayHandler,
@@ -49,6 +51,14 @@ from gomazon_webasyst.compatibility.webasyst.team.users_media import (
     LegacyTeamUserMediaProjector,
     RootResourceUrlResolver,
 )
+from gomazon_webasyst.compatibility.webasyst.team.invitation import (
+    DisconnectedTeamWaidInvitationGateway,
+    LegacyTeamInvitationHook,
+    LegacyTeamInvitationLinkBuilder,
+    LegacyTeamInvitationRequestParser,
+    LegacyTeamInvitationValidator,
+    NoopTeamInvitationEmailSender,
+)
 from gomazon_webasyst.composition.access_control import create_webasyst_rights_evaluator
 from gomazon_webasyst.infrastructure.access_control.sqlalchemy.unit_of_work import (
     SQLAlchemyAccessControlUnitOfWorkFactory,
@@ -58,6 +68,9 @@ from gomazon_webasyst.infrastructure.team.sqlalchemy.groups import (
 )
 from gomazon_webasyst.infrastructure.team.sqlalchemy.users import (
     SQLAlchemyTeamUserReader,
+)
+from gomazon_webasyst.infrastructure.team.sqlalchemy.invitation import (
+    SQLAlchemyTeamInvitationStore,
 )
 
 
@@ -118,6 +131,33 @@ def create_team_runtime_module(
         allowed_methods=frozenset({ApiHttpMethod("GET")}),
         handler=users_handler,
     )
+    invite_user = InviteTeamUser(
+        store=SQLAlchemyTeamInvitationStore(
+            session_factory,
+            clock=lambda: datetime.now(server_timezone).replace(tzinfo=None),
+        ),
+        access_uow_factory=SQLAlchemyAccessControlUnitOfWorkFactory(
+            session_factory
+        ),
+        rights_evaluator=create_webasyst_rights_evaluator(),
+        validator=LegacyTeamInvitationValidator(),
+        hook=LegacyTeamInvitationHook(event_publisher),
+        link_builder=LegacyTeamInvitationLinkBuilder(public_root_url),
+        email_sender=NoopTeamInvitationEmailSender(),
+        waid=DisconnectedTeamWaidInvitationGateway(),
+    )
+    invite_handler = TeamUsersInviteApiMethod(
+        invite_user=invite_user,
+        request_parser=LegacyTeamInvitationRequestParser(),
+    )
+    invite_method = ApiMethodDefinition(
+        target=ApiMethodTarget(
+            _TEAM_APP_ID,
+            ApiMethodName("users.invite"),
+        ),
+        allowed_methods=frozenset({ApiHttpMethod("POST")}),
+        handler=invite_handler,
+    )
     contacts_delete_relay = EventHandlerDefinition(
         handler_id=EventHandlerId("team-contacts-delete-relay"),
         owner=ApplicationEventOwner(_TEAM_APP_ID),
@@ -128,7 +168,7 @@ def create_team_runtime_module(
     return ApplicationRuntimeModule(
         app_id=_TEAM_APP_ID,
         dispatch_handlers=(),
-        api_methods=(groups_method, users_method),
+        api_methods=(groups_method, users_method, invite_method),
         event_handlers=(contacts_delete_relay,),
         plugins=(),
     )
