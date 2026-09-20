@@ -10,7 +10,10 @@ from gomazon_webasyst.application.ports.access_control_uow import (
     AccessControlUnitOfWorkFactory,
 )
 from gomazon_webasyst.application.ports.team_invitation import (
+    TeamInvitationEmailRejected,
     TeamInvitationEmailSender,
+    TeamInvitationEmailSent,
+    TeamInvitationEmailSoftFailure,
     TeamInvitationHook,
     TeamInvitationLinkBuilder,
     TeamInvitationStore,
@@ -23,18 +26,27 @@ from gomazon_webasyst.application.ports.team_invitation import (
 )
 from gomazon_webasyst.application.rights_evaluator import RightsEvaluator
 from gomazon_webasyst.contracts.access_control import FiniteRight, UnlimitedRight
-from gomazon_webasyst.contracts.enums import (
-    TeamInvitationMode,
-    TeamInvitationRejectReason,
+from gomazon_webasyst.contracts.enums import TeamInvitationRejectReason
+from gomazon_webasyst.contracts.team import (
+    TeamTextMissing,
+    TeamTextPresent,
 )
 from gomazon_webasyst.contracts.team_invitation import (
+    TeamInvitationCodeRequest,
     TeamInvitationContactConflict,
+    TeamInvitationEmailAccepted,
+    TeamInvitationEmailLinkRequest,
     TeamInvitationLinkCreated,
     TeamInvitationLocalCodeCreated,
+    TeamInvitationPhoneLinkRequest,
     TeamInvitationRejected,
     TeamInvitationRequest,
     TeamInvitationResult,
     TeamInvitationWaidCodeCreated,
+    request_email,
+    request_groups,
+    request_integer_groups,
+    request_phone,
 )
 
 
@@ -45,13 +57,21 @@ _DESCRIPTIONS = {
     TeamInvitationRejectReason.ACCESS_DENIED: "Access denied",
     TeamInvitationRejectReason.GENERAL: "Invitation rejected",
     TeamInvitationRejectReason.EMAIL_REQUIRED: "This is a required field.",
-    TeamInvitationRejectReason.EMAIL_INVALID: "This does not look like a valid email address.",
+    TeamInvitationRejectReason.EMAIL_INVALID: (
+        "This does not look like a valid email address."
+    ),
     TeamInvitationRejectReason.PHONE_REQUIRED: "This is a required field.",
-    TeamInvitationRejectReason.PHONE_INVALID: "This does not look like a valid phone number.",
+    TeamInvitationRejectReason.PHONE_INVALID: (
+        "This does not look like a valid phone number."
+    ),
     TeamInvitationRejectReason.USER_IN_TEAM: "Already in our team!",
     TeamInvitationRejectReason.CONTACT_BANNED: "This contact was banned.",
-    TeamInvitationRejectReason.TOKEN_NOT_CREATED: "Invitation token cannot be created.",
-    TeamInvitationRejectReason.EMAIL_SEND_FAIL: "Invitation email cannot be sent.",
+    TeamInvitationRejectReason.TOKEN_NOT_CREATED: (
+        "Invitation token cannot be created."
+    ),
+    TeamInvitationRejectReason.EMAIL_SEND_FAIL: (
+        "Invitation email cannot be sent."
+    ),
 }
 
 
@@ -89,18 +109,18 @@ class InviteTeamUser:
 
         manageable_groups = tuple(
             group_id
-            for group_id in request.group_ids
+            for group_id in request_integer_groups(request)
             if self._php_truthy_right(
                 snapshot,
                 RightName(f"manage_group.{group_id}"),
             )
         )
 
-        if request.mode is TeamInvitationMode.LINK:
+        if not isinstance(request, TeamInvitationCodeRequest):
             hook_messages = await self._hook.messages(
-                email=request.email,
-                phone=request.phone,
-                group_ids=request.group_ids,
+                email=request_email(request),
+                phone=request_phone(request),
+                groups=request_groups(request),
             )
             if hook_messages:
                 return TeamInvitationRejected(
@@ -124,7 +144,7 @@ class InviteTeamUser:
                 details={"contact_id": prepared.contact_id},
             )
 
-        if request.mode is TeamInvitationMode.CODE:
+        if isinstance(request, TeamInvitationCodeRequest):
             connection = self._waid.connection()
             if isinstance(connection, WaidDisconnected):
                 return TeamInvitationLocalCodeCreated(
@@ -134,7 +154,7 @@ class InviteTeamUser:
             code = await self._waid.installation_code(prepared.token)
             if isinstance(code, WaidInvitationCodeRejected):
                 await self._store.delete_token(prepared.token)
-                details = {
+                details: dict[str, str | int | bool] = {
                     "api_error": code.error,
                     "api_description": code.description,
                 }
@@ -154,23 +174,26 @@ class InviteTeamUser:
                 invitation_expire=code.expires_at,
             )
 
-        if (
-            self._php_truthy_string(request.email)
-            and not self._php_truthy_string(request.phone)
-            and request.send
-        ):
-            try:
-                await self._email_sender.send(
-                    prepared,
-                    email=request.email,
-                    actor_contact_id=actor_contact_id,
-                )
-            except Exception as exc:
+        if isinstance(request, TeamInvitationEmailLinkRequest) and request.send:
+            delivery = await self._email_sender.send(
+                prepared,
+                email=request.email,
+                actor_contact_id=actor_contact_id,
+            )
+            if isinstance(delivery, TeamInvitationEmailRejected):
                 return TeamInvitationRejected(
                     reason=TeamInvitationRejectReason.EMAIL_SEND_FAIL,
-                    description=str(exc),
+                    description=delivery.description,
                     details={"contact_id": prepared.contact_id},
                 )
+            assert isinstance(
+                delivery,
+                TeamInvitationEmailSent | TeamInvitationEmailSoftFailure,
+            )
+            return TeamInvitationEmailAccepted(
+                contact_id=prepared.contact_id,
+                invitation_expire=prepared.expires_at,
+            )
 
         return TeamInvitationLinkCreated(
             contact_id=prepared.contact_id,
@@ -200,9 +223,10 @@ class InviteTeamUser:
 
     def _link_validation(
         self,
-        request: TeamInvitationRequest,
+        request: TeamInvitationEmailLinkRequest
+        | TeamInvitationPhoneLinkRequest,
     ) -> tuple[TeamInvitationRejectReason, ...]:
-        if self._php_truthy_string(request.phone):
+        if isinstance(request, TeamInvitationPhoneLinkRequest):
             errors = self._validator.phone_errors(request.phone)
         else:
             errors = self._validator.email_errors(request.email)
@@ -211,11 +235,9 @@ class InviteTeamUser:
         return (TeamInvitationRejectReason(errors[0]),)
 
     @staticmethod
-    def _php_truthy_string(value: str) -> bool:
-        return value not in {"", "0"}
-
-    @staticmethod
-    def _reject(reason: TeamInvitationRejectReason) -> TeamInvitationRejected:
+    def _reject(
+        reason: TeamInvitationRejectReason,
+    ) -> TeamInvitationRejected:
         return TeamInvitationRejected(
             reason=reason,
             description=_DESCRIPTIONS[reason],

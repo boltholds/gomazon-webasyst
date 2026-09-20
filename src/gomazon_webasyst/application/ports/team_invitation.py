@@ -1,10 +1,12 @@
-from typing import Protocol
+from dataclasses import dataclass
+from typing import Protocol, TypeAlias
 
 from gomazon_webasyst.contracts.team_invitation import (
     TeamInvitationPrepared,
     TeamInvitationRequest,
     TeamInvitationStoreResult,
 )
+from gomazon_webasyst.contracts.team import TeamTextValue
 
 
 class TeamInvitationStore(Protocol):
@@ -29,14 +31,36 @@ class TeamInvitationHook(Protocol):
     async def messages(
         self,
         *,
-        email: str,
-        phone: str,
-        group_ids: tuple[int, ...],
+        email: TeamTextValue,
+        phone: TeamTextValue,
+        groups: tuple[str, ...],
     ) -> tuple[str, ...]: ...
 
 
 class TeamInvitationLinkBuilder(Protocol):
     def build(self, token: str) -> str: ...
+
+
+@dataclass(slots=True, frozen=True)
+class TeamInvitationEmailSent:
+    pass
+
+
+@dataclass(slots=True, frozen=True)
+class TeamInvitationEmailSoftFailure:
+    pass
+
+
+@dataclass(slots=True, frozen=True)
+class TeamInvitationEmailRejected:
+    description: str
+
+
+TeamInvitationEmailResult: TypeAlias = (
+    TeamInvitationEmailSent
+    | TeamInvitationEmailSoftFailure
+    | TeamInvitationEmailRejected
+)
 
 
 class TeamInvitationEmailSender(Protocol):
@@ -46,7 +70,7 @@ class TeamInvitationEmailSender(Protocol):
         *,
         email: str,
         actor_contact_id: int,
-    ) -> None: ...
+    ) -> TeamInvitationEmailResult: ...
 
 
 class WaidDisconnected:

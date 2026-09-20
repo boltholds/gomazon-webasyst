@@ -587,9 +587,10 @@ class TeamUserOnlineStatus(EnumStr):
     IDLE = "idle"
 
 
-class TeamInvitationMode(EnumStr):
-    LINK = "link"
+class TeamInvitationRequestKind(EnumStr):
     CODE = "code"
+    EMAIL_LINK = "email_link"
+    PHONE_LINK = "phone_link"
 
 
 class TeamInvitationChannel(EnumStr):
@@ -600,6 +601,7 @@ class TeamInvitationChannel(EnumStr):
 
 class TeamInvitationResultKind(EnumStr):
     LINK_CREATED = "link_created"
+    EMAIL_ACCEPTED = "email_accepted"
     LOCAL_CODE_CREATED = "local_code_created"
     WAID_CODE_CREATED = "waid_code_created"
     REJECTED = "rejected"
