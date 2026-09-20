@@ -1,4 +1,5 @@
 import re
+from collections.abc import Mapping
 from typing import TypeAlias
 from urllib.parse import quote_plus
 
@@ -122,7 +123,7 @@ class LegacyTeamInvitationRequestParser:
 
     @classmethod
     def _send(cls, value: ApiParameterValue) -> bool:
-        if isinstance(value, tuple | dict):
+        if isinstance(value, tuple | Mapping):
             normalized = ""
         else:
             normalized = cls._scalar(value).strip().lower()
@@ -134,7 +135,7 @@ class LegacyTeamInvitationRequestParser:
 
     @staticmethod
     def _scalar(value: ApiParameterValue) -> str:
-        if isinstance(value, tuple | dict):
+        if isinstance(value, tuple | Mapping):
             return "Array"
         if isinstance(value, bool):
             return "1" if value else ""
@@ -192,7 +193,7 @@ class LegacyTeamInvitationValidator(TeamInvitationValidator):
         ):
             return False
         return re.fullmatch(
-            r"[A-Za-z0-9!#$%&'*+/=?^_{|}~.-]+",
+            r"[A-Za-z0-9!#$%&'*+/=?^_\x60{|}~.-]+",
             local,
         ) is not None
 
@@ -248,7 +249,7 @@ class LegacyTeamInvitationHook(TeamInvitationHook):
             return value != 0
         if isinstance(value, str):
             return value not in {"", "0"}
-        if isinstance(value, list | dict):
+        if isinstance(value, list | Mapping):
             return bool(value)
         return True
 
@@ -256,7 +257,7 @@ class LegacyTeamInvitationHook(TeamInvitationHook):
     def _php_string(value) -> str:
         if value is True:
             return "1"
-        if isinstance(value, list | dict):
+        if isinstance(value, list | Mapping):
             return "Array"
         return str(value)
 
