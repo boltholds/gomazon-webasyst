@@ -1,0 +1,28 @@
+FIXTURE_KIND: app-source-characterized
+SOURCE_REPOSITORY: webasyst/webasyst-framework
+SOURCE_COMMIT: dc497e33fb7d33d40c8a897051fa8ed3d2657441
+APP_ID: contacts
+APP_VERSION: 1.1.7
+
+HANDLER:
+path = wa-apps/contacts/lib/handlers/contacts.delete.handler.php
+source_app_id = contacts
+source_event = delete
+params_by_reference = true
+ids_cast_to_array = true
+personal_group_id = negative_integer_contact_id
+table = contacts_rights
+delete_field = group_id
+handler_result_returned = false
+
+SCHEMA:
+path = wa-apps/contacts/lib/config/db.php
+primary_key = group_id,category_id
+writable_default = 0
+
+EXPECTED_PYTHON:
+owner = contacts
+source_event_key = contacts.delete
+contact_ids_remain_positive_in_application
+negative_group_id_encoding_is_infrastructure_private
+outer_result = no_result
