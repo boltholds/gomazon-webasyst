@@ -1,12 +1,27 @@
 from typing import Annotated, Literal, TypeAlias
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, RootModel, field_validator
 
 from gomazon_webasyst.contracts.enums import (
     ApiExecutionResultKind,
     ApiFrameworkErrorCode,
     ApiMethodResultKind,
 )
+
+
+class ApiMethodErrorCode(RootModel[str]):
+    model_config = ConfigDict(frozen=True)
+
+    @field_validator("root")
+    @classmethod
+    def validate_value(cls, value: str) -> str:
+        if not value:
+            raise ValueError("API method error code must not be empty")
+        return value
+
+    @property
+    def value(self) -> str:
+        return self.root
 
 
 class ApiFrameworkError(BaseModel):
@@ -16,6 +31,18 @@ class ApiFrameworkError(BaseModel):
     description: str
     http_status: Annotated[int, Field(ge=100, le=599)]
     details: dict[str, JsonValue]
+
+
+class ApiMethodError(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    code: ApiMethodErrorCode
+    description: str
+    http_status: Annotated[int, Field(ge=100, le=599)]
+    details: dict[str, JsonValue]
+
+
+ApiError: TypeAlias = ApiFrameworkError | ApiMethodError
 
 
 class ApiExecutionSucceeded(BaseModel):
@@ -30,7 +57,7 @@ class ApiExecutionRejected(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     kind: Literal[ApiExecutionResultKind.REJECTED] = ApiExecutionResultKind.REJECTED
-    error: ApiFrameworkError
+    error: ApiError
 
 
 ApiExecutionResult: TypeAlias = Annotated[
@@ -51,7 +78,7 @@ class ApiMethodRejected(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     kind: Literal[ApiMethodResultKind.REJECTED] = ApiMethodResultKind.REJECTED
-    error: ApiFrameworkError
+    error: ApiError
 
 
 ApiMethodResult: TypeAlias = Annotated[
