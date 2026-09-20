@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 
 import pytest
 from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from gomazon_webasyst.contracts.enums import TeamInvitationRejectReason
@@ -10,10 +11,12 @@ from gomazon_webasyst.contracts.team_invitation import (
     TeamInvitationCodeRequest,
     TeamInvitationContactConflict,
     TeamInvitationEmailLinkRequest,
+    TeamInvitationPhoneLinkRequest,
     TeamInvitationPrepared,
 )
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.base import Base
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.models import (
+    WaContactDataRow,
     WaContactEmailRow,
     WaContactRow,
 )
@@ -25,7 +28,7 @@ from gomazon_webasyst.infrastructure.team.sqlalchemy.invitation import (
 NOW = datetime(2026, 9, 20, 12, 0, 0)
 
 
-async def _store():
+async def _store(token_factory=None):
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
@@ -52,7 +55,7 @@ async def _store():
     return engine, sessions, SQLAlchemyTeamInvitationStore(
         sessions,
         clock=lambda: NOW,
-        token_factory=lambda: next(tokens),
+        token_factory=token_factory or (lambda: next(tokens)),
     )
 
 
@@ -166,4 +169,86 @@ async def test_link_conflicts_and_code_does_not_reuse_existing_contact() -> None
             )
         ).scalar_one()
         assert token_type == "waid_invite"
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_phone_lookup_uses_legacy_one_pass_cleaning() -> None:
+    engine, sessions, store = await _store()
+    async with sessions() as session:
+        session.add(
+            WaContactRow(
+                id=9,
+                name="Phone",
+                is_user=0,
+                create_datetime=NOW,
+            )
+        )
+        session.add(
+            WaContactDataRow(
+                contact_id=9,
+                field="phone",
+                ext="",
+                value="12 3",
+                sort=0,
+            )
+        )
+        await session.commit()
+
+    result = await store.prepare(
+        actor_contact_id=42,
+        request=TeamInvitationPhoneLinkRequest(phone="+1 2 3"),
+        manageable_group_ids=(),
+    )
+
+    assert isinstance(result, TeamInvitationPrepared)
+    assert result.contact_id == 9
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_token_collision_keeps_previously_committed_contact() -> None:
+    token = "x" * 32
+    engine, sessions, store = await _store(token_factory=lambda: token)
+    async with sessions() as session:
+        await session.execute(
+            text(
+                "INSERT INTO wa_app_tokens("
+                "contact_id,app_id,type,create_datetime,"
+                "expire_datetime,token,data"
+                ") VALUES("
+                "42,'team','user_invite',:created,:expires,:token,'{}'"
+                ")"
+            ),
+            {
+                "created": NOW,
+                "expires": NOW + timedelta(days=3),
+                "token": token,
+            },
+        )
+        await session.commit()
+
+    with pytest.raises(IntegrityError):
+        await store.prepare(
+            actor_contact_id=42,
+            request=TeamInvitationEmailLinkRequest(
+                email="new@example.test"
+            ),
+            manageable_group_ids=(),
+        )
+
+    async with sessions() as session:
+        created = tuple(
+            (
+                await session.execute(
+                    select(WaContactRow).where(
+                        WaContactRow.create_method == "invite"
+                    )
+                )
+            ).scalars()
+        )
+        assert len(created) == 1
+        assert created[0].name == "new"
+        assert created[0].create_app_id == "team"
+        assert created[0].create_contact_id == 42
     await engine.dispose()
