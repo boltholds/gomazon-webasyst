@@ -41,6 +41,8 @@ candidate_without_groups_is_visible = true
 candidate_with_any_non_hidden_group_is_visible = true
 candidate_with_only_hidden_groups_is_hidden = true
 hidden_group_right = manage_users_in_group.<id> < 0
+visibility_wildcard_uses_present_exact_names = true
+visibility_wildcard_does_not_apply_dot_all_fallback = true
 
 NAME:
 setting = webasyst/user_name_display

@@ -187,6 +187,14 @@ async def test_non_admin_visibility_keeps_self_ungrouped_and_any_visible_group()
                 ),
                 RightValue(-1),
             ),
+            NamedRightAssignment(
+                UserTarget(actor_id),
+                PermissionKey(
+                    AppId("team"),
+                    RightName("manage_users_in_group.all"),
+                ),
+                RightValue(-1),
+            ),
         )
     )
     service = ListVisibleTeamUsers(

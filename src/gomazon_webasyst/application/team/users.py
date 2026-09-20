@@ -3,8 +3,6 @@ from gomazon_webasyst.application.access_values import (
     GroupId,
     GroupTarget,
     GuestsTarget,
-    PermissionKey,
-    RightName,
     UserTarget,
 )
 from gomazon_webasyst.application.ports.access_control_uow import (
@@ -14,14 +12,13 @@ from gomazon_webasyst.application.ports.installed_application_catalog import (
     InstalledApplicationCatalog,
     InstalledApplicationMissing,
 )
+from gomazon_webasyst.application.ports.rights import NamedRightAssignment
 from gomazon_webasyst.application.rights_evaluator import RightsEvaluator
 from gomazon_webasyst.application.team.ports import TeamUserReader
 from gomazon_webasyst.contracts.access_control import (
-    FiniteRight,
     FullAppAccess,
     GlobalAdminAccess,
     LimitedAppAccess,
-    UnlimitedRight,
 )
 from gomazon_webasyst.contracts.enums import TeamUserAccessLevel
 from gomazon_webasyst.contracts.team import (
@@ -115,30 +112,43 @@ class ListVisibleTeamUsers:
                 return False
         return True
 
+    @staticmethod
     def _hidden_group_ids(
-        self,
         actor_snapshot,
         candidates: tuple[TeamUserRead, ...],
     ) -> frozenset[int]:
-        group_ids = {
+        candidate_group_ids = {
             group_id
             for candidate in candidates
             for group_id in candidate.group_ids
         }
-        hidden: set[int] = set()
-        for group_id in group_ids:
-            right = self._rights_evaluator.effective_right(
-                actor_snapshot,
-                PermissionKey(
-                    _TEAM_APP_ID,
-                    RightName(f"{_MANAGE_USERS_PREFIX}.{group_id}"),
-                ),
-            )
-            if isinstance(right, FiniteRight) and right.value < 0:
-                hidden.add(group_id)
-            else:
-                assert isinstance(right, FiniteRight | UnlimitedRight)
-        return frozenset(hidden)
+        effective_exact: dict[int, int] = {}
+        prefix = f"{_MANAGE_USERS_PREFIX}."
+        for assignment in actor_snapshot.assignments:
+            if not isinstance(assignment, NamedRightAssignment):
+                continue
+            if assignment.key.app_id != _TEAM_APP_ID:
+                continue
+            name = assignment.key.name.value
+            if not name.startswith(prefix):
+                continue
+            suffix = name[len(prefix):]
+            if not suffix.isdecimal():
+                continue
+            group_id = int(suffix)
+            if group_id <= 0 or group_id not in candidate_group_ids:
+                continue
+            value = assignment.value.value
+            if (
+                group_id not in effective_exact
+                or value > effective_exact[group_id]
+            ):
+                effective_exact[group_id] = value
+        return frozenset(
+            group_id
+            for group_id, value in effective_exact.items()
+            if value < 0
+        )
 
     @staticmethod
     def _is_visible_to_actor(

@@ -44,7 +44,9 @@ If an explicitly filtered application is not installed, `getByIds()` returns no 
 
 A Team app admin bypasses visibility filtering.
 
-For a non-admin actor, negative `manage_users_in_group.<id>` rights mark groups hidden. A candidate remains visible when any of these is true:
+For a non-admin actor, `getRights('team', 'manage_users_in_group.%')` returns the effective values of wildcard-matching right names that are actually present after personal/group/guest MAX aggregation. This wildcard branch does not perform the scalar `.all` fallback. Therefore a negative `manage_users_in_group.all` entry is not automatically a negative right for every numeric group; only present numeric `manage_users_in_group.<id>` entries can mark those group ids hidden.
+
+A candidate remains visible when any of these is true:
 
 - candidate is the actor;
 - candidate belongs to no groups;
