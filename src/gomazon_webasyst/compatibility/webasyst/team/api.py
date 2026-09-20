@@ -2,6 +2,7 @@ from gomazon_webasyst.application.api_execution.composites.invocation import (
     ApiInvocationContext,
 )
 from gomazon_webasyst.application.api_execution.composites.results import (
+    ApiMethodRejected,
     ApiMethodSucceeded,
 )
 from gomazon_webasyst.application.api_execution.vo.parameters import (
@@ -9,6 +10,7 @@ from gomazon_webasyst.application.api_execution.vo.parameters import (
 )
 from gomazon_webasyst.application.team.groups import ListVisibleTeamGroups
 from gomazon_webasyst.application.team.users import ListVisibleTeamUsers
+from gomazon_webasyst.application.team.invitation import InviteTeamUser
 from gomazon_webasyst.contracts.team import (
     TeamGroupDescriptionMissing,
     TeamGroupDescriptionPresent,
@@ -32,6 +34,23 @@ from gomazon_webasyst.compatibility.webasyst.team.users_filter import (
 )
 from gomazon_webasyst.compatibility.webasyst.team.users_media import (
     LegacyTeamUserMediaProjector,
+)
+from gomazon_webasyst.compatibility.webasyst.team.invitation import (
+    LegacyTeamInvitationRequestParser,
+)
+from gomazon_webasyst.contracts.api_execution import (
+    ApiApplicationErrorCode,
+    ApiMethodError,
+)
+from gomazon_webasyst.contracts.enums import (
+    TeamInvitationRejectReason,
+    TeamInvitationResultKind,
+)
+from gomazon_webasyst.contracts.team_invitation import (
+    TeamInvitationLinkCreated,
+    TeamInvitationLocalCodeCreated,
+    TeamInvitationRejected,
+    TeamInvitationWaidCodeCreated,
 )
 
 
@@ -162,3 +181,80 @@ class TeamUsersGetListApiMethod:
             "ext": TeamUsersGetListApiMethod._text(phone.ext),
             "status": TeamUsersGetListApiMethod._text(phone.status),
         }
+
+
+class TeamUsersInviteApiMethod:
+    def __init__(
+        self,
+        *,
+        invite_user: InviteTeamUser,
+        request_parser: LegacyTeamInvitationRequestParser,
+    ) -> None:
+        self._invite_user = invite_user
+        self._request_parser = request_parser
+
+    async def execute(
+        self,
+        context: ApiInvocationContext,
+        parameters: ApiRequestParameters,
+    ):
+        request = self._request_parser.parse(parameters)
+        result = await self._invite_user.execute(
+            actor_contact_id=context.principal.contact_id,
+            request=request,
+        )
+        if isinstance(result, TeamInvitationRejected):
+            return ApiMethodRejected(
+                error=ApiMethodError(
+                    code=ApiApplicationErrorCode(
+                        self._error_code(result.reason)
+                    ),
+                    description=(
+                        ""
+                        if result.reason
+                        is TeamInvitationRejectReason.ACCESS_DENIED
+                        else result.description
+                    ),
+                    http_status=self._status(result.reason),
+                    details=result.details,
+                )
+            )
+        if isinstance(result, TeamInvitationLinkCreated):
+            return ApiMethodSucceeded(
+                payload={
+                    "contact_id": result.contact_id,
+                    "invitation_link": result.invitation_link,
+                    "invitation_expire": result.invitation_expire,
+                }
+            )
+        if isinstance(result, TeamInvitationLocalCodeCreated):
+            return ApiMethodSucceeded(
+                payload={"contact_id": result.contact_id}
+            )
+        assert isinstance(result, TeamInvitationWaidCodeCreated)
+        return ApiMethodSucceeded(
+            payload={
+                "contact_id": result.contact_id,
+                "invitation_code": result.invitation_code,
+                "invitation_expire": result.invitation_expire,
+            }
+        )
+
+    @staticmethod
+    def _status(reason: TeamInvitationRejectReason) -> int:
+        if reason is TeamInvitationRejectReason.ACCESS_DENIED:
+            return 403
+        if reason is TeamInvitationRejectReason.TOKEN_NOT_CREATED:
+            return 500
+        if reason in {
+            TeamInvitationRejectReason.USER_IN_TEAM,
+            TeamInvitationRejectReason.CONTACT_BANNED,
+        }:
+            return 409
+        return 400
+
+    @staticmethod
+    def _error_code(reason: TeamInvitationRejectReason) -> str:
+        if reason is TeamInvitationRejectReason.ACCESS_DENIED:
+            return "Access denied"
+        return reason.value

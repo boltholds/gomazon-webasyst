@@ -49,9 +49,9 @@ def _rejected(code, description, status, details):
     )
 
 
-def _query_parameters(request: Request) -> ApiParameterMap:
+def _parameter_map_from_pairs(pairs) -> ApiParameterMap:
     values: dict[str, object] = {}
-    for key, value in request.query_params.multi_items():
+    for key, value in pairs:
         if key not in values:
             values[key] = value
             continue
@@ -63,12 +63,18 @@ def _query_parameters(request: Request) -> ApiParameterMap:
     return ApiParameterMap(values)
 
 
+def _query_parameters(request: Request) -> ApiParameterMap:
+    return _parameter_map_from_pairs(request.query_params.multi_items())
+
+
 async def _form_parameters(request: Request) -> ApiParameterMap:
     content_type = request.headers.get("content-type", "")
     if not content_type.startswith("application/x-www-form-urlencoded"):
         return ApiParameterMap({})
     body = (await request.body()).decode("utf-8")
-    return ApiParameterMap(dict(parse_qsl(body, keep_blank_values=True)))
+    return _parameter_map_from_pairs(
+        parse_qsl(body, keep_blank_values=True)
+    )
 
 
 def create_legacy_api_router(components: ApiExecutionComponents) -> APIRouter:
