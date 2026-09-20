@@ -39,9 +39,9 @@ class LegacyTeamUserFilterParser:
             app_id = match.group(1).strip()
             if not app_id:
                 continue
-            level = self._access_level(value)
-            if level is not None:
-                access_by_app[app_id] = level
+            levels = self._access_levels(value)
+            if levels:
+                access_by_app[app_id] = levels[0]
 
         if not access_by_app:
             for key in ("filter[access][]", "filter[access]"):
@@ -71,13 +71,13 @@ class LegacyTeamUserFilterParser:
                 normalized_app_id = str(app_id).strip()
                 if not normalized_app_id:
                     continue
-                level = self._access_level(raw_level)
-                if level is None:
+                levels = self._access_levels(raw_level)
+                if not levels:
                     continue
                 result.append(
                     TeamUserAccessRequirement(
                         app_id=normalized_app_id,
-                        level=level,
+                        level=levels[0],
                     )
                 )
             return tuple(result)
@@ -91,26 +91,26 @@ class LegacyTeamUserFilterParser:
         )
 
     @staticmethod
-    def _access_level(
+    def _access_levels(
         value: ApiParameterValue,
-    ) -> TeamUserAccessLevel | None:
+    ) -> tuple[TeamUserAccessLevel, ...]:
         if isinstance(value, Mapping | tuple):
-            return None
+            return ()
         normalized = str(value).strip()
         if normalized == TeamUserAccessLevel.LIMITED.value:
-            return TeamUserAccessLevel.LIMITED
+            return (TeamUserAccessLevel.LIMITED,)
         if normalized == TeamUserAccessLevel.FULL.value:
-            return TeamUserAccessLevel.FULL
-        return None
+            return (TeamUserAccessLevel.FULL,)
+        return ()
 
     @classmethod
     def _group_ids(cls, value: ApiParameterValue) -> tuple[int, ...]:
         result: list[int] = []
         for raw in cls._values(value):
-            candidate = cls._positive_int(raw)
-            if candidate is None or candidate in result:
+            candidates = cls._positive_ints(raw)
+            if not candidates or candidates[0] in result:
                 continue
-            result.append(candidate)
+            result.append(candidates[0])
         return tuple(result)
 
     @classmethod
@@ -130,9 +130,11 @@ class LegacyTeamUserFilterParser:
         return (value,)
 
     @staticmethod
-    def _positive_int(value: ApiParameterValue) -> int | None:
+    def _positive_ints(
+        value: ApiParameterValue,
+    ) -> tuple[int, ...]:
         if isinstance(value, Mapping | tuple):
-            return None
+            return ()
         if isinstance(value, bool):
             candidate = int(value)
         elif isinstance(value, int | float):
@@ -140,6 +142,6 @@ class LegacyTeamUserFilterParser:
         else:
             match = re.match(r"^[\s]*([+-]?\d+)", str(value))
             if match is None:
-                return None
+                return ()
             candidate = int(match.group(1))
-        return candidate if candidate > 0 else None
+        return (candidate,) if candidate > 0 else ()
