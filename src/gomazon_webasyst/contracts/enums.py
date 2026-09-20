@@ -585,3 +585,34 @@ class TeamUserOnlineStatus(EnumStr):
     OFFLINE = "offline"
     ONLINE = "online"
     IDLE = "idle"
+
+
+class TeamInvitationMode(EnumStr):
+    LINK = "link"
+    CODE = "code"
+
+
+class TeamInvitationChannel(EnumStr):
+    EMAIL = "email"
+    PHONE = "phone"
+    CODE = "code"
+
+
+class TeamInvitationResultKind(EnumStr):
+    LINK_CREATED = "link_created"
+    LOCAL_CODE_CREATED = "local_code_created"
+    WAID_CODE_CREATED = "waid_code_created"
+    REJECTED = "rejected"
+
+
+class TeamInvitationRejectReason(EnumStr):
+    ACCESS_DENIED = "access_denied"
+    GENERAL = "general"
+    EMAIL_REQUIRED = "email_required"
+    EMAIL_INVALID = "email_invalid"
+    PHONE_REQUIRED = "phone_required"
+    PHONE_INVALID = "phone_invalid"
+    USER_IN_TEAM = "user_in_team"
+    CONTACT_BANNED = "contact_banned"
+    TOKEN_NOT_CREATED = "token_not_created"
+    EMAIL_SEND_FAIL = "email_send_fail"
