@@ -1,0 +1,12 @@
+FIXTURE_KIND: source-characterized
+SOURCE_COMMIT: 39c267a2fabfb0cd6d94f4dd86b23b4750328dd5
+API: method=team.users.invite http_method=POST required_right=team/add_users required_right_condition=php_truthy
+REQUEST: type_code_exact=code all_other_types_use_link_flow=true phone_priority=true groups=POST_array_trim send_missing=false send_true=true send_false=false send_zero=false email_link_required_php_truthy=true code_email_required=false code_phone_required=false
+GROUPS: accepted_wa_is_int=true manage_right=manage_group.<id> manage_right_condition=php_truthy scalar_dot_all_fallback=true existence_not_checked=true token_full_access=false
+HOOK: event=team.invite_user before_channel_validation=true join_nonempty_results_newline=true error=general code_flow_runs_hook=false
+VALIDATION: email_empty=email_required email_invalid=email_invalid phone_empty=phone_required phone_invalid=phone_invalid phone_regex=^[0-9\-\(\)\/\+\s]*$ phone_lookup_cleans=true
+CONTACT: email_lookup=wa_contact_emails_exact_LIMIT1 phone_lookup=wa_contact_data_phone_clean_LIMIT1 existing_user=user_in_team banned_minus1_login=contact_banned existing_non_user_reused=true create_method=invite create_app_id=team create_contact_id=api_actor create_datetime=now current_locale=true email_name_local_part=true code_channel_validation=false
+TOKEN: table=wa_app_tokens app_id=team link_type=user_invite code_type=waid_invite token_length=32 token_alphabet=a-zA-Z0-9(!-_~*) ttl_seconds=259200 full_access_false=true limit_per_contact_app_type=5 link=absolute_root/link.php/urlencoded_token/
+WAID: disconnected_code_local_success=true connected_code_installationCode=true success_adds_code_expire=true error_deletes_local_token=true error=token_not_created link_may_create_secondary_waid_token=true
+EMAIL_SEND: send_false_returns_link=true send_true_template=welcome_invite send_true_omits_link=true mailer_false_still_success=true thrown_wa_exception=email_send_fail
+STATUS: token_not_created=500 user_in_team=409 contact_banned=409 default=400 extra_details_preserved=true
