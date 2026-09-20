@@ -19,6 +19,7 @@ from gomazon_webasyst.main import create_app_with_settings
 
 
 TOKEN = "i" * 32
+DENIED_TOKEN = "d" * 32
 OLD = datetime(2020, 1, 1, 0, 0, 0)
 
 
@@ -86,6 +87,16 @@ async def _seed(database_url: str) -> None:
                     last_datetime=OLD,
                 ),
                 WaContactRow(
+                    id=43,
+                    name="Denied Actor",
+                    firstname="Denied",
+                    login="denied",
+                    is_user=1,
+                    locale="en_US",
+                    create_datetime=OLD,
+                    last_datetime=OLD,
+                ),
+                WaContactRow(
                     id=90,
                     name="Existing User",
                     login="existing",
@@ -119,6 +130,21 @@ async def _seed(database_url: str) -> None:
                     contact_id=42,
                     client_id="team-client",
                     token=TOKEN,
+                    scope="team",
+                    create_datetime=OLD,
+                    last_use_datetime=None,
+                    expires=None,
+                ),
+                WaContactRightRow(
+                    group_id=-43,
+                    app_id="team",
+                    name="backend",
+                    value=1,
+                ),
+                WaApiTokenRow(
+                    contact_id=43,
+                    client_id="denied-client",
+                    token=DENIED_TOKEN,
                     scope="team",
                     create_datetime=OLD,
                     last_use_datetime=None,
@@ -176,6 +202,20 @@ async def test_team_users_invite_runs_through_production_api_runtime(
                     "content-type": "application/x-www-form-urlencoded"
                 },
             )
+            send_unavailable = await client.post(
+                f"/api.php/team.users.invite?access_token={TOKEN}",
+                content="email=mail%40example.test&send=true",
+                headers={
+                    "content-type": "application/x-www-form-urlencoded"
+                },
+            )
+            denied = await client.post(
+                f"/api.php/team.users.invite?access_token={DENIED_TOKEN}",
+                content="email=denied-target%40example.test",
+                headers={
+                    "content-type": "application/x-www-form-urlencoded"
+                },
+            )
             conflict = await client.post(
                 f"/api.php/team.users.invite?access_token={TOKEN}",
                 content="email=existing%40example.test",
@@ -204,6 +244,13 @@ async def test_team_users_invite_runs_through_production_api_runtime(
     assert code.status_code == 200
     assert set(code.json()) == {"contact_id"}
     assert code.json()["contact_id"] != body["contact_id"]
+
+    assert send_unavailable.status_code == 400
+    assert send_unavailable.json()["error"] == "email_send_fail"
+    assert send_unavailable.json()["contact_id"] > 0
+
+    assert denied.status_code == 403
+    assert denied.json() == {"error": "Access denied"}
 
     assert conflict.status_code == 409
     assert conflict.json() == {
@@ -240,6 +287,15 @@ async def test_team_users_invite_runs_through_production_api_runtime(
             (2,),
         }
 
+        mail_contact_id = send_unavailable.json()["contact_id"]
+        mail_rows = [
+            row
+            for row in rows
+            if row["contact_id"] == mail_contact_id
+            and row["type"] == "user_invite"
+        ]
+        assert len(mail_rows) == 1
+
         code_rows = [
             row
             for row in rows
@@ -252,11 +308,13 @@ async def test_team_users_invite_runs_through_production_api_runtime(
             await session.execute(
                 text(
                     "SELECT id, create_app_id, create_method, create_contact_id "
-                    "FROM wa_contact WHERE id IN (:link_id, :code_id)"
+                    "FROM wa_contact "
+                    "WHERE id IN (:link_id, :code_id, :mail_id)"
                 ),
                 {
                     "link_id": body["contact_id"],
                     "code_id": code.json()["contact_id"],
+                    "mail_id": mail_contact_id,
                 },
             )
         ).mappings().all()
