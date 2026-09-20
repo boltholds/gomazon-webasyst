@@ -1,0 +1,1 @@
+"""Webasyst Contacts compatibility adapters."""
