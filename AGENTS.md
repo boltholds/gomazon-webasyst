@@ -427,6 +427,19 @@ Date: 2026-09-20
 
 Webasyst event discovery enumerates `wa()->getApps(true)`, and event bucket merging preserves registration order. With more than one migrated bundled application, cross-application event order is therefore observable. `KnownRuntimeModuleFactory` declarations define the finite set of Python implementations but MUST NOT define runtime ordering. `ApplicationRuntimeBootstrap` iterates `InstalledApplicationSnapshot.applications` and selects matching known factories in that canonical order before linking. This keeps handler registration order aligned with installed-application discovery while retaining explicit, non-dynamic Python composition.
 
+
+### ADR-056 — Team user listing separates source projection, actor visibility and candidate access
+Status: accepted
+Date: 2026-09-20
+
+`team.users.getList` MUST NOT be implemented as one generic contact query with ACL predicates attached. The source-specific user/enrichment projection is exposed through the narrow application-owned `TeamUserReader`; actor Team visibility belongs to `ListVisibleTeamUsers`; candidate `filter[access]` is a separate policy over the candidate's personal and group principals. Actor visibility may include the guest principal because legacy `waContactRightsModel::get()` does, while candidate app filtering MUST NOT include guests because legacy `getByIds()` does not. Team wildcard `manage_users_in_group.%` visibility uses only effective exact right names present after principal aggregation and MUST NOT apply scalar `.all` fallback.
+
+### ADR-057 — Environment-sensitive Team user projection is injected at adapter boundaries
+Status: accepted
+Date: 2026-09-20
+
+Team application contracts store semantic user/photo/time state, not request objects or rendered URLs. `SQLAlchemyTeamUserReader` receives an injected clock and configured legacy server timezone for current-event, online/idle and UTC conversion behavior. `LegacyTeamUserMediaProjector` receives a resource URL resolver and produces Webasyst userpic fields only at the compatibility edge. Production composition supplies `webasyst_public_root_url` and `webasyst_server_timezone`. The first resource resolver covers direct public photo URLs without CDN and assumes the normal mod-rewrite data path; CDN selection and the legacy non-mod-rewrite `thumb.php` fallback are explicit deferred adapters and MUST NOT be claimed as implemented parity.
+
 ---
 
 ## Target dependency direction
@@ -820,6 +833,9 @@ Cover DB wiring, ASGI compatibility flow, auth/session composition, persistent-l
 36. Reuse shared application policy across bundled apps, but introduce a narrow consumer-specific read port when a generic repository would alter source-characterized fields, ordering, or null normalization.
 37. Publish nested application events only through the application-owned `EventPublisher`; bundled handlers must not depend on concrete event registries/dispatchers, and runtime services must be injected through explicit installed-aware module factories.
 38. Keep destructive contact deletion scope immutable across event publication: preserve legacy event-before-delete ordering, but never allow an event payload mutation to widen the requested deletion batch.
+39. Keep bundled-app list methods split into consumer-specific projection and application policy when source selection/enrichment differs from reusable domain repositories; do not push API-specific fields into generic contact persistence.
+40. Preserve wildcard-right semantics independently from scalar fallback semantics: a legacy `prefix.%` enumeration must not silently inherit `prefix.all` behavior unless the characterized source does so.
+41. Keep environment-sensitive URL/time rendering at infrastructure/compatibility boundaries; application contracts must carry semantic state rather than FastAPI requests, CDN URLs or server-local formatting.
 
 ---
 
@@ -844,4 +860,6 @@ The foundation is considered proven when CI confirms:
 - first bundled-application vertical slice is verified complete: `team.groups.getList` is source-characterized against Webasyst 4.2.0, Team is linked only when canonically installed, shared ACL semantics and a Team-specific legacy read projection are used, production ASGI execution reaches the real legacy tables, and the verification head passed full CI with 800 tests;
 - Team nested-event slice is verified complete: the source-backed `contacts.delete -> team.contacts_delete` relay uses the application-owned `EventPublisher`, preserves the same payload object, ignores nested results like the legacy handler, runtime factories are installed-aware and identity-checked, and the verification head passed full CI with 809 tests;
 - contact delete event-flow slice is verified complete: `DeleteContacts` publishes `contacts.delete` before destructive cleanup, drives the migrated Team relay, preserves immutable deletion scope, executes source-characterized legacy contact cleanup in one UoW, exposes a native DELETE architecture-proof route, and the verification head passed full CI with 820 tests;
+- Contacts private-rights event slice is verified complete: installed Contacts owns app-private `contacts_rights` cleanup, negative personal-principal encoding stays infrastructure-private, bundled runtime order follows the canonical installed-app snapshot, and the verification head passed full CI with 831 tests;
+- second Team API vertical slice is verified complete: `team.users.getList` preserves source-characterized users/group selection, wildcard visibility, candidate access filters, enrichment, naming, UTC/online/event projection and GET-only production API execution; direct-root media projection is implemented while CDN/non-mod-rewrite resource variants remain explicitly deferred, and the verification code head passed full CI with 848 tests;
 - every new architectural decision is reflected here.

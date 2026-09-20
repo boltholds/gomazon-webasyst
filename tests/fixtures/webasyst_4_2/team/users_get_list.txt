@@ -65,3 +65,12 @@ WORKUP:
 adds = userpic,userpic_original_crop,userpic_uploaded,userpic_thumbs,group_id
 removes = is_company,photo,photo_url_16,photo_url_32,photo_url_96,photo_url_144
 create_datetime_converted_to_utc = true
+resource_url_prefers_cdn = true
+resource_url_falls_back_to_absolute_root = true
+api_environment_photo_retina = false
+photo_url_has_mod_rewrite_branch = true
+
+EXPECTED_PYTHON_RESOURCE_POLICY:
+initial_policy = direct_public_data_url
+cdn_parity = deferred
+non_mod_rewrite_thumbnail_fallback = deferred

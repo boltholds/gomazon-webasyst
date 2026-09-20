@@ -36,8 +36,12 @@ def test_team_users_get_list_selection_and_access_semantics_are_pinned() -> None
         "candidate_access_principals = personal,groups",
         "candidate_access_includes_guest = false",
         "candidate_with_only_hidden_groups_is_hidden = true",
+        "visibility_wildcard_does_not_apply_dot_all_fallback = true",
         "final_sort = formatted_name_ASC",
         "online_timeout_seconds = 300",
+        "resource_url_prefers_cdn = true",
+        "api_environment_photo_retina = false",
+        "initial_policy = direct_public_data_url",
     ):
         assert expected in text
 
