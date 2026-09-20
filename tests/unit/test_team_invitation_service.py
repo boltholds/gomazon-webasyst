@@ -13,6 +13,10 @@ from gomazon_webasyst.application.ports.rights import (
     RightsSnapshot,
 )
 from gomazon_webasyst.application.ports.team_invitation import (
+    TeamInvitationEmailRejected,
+    TeamInvitationEmailSoftFailure,
+    TeamInvitationEmailSent,
+    WaidConnected,
     WaidDisconnected,
     WaidInvitationCodeIssued,
     WaidInvitationCodeRejected,
@@ -25,43 +29,41 @@ from gomazon_webasyst.compatibility.webasyst.access_control.evaluation import (
 )
 from gomazon_webasyst.contracts.enums import (
     TeamInvitationChannel,
-    TeamInvitationMode,
     TeamInvitationRejectReason,
 )
+from gomazon_webasyst.contracts.team import TeamTextMissing, TeamTextPresent
 from gomazon_webasyst.contracts.team_invitation import (
-    TeamInvitationLinkCreated,
+    TeamInvitationCodeRequest,
+    TeamInvitationEmailAccepted,
+    TeamInvitationEmailLinkRequest,
     TeamInvitationLocalCodeCreated,
     TeamInvitationPrepared,
     TeamInvitationRejected,
-    TeamInvitationRequest,
-    TeamInvitationWaidCodeCreated,
 )
 
 
-class Memberships:
+ACTOR = 42
+
+
+class FakeMemberships:
     async def list_for_user(self, contact_id):
+        assert contact_id == ACTOR
         return ()
 
 
-class Rights:
-    def __init__(self, assignments):
-        self.assignments = tuple(assignments)
+class FakeRights:
+    def __init__(self, snapshot):
+        self.snapshot = snapshot
 
     async def load_for_targets(self, targets):
-        allowed = set(targets)
-        return RightsSnapshot(
-            tuple(
-                item
-                for item in self.assignments
-                if item.target in allowed
-            )
-        )
+        assert targets[0] == UserTarget(ACTOR)
+        return self.snapshot
 
 
-class Uow:
-    def __init__(self, rights):
-        self.memberships = Memberships()
-        self.rights = rights
+class FakeUow:
+    def __init__(self, snapshot):
+        self.memberships = FakeMemberships()
+        self.rights = FakeRights(snapshot)
 
     async def __aenter__(self):
         return self
@@ -70,381 +72,344 @@ class Uow:
         return None
 
 
-class UowFactory:
-    def __init__(self, rights):
-        self.rights = rights
+class FakeUowFactory:
+    def __init__(self, snapshot):
+        self.snapshot = snapshot
 
     def __call__(self):
-        return Uow(self.rights)
+        return FakeUow(self.snapshot)
 
 
-class Store:
-    def __init__(self):
+class FakeStore:
+    def __init__(self, result):
+        self.result = result
         self.calls = []
         self.deleted = []
 
-    async def prepare(self, *, actor_contact_id, request, manageable_group_ids):
+    async def prepare(
+        self,
+        *,
+        actor_contact_id,
+        request,
+        manageable_group_ids,
+    ):
         self.calls.append(
             (actor_contact_id, request, manageable_group_ids)
         )
-        return TeamInvitationPrepared(
-            contact_id=7,
-            token="token",
-            expires_at=1_800_000_000,
-            channel=(
-                TeamInvitationChannel.CODE
-                if request.mode is TeamInvitationMode.CODE
-                else (
-                    TeamInvitationChannel.PHONE
-                    if request.phone not in {"", "0"}
-                    else TeamInvitationChannel.EMAIL
-                )
-            ),
-        )
+        return self.result
 
     async def delete_token(self, token):
         self.deleted.append(token)
 
 
-class Validator:
-    def __init__(self, email_errors=(), phone_errors=()):
-        self._email_errors = email_errors
-        self._phone_errors = phone_errors
-        self.calls = []
+class FakeValidator:
+    def __init__(self, *, email=(), phone=()):
+        self.email = email
+        self.phone = phone
 
     def email_errors(self, value):
-        self.calls.append(("email", value))
-        return self._email_errors
+        return self.email
 
     def phone_errors(self, value):
-        self.calls.append(("phone", value))
-        return self._phone_errors
+        return self.phone
 
 
-class Hook:
+class FakeHook:
     def __init__(self, messages=()):
-        self._messages = messages
+        self.result = messages
         self.calls = []
 
-    async def messages(self, *, email, phone, group_ids):
-        self.calls.append((email, phone, group_ids))
-        return self._messages
+    async def messages(self, *, email, phone, groups):
+        self.calls.append((email, phone, groups))
+        return self.result
 
 
-class LinkBuilder:
+class FakeLinkBuilder:
     def build(self, token):
         return f"https://example.test/link.php/{token}/"
 
 
-class EmailSender:
-    def __init__(self, error=()):
-        self.error = error
-        self.calls = []
-
-    async def send(self, invitation, *, email, actor_contact_id):
-        self.calls.append((invitation, email, actor_contact_id))
-        if self.error:
-            raise RuntimeError(self.error[0])
-
-
-class Waid:
-    def __init__(self, *, connected=False, result=()):
-        self.connected = connected
+class FakeEmailSender:
+    def __init__(self, result):
         self.result = result
         self.calls = []
 
+    async def send(
+        self,
+        invitation,
+        *,
+        email,
+        actor_contact_id,
+    ):
+        self.calls.append((invitation, email, actor_contact_id))
+        return self.result
+
+
+class FakeWaid:
+    def __init__(self, connection, result=None):
+        self._connection = connection
+        self._result = result
+        self.tokens = []
+
     def connection(self):
-        if self.connected:
-            from gomazon_webasyst.application.ports.team_invitation import (
-                WaidConnected,
-            )
-            return WaidConnected()
-        return WaidDisconnected()
+        return self._connection
 
     async def installation_code(self, token):
-        self.calls.append(token)
-        return self.result[0]
+        self.tokens.append(token)
+        assert self._result is not None
+        return self._result
 
 
-def evaluator():
-    return RightsEvaluator(
-        app_semantics=WebasystAccessSemantics(),
-        fallback_policy=ExactThenLegacyAllFallback(),
-    )
-
-
-def service(
-    assignments,
-    *,
-    validator=None,
-    hook=None,
-    store=None,
-    email=None,
-    waid=None,
-):
-    return InviteTeamUser(
-        store=store or Store(),
-        access_uow_factory=UowFactory(Rights(assignments)),
-        rights_evaluator=evaluator(),
-        validator=validator or Validator(),
-        hook=hook or Hook(),
-        link_builder=LinkBuilder(),
-        email_sender=email or EmailSender(),
-        waid=waid or Waid(),
-    )
-
-
-def limited_actor(*named):
-    return (
+def _snapshot(*, add_users=1, manage_all=0):
+    assignments = [
         AppAccessAssignment(
-            UserTarget(42),
+            UserTarget(ACTOR),
             AppId("team"),
             RightValue(1),
         ),
-        *named,
-    )
-
-
-@pytest.mark.asyncio
-async def test_add_users_zero_denies_before_store() -> None:
-    store = Store()
-    result = await service(
-        limited_actor(),
-        store=store,
-    ).execute(
-        actor_contact_id=42,
-        request=TeamInvitationRequest(
-            mode=TeamInvitationMode.LINK,
-            email="a@example.test",
-        ),
-    )
-    assert isinstance(result, TeamInvitationRejected)
-    assert result.reason is TeamInvitationRejectReason.ACCESS_DENIED
-    assert store.calls == []
-
-
-@pytest.mark.asyncio
-async def test_negative_add_users_is_php_truthy() -> None:
-    result = await service(
-        limited_actor(
+    ]
+    if add_users:
+        assignments.append(
             NamedRightAssignment(
-                UserTarget(42),
-                PermissionKey(AppId("team"), RightName("add_users")),
-                RightValue(-1),
+                UserTarget(ACTOR),
+                PermissionKey(
+                    AppId("team"),
+                    RightName("add_users"),
+                ),
+                RightValue(add_users),
             )
         )
-    ).execute(
-        actor_contact_id=42,
-        request=TeamInvitationRequest(
-            mode=TeamInvitationMode.LINK,
-            email="a@example.test",
-        ),
-    )
-    assert isinstance(result, TeamInvitationLinkCreated)
-
-
-@pytest.mark.asyncio
-async def test_manage_group_scalar_all_fallback_and_negative_exact_are_truthy() -> None:
-    store = Store()
-    result = await service(
-        limited_actor(
+    if manage_all:
+        assignments.append(
             NamedRightAssignment(
-                UserTarget(42),
-                PermissionKey(AppId("team"), RightName("add_users")),
-                RightValue(1),
-            ),
-            NamedRightAssignment(
-                UserTarget(42),
-                PermissionKey(AppId("team"), RightName("manage_group.all")),
-                RightValue(1),
-            ),
-            NamedRightAssignment(
-                UserTarget(42),
-                PermissionKey(AppId("team"), RightName("manage_group.3")),
-                RightValue(-1),
-            ),
-        ),
-        store=store,
-    ).execute(
-        actor_contact_id=42,
-        request=TeamInvitationRequest(
-            mode=TeamInvitationMode.LINK,
-            email="a@example.test",
-            group_ids=(2, 3),
-        ),
-    )
-    assert isinstance(result, TeamInvitationLinkCreated)
-    assert store.calls[0][2] == (2, 3)
-
-
-@pytest.mark.asyncio
-async def test_hook_rejection_happens_before_email_validation() -> None:
-    hook = Hook(("plugin says no",))
-    validator = Validator(email_errors=("email_invalid",))
-    store = Store()
-    result = await service(
-        limited_actor(
-            NamedRightAssignment(
-                UserTarget(42),
-                PermissionKey(AppId("team"), RightName("add_users")),
-                RightValue(1),
+                UserTarget(ACTOR),
+                PermissionKey(
+                    AppId("team"),
+                    RightName("manage_group.all"),
+                ),
+                RightValue(manage_all),
             )
+        )
+    return RightsSnapshot(tuple(assignments))
+
+
+def _prepared(channel=TeamInvitationChannel.EMAIL):
+    return TeamInvitationPrepared(
+        contact_id=7,
+        token="token",
+        expires_at=1_800_000_000,
+        channel=channel,
+        recipient_locale="en_US",
+    )
+
+
+def _service(
+    *,
+    snapshot=None,
+    store=None,
+    validator=None,
+    hook=None,
+    sender=None,
+    waid=None,
+):
+    return InviteTeamUser(
+        store=store or FakeStore(_prepared()),
+        access_uow_factory=FakeUowFactory(
+            snapshot or _snapshot()
         ),
-        hook=hook,
-        validator=validator,
+        rights_evaluator=RightsEvaluator(
+            app_semantics=WebasystAccessSemantics(),
+            fallback_policy=ExactThenLegacyAllFallback(),
+        ),
+        validator=validator or FakeValidator(),
+        hook=hook or FakeHook(),
+        link_builder=FakeLinkBuilder(),
+        email_sender=sender or FakeEmailSender(
+            TeamInvitationEmailSent()
+        ),
+        waid=waid or FakeWaid(WaidDisconnected()),
+    )
+
+
+@pytest.mark.asyncio
+async def test_add_users_uses_php_truthiness_and_denies_zero() -> None:
+    store = FakeStore(_prepared())
+    denied = await _service(
+        snapshot=_snapshot(add_users=0),
         store=store,
     ).execute(
-        actor_contact_id=42,
-        request=TeamInvitationRequest(
-            mode=TeamInvitationMode.LINK,
-            email="bad",
+        actor_contact_id=ACTOR,
+        request=TeamInvitationEmailLinkRequest(
+            email="a@example.test"
         ),
     )
+
+    assert isinstance(denied, TeamInvitationRejected)
+    assert denied.reason is TeamInvitationRejectReason.ACCESS_DENIED
+    assert store.calls == []
+
+    allowed_store = FakeStore(_prepared())
+    allowed = await _service(
+        snapshot=_snapshot(add_users=-1),
+        store=allowed_store,
+    ).execute(
+        actor_contact_id=ACTOR,
+        request=TeamInvitationEmailLinkRequest(
+            email="a@example.test"
+        ),
+    )
+
+    assert not isinstance(allowed, TeamInvitationRejected)
+    assert len(allowed_store.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_manage_group_scalar_right_uses_dot_all_fallback() -> None:
+    store = FakeStore(_prepared())
+    result = await _service(
+        snapshot=_snapshot(manage_all=-1),
+        store=store,
+    ).execute(
+        actor_contact_id=ACTOR,
+        request=TeamInvitationEmailLinkRequest(
+            email="a@example.test",
+            requested_groups=("7", "bad"),
+            integer_group_ids=(7,),
+        ),
+    )
+
+    assert not isinstance(result, TeamInvitationRejected)
+    assert store.calls[0][2] == (7,)
+
+
+@pytest.mark.asyncio
+async def test_invite_user_hook_runs_before_channel_validation() -> None:
+    hook = FakeHook(("blocked by plugin",))
+    store = FakeStore(_prepared())
+    result = await _service(
+        store=store,
+        validator=FakeValidator(email=("email_invalid",)),
+        hook=hook,
+    ).execute(
+        actor_contact_id=ACTOR,
+        request=TeamInvitationEmailLinkRequest(
+            email="not-an-email",
+            requested_groups=("bad", "7"),
+            integer_group_ids=(7,),
+        ),
+    )
+
     assert isinstance(result, TeamInvitationRejected)
     assert result.reason is TeamInvitationRejectReason.GENERAL
-    assert result.description == "plugin says no"
-    assert validator.calls == []
+    assert result.description == "blocked by plugin"
+    assert hook.calls[0][2] == ("bad", "7")
     assert store.calls == []
 
 
 @pytest.mark.asyncio
-async def test_phone_priority_hides_email_from_hook() -> None:
-    hook = Hook()
-    validator = Validator()
-    result = await service(
-        limited_actor(
-            NamedRightAssignment(
-                UserTarget(42),
-                PermissionKey(AppId("team"), RightName("add_users")),
-                RightValue(1),
-            )
-        ),
+async def test_code_flow_skips_hook_and_disconnected_waid_is_local_success() -> None:
+    hook = FakeHook(("must not run",))
+    store = FakeStore(_prepared(TeamInvitationChannel.CODE))
+    result = await _service(
+        store=store,
         hook=hook,
-        validator=validator,
+        waid=FakeWaid(WaidDisconnected()),
     ).execute(
-        actor_contact_id=42,
-        request=TeamInvitationRequest(
-            mode=TeamInvitationMode.LINK,
-            email="also@example.test",
-            phone="+31 20 123",
+        actor_contact_id=ACTOR,
+        request=TeamInvitationCodeRequest(
+            email=TeamTextPresent(value="bad"),
+            phone=TeamTextMissing(),
         ),
     )
-    assert isinstance(result, TeamInvitationLinkCreated)
-    assert hook.calls == [("", "+31 20 123", ())]
-    assert validator.calls == [("phone", "+31 20 123")]
 
-
-@pytest.mark.asyncio
-async def test_code_flow_skips_hook_and_validation_when_waid_disconnected() -> None:
-    hook = Hook(("would reject",))
-    validator = Validator(
-        email_errors=("email_invalid",),
-        phone_errors=("phone_invalid",),
-    )
-    result = await service(
-        limited_actor(
-            NamedRightAssignment(
-                UserTarget(42),
-                PermissionKey(AppId("team"), RightName("add_users")),
-                RightValue(1),
-            )
-        ),
-        hook=hook,
-        validator=validator,
-    ).execute(
-        actor_contact_id=42,
-        request=TeamInvitationRequest(
-            mode=TeamInvitationMode.CODE,
-            email="not-valid",
-            phone="also-invalid",
-        ),
-    )
     assert isinstance(result, TeamInvitationLocalCodeCreated)
+    assert result.contact_id == 7
     assert hook.calls == []
-    assert validator.calls == []
 
 
 @pytest.mark.asyncio
-async def test_connected_waid_code_success_projects_external_code() -> None:
-    waid = Waid(
-        connected=True,
-        result=(WaidInvitationCodeIssued("12345678", 1_800_000_100),),
+async def test_send_true_soft_mail_failure_is_still_success_without_link() -> None:
+    sender = FakeEmailSender(
+        TeamInvitationEmailSoftFailure()
     )
-    result = await service(
-        limited_actor(
-            NamedRightAssignment(
-                UserTarget(42),
-                PermissionKey(AppId("team"), RightName("add_users")),
-                RightValue(1),
-            )
+    result = await _service(sender=sender).execute(
+        actor_contact_id=ACTOR,
+        request=TeamInvitationEmailLinkRequest(
+            email="a@example.test",
+            send=True,
         ),
-        waid=waid,
+    )
+
+    assert isinstance(result, TeamInvitationEmailAccepted)
+    assert result.contact_id == 7
+    assert result.invitation_expire == 1_800_000_000
+    assert len(sender.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_send_true_hard_mail_failure_preserves_contact_and_token_details() -> None:
+    result = await _service(
+        sender=FakeEmailSender(
+            TeamInvitationEmailRejected("template failed")
+        )
     ).execute(
-        actor_contact_id=42,
-        request=TeamInvitationRequest(mode=TeamInvitationMode.CODE),
+        actor_contact_id=ACTOR,
+        request=TeamInvitationEmailLinkRequest(
+            email="a@example.test",
+            send=True,
+        ),
     )
-    assert isinstance(result, TeamInvitationWaidCodeCreated)
-    assert result.invitation_code == "12345678"
-    assert waid.calls == ["token"]
+
+    assert isinstance(result, TeamInvitationRejected)
+    assert result.reason is TeamInvitationRejectReason.EMAIL_SEND_FAIL
+    assert result.description == "template failed"
+    assert result.details == {"contact_id": 7}
 
 
 @pytest.mark.asyncio
-async def test_waid_failure_deletes_local_token_and_preserves_details() -> None:
-    store = Store()
-    waid = Waid(
-        connected=True,
-        result=(
-            WaidInvitationCodeRejected(
-                error="rate_limit",
-                description="Too many",
-                delay=(30,),
-            ),
+async def test_waid_rejection_deletes_local_code_token() -> None:
+    store = FakeStore(_prepared(TeamInvitationChannel.CODE))
+    waid = FakeWaid(
+        WaidConnected(),
+        WaidInvitationCodeRejected(
+            error="remote_error",
+            description="No code",
+            delay=(30,),
         ),
     )
-    result = await service(
-        limited_actor(
-            NamedRightAssignment(
-                UserTarget(42),
-                PermissionKey(AppId("team"), RightName("add_users")),
-                RightValue(1),
-            )
-        ),
+    result = await _service(
         store=store,
         waid=waid,
     ).execute(
-        actor_contact_id=42,
-        request=TeamInvitationRequest(mode=TeamInvitationMode.CODE),
+        actor_contact_id=ACTOR,
+        request=TeamInvitationCodeRequest(),
     )
+
     assert isinstance(result, TeamInvitationRejected)
     assert result.reason is TeamInvitationRejectReason.TOKEN_NOT_CREATED
     assert result.details == {
-        "api_error": "rate_limit",
-        "api_description": "Too many",
+        "api_error": "remote_error",
+        "api_description": "No code",
         "invitation_delay": 30,
     }
     assert store.deleted == ["token"]
 
 
 @pytest.mark.asyncio
-async def test_email_sender_exception_maps_to_email_send_fail() -> None:
-    email = EmailSender(error=("template missing",))
-    result = await service(
-        limited_actor(
-            NamedRightAssignment(
-                UserTarget(42),
-                PermissionKey(AppId("team"), RightName("add_users")),
-                RightValue(1),
-            )
+async def test_connected_waid_code_success_projects_remote_expiry() -> None:
+    result = await _service(
+        store=FakeStore(_prepared(TeamInvitationChannel.CODE)),
+        waid=FakeWaid(
+            WaidConnected(),
+            WaidInvitationCodeIssued(
+                "12345678",
+                1_900_000_000,
+            ),
         ),
-        email=email,
     ).execute(
-        actor_contact_id=42,
-        request=TeamInvitationRequest(
-            mode=TeamInvitationMode.LINK,
-            email="a@example.test",
-            send=True,
-        ),
+        actor_contact_id=ACTOR,
+        request=TeamInvitationCodeRequest(),
     )
-    assert isinstance(result, TeamInvitationRejected)
-    assert result.reason is TeamInvitationRejectReason.EMAIL_SEND_FAIL
-    assert result.details == {"contact_id": 7}
+
+    assert result.invitation_code == "12345678"
+    assert result.invitation_expire == 1_900_000_000
