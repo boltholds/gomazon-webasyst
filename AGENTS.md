@@ -414,6 +414,19 @@ Date: 2026-09-20
 
 Webasyst 4.2.0 `waContactModel::delete()` emits `contacts.delete` before deleting contact-owned rows, and the Python `DeleteContacts` use case preserves that sequencing by publishing through `EventPublisher` before opening the destructive Unit of Work. Legacy PHP passes the id array by reference, so a handler could theoretically mutate the later deletion target. The Python rewrite intentionally hardens this boundary: `ContactDeletionBatch` is immutable, the event receives a typed immutable id tuple, and handlers cannot widen or replace the destructive scope. The contact repository owns the source-characterized core cleanup sequence inside one SQL transaction after publication. App-private `contacts_rights` cleanup and the verification model's unrelated global expired-asset purge remain separate later integrations rather than hidden side effects of the contact-core adapter.
 
+
+### ADR-054 — Contacts private-rights cleanup is owned by the installed Contacts runtime
+Status: accepted
+Date: 2026-09-20
+
+The app-private `contacts_rights` table is not part of contact-core persistence. When the Contacts bundled application is installed, its explicit runtime module registers an exact `contacts.delete` handler owned by `contacts`. That handler invokes the application-owned `DeleteContactsPrivateRights` use case. Application code carries the existing positive immutable `ContactDeletionBatch`; only the Contacts SQLAlchemy adapter encodes personal principals as negative legacy `contacts_rights.group_id` values. The core `SQLAlchemyContactRepository` MUST NOT query or delete `contacts_rights`. If the Contacts application is not installed, this app-private handler is not linked. The legacy behavior is pinned to the separately versioned Contacts 1.1.7 source because the framework release SHA used for the Webasyst 4.2.0 framework characterization does not contain the retired Contacts application tree.
+
+### ADR-055 — Known bundled runtime modules are linked in canonical installed-application order
+Status: accepted
+Date: 2026-09-20
+
+Webasyst event discovery enumerates `wa()->getApps(true)`, and event bucket merging preserves registration order. With more than one migrated bundled application, cross-application event order is therefore observable. `KnownRuntimeModuleFactory` declarations define the finite set of Python implementations but MUST NOT define runtime ordering. `ApplicationRuntimeBootstrap` iterates `InstalledApplicationSnapshot.applications` and selects matching known factories in that canonical order before linking. This keeps handler registration order aligned with installed-application discovery while retaining explicit, non-dynamic Python composition.
+
 ---
 
 ## Target dependency direction
@@ -519,7 +532,7 @@ Compatibility may depend on contracts/application-owned ports. Application code 
 - tied verification assets are selected by deleted-contact email values and all `wa_contact_data.value` values;
 - the characterized category-counter quirk is preserved: categories with zero remaining members are absent from the legacy INNER JOIN recalc and keep their prior counter;
 - no semantic "contact missing" deletion result is introduced because legacy `deleteById()` reports SQL execution success rather than a row-existence branch;
-- private Contacts-app `contacts_rights` cleanup is deferred until that bundled app/schema is migrated;
+- private Contacts-app `contacts_rights` cleanup is owned by the installed Contacts runtime's exact `contacts.delete` handler; positive contact ids cross the application boundary and the negative `group_id` encoding remains infrastructure-private;
 - the verification-assets model constructor's global expired-row purge is not coupled to contact deletion in Python;
 - `wa_contact_auths` and `wa_api_tokens` are not deleted by `waContactModel::delete()` and are not silently added to this compatibility cleanup;
 - `DELETE /api/v1/contacts/{id}` is a native Python architecture-proof endpoint, not a claim of legacy Webasyst route parity.
