@@ -1,0 +1,1 @@
+"""Contacts bundled-application infrastructure."""

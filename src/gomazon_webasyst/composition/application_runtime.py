@@ -272,9 +272,18 @@ def create_application_runtime_components(
 def create_default_application_runtime_module_factories(
     session_factory,
 ) -> tuple[KnownRuntimeModuleFactory, ...]:
+    from gomazon_webasyst.composition.contacts import (
+        create_contacts_runtime_module,
+    )
     from gomazon_webasyst.composition.team import create_team_runtime_module
 
     return (
+        KnownRuntimeModuleFactory(
+            app_id=AppId("contacts"),
+            build=lambda _event_publisher: create_contacts_runtime_module(
+                session_factory
+            ),
+        ),
         KnownRuntimeModuleFactory(
             app_id=AppId("team"),
             build=lambda event_publisher: create_team_runtime_module(
