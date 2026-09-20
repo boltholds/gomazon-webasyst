@@ -57,7 +57,7 @@ from gomazon_webasyst.compatibility.webasyst.team.invitation import (
     LegacyTeamInvitationLinkBuilder,
     LegacyTeamInvitationRequestParser,
     LegacyTeamInvitationValidator,
-    NoopTeamInvitationEmailSender,
+    UnavailableTeamInvitationEmailSender,
 )
 from gomazon_webasyst.composition.access_control import create_webasyst_rights_evaluator
 from gomazon_webasyst.infrastructure.access_control.sqlalchemy.unit_of_work import (

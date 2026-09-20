@@ -8,6 +8,9 @@ from gomazon_webasyst.application.api_execution.composites.results import (
 from gomazon_webasyst.application.api_execution.vo.parameters import (
     ApiRequestParameters,
 )
+from gomazon_webasyst.compatibility.webasyst.api.services.parameter_reader import (
+    ApiParameterRejected,
+)
 from gomazon_webasyst.application.team.groups import ListVisibleTeamGroups
 from gomazon_webasyst.application.team.users import ListVisibleTeamUsers
 from gomazon_webasyst.application.team.invitation import InviteTeamUser
@@ -47,6 +50,7 @@ from gomazon_webasyst.contracts.enums import (
     TeamInvitationResultKind,
 )
 from gomazon_webasyst.contracts.team_invitation import (
+    TeamInvitationEmailAccepted,
     TeamInvitationLinkCreated,
     TeamInvitationLocalCodeCreated,
     TeamInvitationRejected,
@@ -199,6 +203,8 @@ class TeamUsersInviteApiMethod:
         parameters: ApiRequestParameters,
     ):
         request = self._request_parser.parse(parameters)
+        if isinstance(request, ApiParameterRejected):
+            return ApiMethodRejected(error=request.error)
         result = await self._invite_user.execute(
             actor_contact_id=context.principal.contact_id,
             request=request,
@@ -224,6 +230,13 @@ class TeamUsersInviteApiMethod:
                 payload={
                     "contact_id": result.contact_id,
                     "invitation_link": result.invitation_link,
+                    "invitation_expire": result.invitation_expire,
+                }
+            )
+        if isinstance(result, TeamInvitationEmailAccepted):
+            return ApiMethodSucceeded(
+                payload={
+                    "contact_id": result.contact_id,
                     "invitation_expire": result.invitation_expire,
                 }
             )
