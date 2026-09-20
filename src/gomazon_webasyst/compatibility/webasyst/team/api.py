@@ -8,13 +8,30 @@ from gomazon_webasyst.application.api_execution.vo.parameters import (
     ApiRequestParameters,
 )
 from gomazon_webasyst.application.team.groups import ListVisibleTeamGroups
+from gomazon_webasyst.application.team.users import ListVisibleTeamUsers
 from gomazon_webasyst.contracts.team import (
     TeamGroupDescriptionMissing,
     TeamGroupDescriptionPresent,
+    TeamDateTimeMissing,
+    TeamDateTimePresent,
+    TeamEventMissing,
+    TeamEventPresent,
     TeamGroupRead,
+    TeamIntegerMissing,
+    TeamIntegerPresent,
+    TeamTextMissing,
+    TeamTextPresent,
+    TeamUserPhone,
+    TeamUserRead,
 )
 from gomazon_webasyst.compatibility.webasyst.team.groups_filter import (
     LegacyTeamGroupFilterParser,
+)
+from gomazon_webasyst.compatibility.webasyst.team.users_filter import (
+    LegacyTeamUserFilterParser,
+)
+from gomazon_webasyst.compatibility.webasyst.team.users_media import (
+    LegacyTeamUserMediaProjector,
 )
 
 
@@ -55,4 +72,93 @@ class TeamGroupsGetListApiMethod:
             "cnt": group.cnt,
             "type": group.type.value,
             "description": description,
+        }
+
+
+class TeamUsersGetListApiMethod:
+    def __init__(
+        self,
+        *,
+        list_users: ListVisibleTeamUsers,
+        filter_parser: LegacyTeamUserFilterParser,
+        media_projector: LegacyTeamUserMediaProjector,
+    ) -> None:
+        self._list_users = list_users
+        self._filter_parser = filter_parser
+        self._media_projector = media_projector
+
+    async def execute(
+        self,
+        context: ApiInvocationContext,
+        parameters: ApiRequestParameters,
+    ) -> ApiMethodSucceeded:
+        user_filter = self._filter_parser.parse(parameters)
+        users = await self._list_users.execute(
+            contact_id=context.principal.contact_id,
+            user_filter=user_filter,
+        )
+        return ApiMethodSucceeded(
+            payload=[self._legacy_user(user) for user in users]
+        )
+
+    def _legacy_user(self, user: TeamUserRead) -> dict:
+        value = {
+            "id": user.id,
+            "name": user.name,
+            "firstname": user.firstname,
+            "lastname": user.lastname,
+            "middlename": user.middlename,
+            "company": user.company,
+            "login": self._text(user.login),
+            "email": list(user.email),
+            "phone": [self._phone(phone) for phone in user.phone],
+            "locale": user.locale,
+            "jobtitle": user.jobtitle,
+            "last_datetime": self._datetime(user.last_datetime),
+            "_event": self._event(user),
+            "birth_day": self._integer(user.birth_day),
+            "birth_month": self._integer(user.birth_month),
+            "create_datetime": user.create_datetime.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            "_online_status": user.online_status.value,
+            "group_id": list(user.group_ids),
+        }
+        value.update(self._media_projector.project(user))
+        return value
+
+    @staticmethod
+    def _text(value) -> object:
+        if isinstance(value, TeamTextPresent):
+            return value.value
+        assert isinstance(value, TeamTextMissing)
+        return None
+
+    @staticmethod
+    def _integer(value) -> object:
+        if isinstance(value, TeamIntegerPresent):
+            return value.value
+        assert isinstance(value, TeamIntegerMissing)
+        return None
+
+    @staticmethod
+    def _datetime(value) -> object:
+        if isinstance(value, TeamDateTimePresent):
+            return value.value.strftime("%Y-%m-%d %H:%M:%S")
+        assert isinstance(value, TeamDateTimeMissing)
+        return None
+
+    @staticmethod
+    def _event(user: TeamUserRead) -> object:
+        if isinstance(user.event, TeamEventPresent):
+            return user.event.value
+        assert isinstance(user.event, TeamEventMissing)
+        return ""
+
+    @staticmethod
+    def _phone(phone: TeamUserPhone) -> dict:
+        return {
+            "value": phone.value,
+            "ext": TeamUsersGetListApiMethod._text(phone.ext),
+            "status": TeamUsersGetListApiMethod._text(phone.status),
         }
