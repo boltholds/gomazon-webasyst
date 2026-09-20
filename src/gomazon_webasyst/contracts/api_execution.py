@@ -1,6 +1,14 @@
+from dataclasses import dataclass
 from typing import Annotated, Literal, TypeAlias
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, RootModel, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    field_serializer,
+    field_validator,
+)
 
 from gomazon_webasyst.contracts.enums import (
     ApiExecutionResultKind,
@@ -9,19 +17,15 @@ from gomazon_webasyst.contracts.enums import (
 )
 
 
-class ApiMethodErrorCode(RootModel[str]):
-    model_config = ConfigDict(frozen=True)
+@dataclass(slots=True, frozen=True)
+class ApiApplicationErrorCode:
+    value: str
 
-    @field_validator("root")
-    @classmethod
-    def validate_value(cls, value: str) -> str:
-        if not value:
-            raise ValueError("API method error code must not be empty")
-        return value
-
-    @property
-    def value(self) -> str:
-        return self.root
+    def __post_init__(self) -> None:
+        if not self.value or self.value != self.value.strip():
+            raise ValueError(
+                "api application error code must be non-empty and trimmed"
+            )
 
 
 class ApiFrameworkError(BaseModel):
@@ -36,13 +40,30 @@ class ApiFrameworkError(BaseModel):
 class ApiMethodError(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    code: ApiMethodErrorCode
+    code: ApiApplicationErrorCode
     description: str
     http_status: Annotated[int, Field(ge=100, le=599)]
     details: dict[str, JsonValue]
 
+    @field_validator("code", mode="before")
+    @classmethod
+    def parse_code(cls, value):
+        if isinstance(value, str):
+            return ApiApplicationErrorCode(value)
+        return value
 
-ApiError: TypeAlias = ApiFrameworkError | ApiMethodError
+    @field_serializer("code")
+    def serialize_code(
+        self,
+        value: ApiApplicationErrorCode,
+    ) -> str:
+        return value.value
+
+
+ApiError: TypeAlias = Annotated[
+    ApiFrameworkError | ApiMethodError,
+    Field(union_mode="left_to_right"),
+]
 
 
 class ApiExecutionSucceeded(BaseModel):
