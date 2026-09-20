@@ -17,6 +17,7 @@ from gomazon_webasyst.application.ports.event_publisher import EventPublisher
 from gomazon_webasyst.application.ports.team_invitation import (
     TeamInvitationEmailRejected,
     TeamInvitationEmailResult,
+    TeamInvitationEmailSoftFailure,
     TeamInvitationEmailSender,
     TeamInvitationHook,
     TeamInvitationLinkBuilder,
@@ -280,9 +281,7 @@ class UnavailableTeamInvitationEmailSender(TeamInvitationEmailSender):
         actor_contact_id: int,
     ) -> TeamInvitationEmailResult:
         del invitation, email, actor_contact_id
-        return TeamInvitationEmailRejected(
-            "Invitation email delivery adapter is not configured."
-        )
+        return TeamInvitationEmailSoftFailure()
 
 
 class DisconnectedTeamWaidInvitationGateway(TeamWaidInvitationGateway):

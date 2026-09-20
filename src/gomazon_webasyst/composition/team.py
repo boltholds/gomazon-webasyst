@@ -143,7 +143,7 @@ def create_team_runtime_module(
         validator=LegacyTeamInvitationValidator(),
         hook=LegacyTeamInvitationHook(event_publisher),
         link_builder=LegacyTeamInvitationLinkBuilder(public_root_url),
-        email_sender=NoopTeamInvitationEmailSender(),
+        email_sender=UnavailableTeamInvitationEmailSender(),
         waid=DisconnectedTeamWaidInvitationGateway(),
     )
     invite_handler = TeamUsersInviteApiMethod(

@@ -2,12 +2,18 @@ from gomazon_webasyst.application.api_execution.vo.parameters import (
     ApiParameterMap,
     ApiRequestParameters,
 )
+from gomazon_webasyst.compatibility.webasyst.api.services.parameter_reader import (
+    ApiParameterRejected,
+)
 from gomazon_webasyst.compatibility.webasyst.team.invitation import (
     LegacyTeamInvitationLinkBuilder,
     LegacyTeamInvitationRequestParser,
     LegacyTeamInvitationValidator,
 )
-from gomazon_webasyst.contracts.enums import TeamInvitationMode
+from gomazon_webasyst.contracts.team_invitation import (
+    TeamInvitationCodeRequest,
+    TeamInvitationEmailLinkRequest,
+)
 
 
 def _params(form):
@@ -17,44 +23,43 @@ def _params(form):
     )
 
 
-def test_invite_parser_uses_post_only_and_preserves_repeated_groups() -> None:
+def test_invite_parser_preserves_code_groups_and_send_semantics() -> None:
     request = LegacyTeamInvitationRequestParser().parse(
         _params(
             {
                 "type": "code",
                 "email": "a@example.test",
-                "phone": "",
                 "groups[]": (" 2 ", "-3", "1.0", "bad"),
-                "send": "true",
             }
         )
     )
-    assert request.mode is TeamInvitationMode.CODE
-    assert request.group_ids == (2, -3)
-    assert request.send is True
+    assert isinstance(request, TeamInvitationCodeRequest)
+    assert request.requested_groups == ("2", "-3", "1.0", "bad")
+    assert request.integer_group_ids == (2, -3)
 
-
-def test_send_uses_legacy_php_boolean_rules() -> None:
     parser = LegacyTeamInvitationRequestParser()
-    assert parser.parse(_params({"send": "false"})).send is False
-    assert parser.parse(_params({"send": "0"})).send is False
-    assert parser.parse(_params({"send": "yes"})).send is True
+    for raw, expected in (("false", False), ("0", False), ("yes", True)):
+        parsed = parser.parse(
+            _params({"email": "a@example.test", "send": raw})
+        )
+        assert isinstance(parsed, TeamInvitationEmailLinkRequest)
+        assert parsed.send is expected
 
 
-def test_invitation_validator_pins_common_email_and_exact_phone_rules() -> None:
+def test_link_email_required_is_framework_rejection() -> None:
+    parsed = LegacyTeamInvitationRequestParser().parse(_params({}))
+    assert isinstance(parsed, ApiParameterRejected)
+    assert parsed.error.code.value == "invalid_param"
+
+
+def test_invitation_validator_and_link_builder() -> None:
     validator = LegacyTeamInvitationValidator()
     assert validator.email_errors("") == ("email_required",)
     assert validator.email_errors("bad") == ("email_invalid",)
     assert validator.email_errors("ok@example.test") == ()
-    assert validator.phone_errors("") == ("phone_required",)
     assert validator.phone_errors("+31 (20) 123-4567") == ()
     assert validator.phone_errors("123abc") == ("phone_invalid",)
 
-
-def test_invitation_link_builder_encodes_legacy_token_symbols() -> None:
-    url = LegacyTeamInvitationLinkBuilder(
+    assert LegacyTeamInvitationLinkBuilder(
         "https://example.test/"
-    ).build("A(~*)")
-    assert url == (
-        "https://example.test/link.php/A%28%7E%2A%29/"
-    )
+    ).build("A(~*)") == "https://example.test/link.php/A%28%7E%2A%29/"

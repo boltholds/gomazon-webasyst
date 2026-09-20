@@ -2,9 +2,21 @@ import json
 import re
 import secrets
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    Text,
+    delete,
+    insert,
+    select,
+)
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from gomazon_webasyst.application.ports.team_invitation import TeamInvitationStore
@@ -23,16 +35,34 @@ from gomazon_webasyst.contracts.team_invitation import (
     TeamInvitationStoreResult,
 )
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.models import (
-    WaAppTokenRow,
     WaContactDataRow,
     WaContactEmailRow,
     WaContactRow,
 )
 
 
+_METADATA = MetaData()
+_APP_TOKENS = Table(
+    "wa_app_tokens",
+    _METADATA,
+    Column("contact_id", Integer),
+    Column("app_id", String(32), nullable=False),
+    Column("type", String(32), nullable=False),
+    Column("create_datetime", DateTime, nullable=False),
+    Column("expire_datetime", DateTime),
+    Column("token", String(32), primary_key=True, nullable=False),
+    Column("data", Text),
+)
+
 _ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789(!-_~*)"
 _TTL = timedelta(days=3)
 _TOKEN_LIMIT = 5
+
+
+@dataclass(slots=True, frozen=True)
+class _StoredInvitationToken:
+    token: str
+    expire_datetime: datetime
 
 
 class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
@@ -81,8 +111,7 @@ class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
         else:
             assert isinstance(
                 request,
-                TeamInvitationEmailLinkRequest
-                | TeamInvitationPhoneLinkRequest,
+                TeamInvitationEmailLinkRequest | TeamInvitationPhoneLinkRequest,
             )
             if isinstance(request, TeamInvitationPhoneLinkRequest):
                 found = await self._find_by_phone(request.phone)
@@ -132,9 +161,7 @@ class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
         async with self._session_factory() as session:
             async with session.begin():
                 await session.execute(
-                    delete(WaAppTokenRow).where(
-                        WaAppTokenRow.token == token
-                    )
+                    delete(_APP_TOKENS).where(_APP_TOKENS.c.token == token)
                 )
 
     async def _actor_locale(self, contact_id: int) -> str:
@@ -142,10 +169,7 @@ class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
             row = await session.get(WaContactRow, contact_id)
             return row.locale if row is not None else ""
 
-    async def _find_by_email(
-        self,
-        email: str,
-    ) -> tuple[WaContactRow, ...]:
+    async def _find_by_email(self, email: str) -> tuple[WaContactRow, ...]:
         async with self._session_factory() as session:
             result = await session.execute(
                 select(WaContactRow)
@@ -162,10 +186,7 @@ class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
             session.expunge(row)
             return (row,)
 
-    async def _find_by_phone(
-        self,
-        phone: str,
-    ) -> tuple[WaContactRow, ...]:
+    async def _find_by_phone(self, phone: str) -> tuple[WaContactRow, ...]:
         cleaned = self._clean_phone(phone)
         async with self._session_factory() as session:
             result = await session.execute(
@@ -240,7 +261,7 @@ class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
         token_type: str,
         manageable_group_ids: tuple[int, ...],
         include_groups: bool,
-    ) -> WaAppTokenRow:
+    ) -> _StoredInvitationToken:
         now = self._clock()
         expires = now + _TTL
         token_data: dict[str, object] = {"full_access": False}
@@ -250,24 +271,18 @@ class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
 
         async with self._session_factory() as session:
             async with session.begin():
-                row = WaAppTokenRow(
-                    token=token,
-                    contact_id=contact_id,
-                    app_id="team",
-                    type=token_type,
-                    create_datetime=now,
-                    expire_datetime=expires,
-                    data=json.dumps(
-                        token_data,
-                        separators=(",", ":"),
-                    ),
+                await session.execute(
+                    insert(_APP_TOKENS).values(
+                        token=token,
+                        contact_id=contact_id,
+                        app_id="team",
+                        type=token_type,
+                        create_datetime=now,
+                        expire_datetime=expires,
+                        data=json.dumps(token_data, separators=(",", ":")),
+                    )
                 )
-                session.add(row)
-                await session.flush()
-            detached = await session.get(WaAppTokenRow, token)
-            assert detached is not None
-            session.expunge(detached)
-            return detached
+        return _StoredInvitationToken(token=token, expire_datetime=expires)
 
     async def _trim_tokens_committed(
         self,
@@ -278,23 +293,23 @@ class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
         async with self._session_factory() as session:
             async with session.begin():
                 result = await session.execute(
-                    select(WaAppTokenRow.token)
+                    select(_APP_TOKENS.c.token)
                     .where(
-                        WaAppTokenRow.app_id == "team",
-                        WaAppTokenRow.type == token_type,
-                        WaAppTokenRow.contact_id == contact_id,
+                        _APP_TOKENS.c.app_id == "team",
+                        _APP_TOKENS.c.type == token_type,
+                        _APP_TOKENS.c.contact_id == contact_id,
                     )
-                    .order_by(WaAppTokenRow.create_datetime.desc())
+                    .order_by(_APP_TOKENS.c.create_datetime.desc())
                     .limit(_TOKEN_LIMIT)
                 )
                 keep = tuple(result.scalars())
                 if keep:
                     await session.execute(
-                        delete(WaAppTokenRow).where(
-                            WaAppTokenRow.app_id == "team",
-                            WaAppTokenRow.type == token_type,
-                            WaAppTokenRow.contact_id == contact_id,
-                            WaAppTokenRow.token.not_in(keep),
+                        delete(_APP_TOKENS).where(
+                            _APP_TOKENS.c.app_id == "team",
+                            _APP_TOKENS.c.type == token_type,
+                            _APP_TOKENS.c.contact_id == contact_id,
+                            _APP_TOKENS.c.token.not_in(keep),
                         )
                     )
 
