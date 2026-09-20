@@ -1,20 +1,23 @@
 from datetime import datetime, timedelta
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from gomazon_webasyst.contracts.enums import (
-    TeamInvitationMode,
-    TeamInvitationRejectReason,
-)
+from gomazon_webasyst.contracts.enums import TeamInvitationRejectReason
+from gomazon_webasyst.contracts.team import TeamTextMissing, TeamTextPresent
 from gomazon_webasyst.contracts.team_invitation import (
+    TeamInvitationCodeRequest,
     TeamInvitationContactConflict,
+    TeamInvitationEmailLinkRequest,
+    TeamInvitationPhoneLinkRequest,
     TeamInvitationPrepared,
-    TeamInvitationRequest,
 )
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.base import Base
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.models import (
+    WaAppTokenRow,
+    WaContactDataRow,
     WaContactEmailRow,
     WaContactRow,
 )
@@ -26,16 +29,10 @@ from gomazon_webasyst.infrastructure.team.sqlalchemy.invitation import (
 NOW = datetime(2026, 9, 20, 12, 0, 0)
 
 
-async def _store():
+async def _store(token_factory=None):
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
-        await connection.exec_driver_sql(
-            "CREATE TABLE wa_app_tokens ("
-            "contact_id INTEGER, app_id TEXT NOT NULL, type TEXT NOT NULL, "
-            "create_datetime DATETIME NOT NULL, expire_datetime DATETIME, "
-            "token TEXT PRIMARY KEY NOT NULL, data TEXT)"
-        )
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     async with sessions() as session:
         session.add(
@@ -59,23 +56,24 @@ async def _store():
         SQLAlchemyTeamInvitationStore(
             sessions,
             clock=lambda: NOW,
-            token_factory=lambda: next(tokens),
+            token_factory=token_factory or (lambda: next(tokens)),
         ),
     )
 
 
 @pytest.mark.asyncio
-async def test_link_email_reuses_existing_non_user_and_creates_user_invite_token() -> None:
+async def test_link_email_reuses_existing_non_user_and_preserves_group_presence() -> None:
     engine, sessions, store = await _store()
     async with sessions() as session:
-        contact = WaContactRow(
-            id=7,
-            name="Existing",
-            is_user=0,
-            locale="ru_RU",
-            create_datetime=NOW,
+        session.add(
+            WaContactRow(
+                id=7,
+                name="Existing",
+                is_user=0,
+                locale="ru_RU",
+                create_datetime=NOW,
+            )
         )
-        session.add(contact)
         session.add(
             WaContactEmailRow(
                 contact_id=7,
@@ -87,30 +85,23 @@ async def test_link_email_reuses_existing_non_user_and_creates_user_invite_token
 
     result = await store.prepare(
         actor_contact_id=42,
-        request=TeamInvitationRequest(
-            mode=TeamInvitationMode.LINK,
+        request=TeamInvitationEmailLinkRequest(
             email="person@example.test",
-            group_ids=(2, 3),
+            requested_groups=("bad",),
+            integer_group_ids=(),
         ),
-        manageable_group_ids=(3,),
+        manageable_group_ids=(),
     )
 
     assert isinstance(result, TeamInvitationPrepared)
     assert result.contact_id == 7
+    assert result.recipient_locale == "ru_RU"
     async with sessions() as session:
-        token = (
-            await session.execute(
-                text(
-                    "SELECT contact_id, type, expire_datetime, data "
-                    "FROM wa_app_tokens WHERE token=:token"
-                ),
-                {"token": result.token},
-            )
-        ).mappings().one()
-        assert token["type"] == "user_invite"
-        assert token["contact_id"] == 7
-        assert datetime.fromisoformat(token["expire_datetime"]) == NOW + timedelta(days=3)
-        assert token["data"] == '{"full_access":false,"groups":[3]}'
+        token = await session.get(WaAppTokenRow, result.token)
+        assert token is not None
+        assert token.type == "user_invite"
+        assert token.expire_datetime == NOW + timedelta(days=3)
+        assert token.data == '{"full_access":false,"groups":[]}'
     await engine.dispose()
 
 
@@ -149,16 +140,14 @@ async def test_link_existing_user_and_banned_user_are_typed_conflicts() -> None:
 
     user = await store.prepare(
         actor_contact_id=42,
-        request=TeamInvitationRequest(
-            mode=TeamInvitationMode.LINK,
+        request=TeamInvitationEmailLinkRequest(
             email="user@example.test",
         ),
         manageable_group_ids=(),
     )
     banned = await store.prepare(
         actor_contact_id=42,
-        request=TeamInvitationRequest(
-            mode=TeamInvitationMode.LINK,
+        request=TeamInvitationEmailLinkRequest(
             email="banned@example.test",
         ),
         manageable_group_ids=(),
@@ -194,9 +183,9 @@ async def test_code_flow_creates_new_contact_without_lookup_and_waid_token() -> 
 
     result = await store.prepare(
         actor_contact_id=42,
-        request=TeamInvitationRequest(
-            mode=TeamInvitationMode.CODE,
-            email="same@example.test",
+        request=TeamInvitationCodeRequest(
+            email=TeamTextPresent(value="same@example.test"),
+            phone=TeamTextMissing(),
         ),
         manageable_group_ids=(),
     )
@@ -204,15 +193,9 @@ async def test_code_flow_creates_new_contact_without_lookup_and_waid_token() -> 
     assert isinstance(result, TeamInvitationPrepared)
     assert result.contact_id != 7
     async with sessions() as session:
-        token = (
-            await session.execute(
-                text(
-                    "SELECT type FROM wa_app_tokens WHERE token=:token"
-                ),
-                {"token": result.token},
-            )
-        ).mappings().one()
-        assert token["type"] == "waid_invite"
+        token = await session.get(WaAppTokenRow, result.token)
+        assert token is not None
+        assert token.type == "waid_invite"
         contacts = tuple(
             (
                 await session.execute(
@@ -220,5 +203,92 @@ async def test_code_flow_creates_new_contact_without_lookup_and_waid_token() -> 
                 )
             ).scalars()
         )
-        assert [contact.id for contact in contacts] == [7, 42, result.contact_id]
+        assert [contact.id for contact in contacts] == [
+            7,
+            42,
+            result.contact_id,
+        ]
+        created = await session.get(WaContactRow, result.contact_id)
+        assert created is not None
+        assert created.locale == ""
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_phone_lookup_uses_legacy_cleaning_not_all_whitespace_removal() -> None:
+    engine, sessions, store = await _store()
+    async with sessions() as session:
+        session.add(
+            WaContactRow(
+                id=7,
+                name="Phone",
+                is_user=0,
+                create_datetime=NOW,
+            )
+        )
+        session.add(
+            WaContactDataRow(
+                contact_id=7,
+                field="phone",
+                ext="",
+                value="12 3",
+                sort=0,
+            )
+        )
+        await session.commit()
+
+    result = await store.prepare(
+        actor_contact_id=42,
+        request=TeamInvitationPhoneLinkRequest(
+            phone="+1 2 3",
+        ),
+        manageable_group_ids=(),
+    )
+
+    assert isinstance(result, TeamInvitationPrepared)
+    assert result.contact_id == 7
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_token_collision_leaves_already_created_contact() -> None:
+    token = "x" * 32
+    engine, sessions, store = await _store(token_factory=lambda: token)
+    async with sessions() as session:
+        session.add(
+            WaAppTokenRow(
+                token=token,
+                contact_id=42,
+                app_id="team",
+                type="user_invite",
+                create_datetime=NOW,
+                expire_datetime=NOW + timedelta(days=3),
+                data="{}",
+            )
+        )
+        await session.commit()
+
+    with pytest.raises(IntegrityError):
+        await store.prepare(
+            actor_contact_id=42,
+            request=TeamInvitationEmailLinkRequest(
+                email="new@example.test",
+            ),
+            manageable_group_ids=(),
+        )
+
+    async with sessions() as session:
+        created = tuple(
+            (
+                await session.execute(
+                    select(WaContactRow).where(
+                        WaContactRow.create_method == "invite"
+                    )
+                )
+            ).scalars()
+        )
+        assert len(created) == 1
+        assert created[0].name == "new"
+        assert created[0].create_app_id == "team"
+        assert created[0].create_contact_id == 42
     await engine.dispose()
