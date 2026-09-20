@@ -440,6 +440,25 @@ Date: 2026-09-20
 
 Team application contracts store semantic user/photo/time state, not request objects or rendered URLs. `SQLAlchemyTeamUserReader` receives an injected clock and configured legacy server timezone for current-event, online/idle and UTC conversion behavior. `LegacyTeamUserMediaProjector` receives a resource URL resolver and produces Webasyst userpic fields only at the compatibility edge. Production composition supplies `webasyst_public_root_url` and `webasyst_server_timezone`. The first resource resolver covers direct public photo URLs without CDN and assumes the normal mod-rewrite data path; CDN selection and the legacy non-mod-rewrite `thumb.php` fallback are explicit deferred adapters and MUST NOT be claimed as implemented parity.
 
+
+### ADR-058 — Team invitation requests are branch-specific typed variants
+Status: accepted
+Date: 2026-09-20
+
+`team.users.invite` preserves code, email-link, and phone-link flows as separate request variants instead of nullable control fields. Raw trimmed `groups[]` strings are retained for the `team.invite_user` event, while integer-like ids are normalized separately for `manage_group.<id>` evaluation and token data. Link flows publish the hook before channel validation; code flow skips hook and channel validation. Phone-link parsing has precedence over email, and missing/PHP-falsy link email remains a framework `invalid_param` boundary rejection before the invitation use case runs.
+
+### ADR-059 — Team invitation wa_app_tokens persistence is runtime-private
+Status: accepted
+Date: 2026-09-20
+
+The legacy `wa_app_tokens` table is not generic contact persistence. Team invitation infrastructure owns a narrow SQLAlchemy Core mapping and MUST NOT add an invitation-token ORM model to shared `Base.metadata`. Link invitations use `user_invite`; code invitations use `waid_invite`; token data always carries `full_access=false` and carries `groups` only when the original groups request was non-empty. The source three-day lifetime and newest-five-per-contact/app/type retention behavior are preserved. Existing non-user contacts are reused only by link email/phone flows; code flow creates a fresh contact.
+
+### ADR-060 — Team invitation external delivery channels are explicit capabilities
+Status: accepted
+Date: 2026-09-20
+
+Email delivery and connected Webasyst ID code issuance are application-owned ports. The Composite owns their source semantics: a configured mail adapter may report sent, soft failure, or hard rejection; sent and soft-failure are accepted because legacy treats a false mailer send result as success, while hard/template failure becomes `email_send_fail`. Disconnected WAID code flow succeeds locally with only `contact_id`; connected success projects remote code/expiry; connected failure removes the new local token and returns `token_not_created` with remote details. Production currently has no outbound mail provider and wires that absence as an explicit hard-unavailable adapter; WAID is wired disconnected. Real mail and connected WAID clients are deferred and are not claimed as production integrations.
+
 ---
 
 ## Target dependency direction
@@ -836,6 +855,9 @@ Cover DB wiring, ASGI compatibility flow, auth/session composition, persistent-l
 39. Keep bundled-app list methods split into consumer-specific projection and application policy when source selection/enrichment differs from reusable domain repositories; do not push API-specific fields into generic contact persistence.
 40. Preserve wildcard-right semantics independently from scalar fallback semantics: a legacy `prefix.%` enumeration must not silently inherit `prefix.all` behavior unless the characterized source does so.
 41. Keep environment-sensitive URL/time rendering at infrastructure/compatibility boundaries; application contracts must carry semantic state rather than FastAPI requests, CDN URLs or server-local formatting.
+42. Model branch-dependent legacy requests as discriminated variants instead of nullable control fields; preserve raw transport values separately when hooks observe them before normalization.
+43. Keep bundled-app token tables out of generic contact ORM metadata when they are application-owned side effects; use narrow runtime-specific persistence adapters.
+44. Treat external delivery/identity integrations as explicit capabilities with typed sent/soft-failure/hard-failure or connected/disconnected results; never fake production integration parity.
 
 ---
 
@@ -862,4 +884,5 @@ The foundation is considered proven when CI confirms:
 - contact delete event-flow slice is verified complete: `DeleteContacts` publishes `contacts.delete` before destructive cleanup, drives the migrated Team relay, preserves immutable deletion scope, executes source-characterized legacy contact cleanup in one UoW, exposes a native DELETE architecture-proof route, and the verification head passed full CI with 820 tests;
 - Contacts private-rights event slice is verified complete: installed Contacts owns app-private `contacts_rights` cleanup, negative personal-principal encoding stays infrastructure-private, bundled runtime order follows the canonical installed-app snapshot, and the verification head passed full CI with 831 tests;
 - second Team API vertical slice is verified complete: `team.users.getList` preserves source-characterized users/group selection, wildcard visibility, candidate access filters, enrichment, naming, UTC/online/event projection and GET-only production API execution; direct-root media projection is implemented while CDN/non-mod-rewrite resource variants remain explicitly deferred, and the verification code head passed full CI with 848 tests;
+- Team invitation local/disconnected vertical slice is verified complete: `team.users.invite` preserves POST/request branching, PHP-truthy rights, raw-vs-normalized groups, hook ordering, contact reuse/create behavior, private `wa_app_tokens` lifecycle, link/local-code responses and application-specific API errors through production API execution; outbound email and connected WAID remain explicit deferred adapters, and the verification code head passed full CI with 876 tests;
 - every new architectural decision is reflected here.
