@@ -115,3 +115,45 @@ async def test_known_factory_identity_mismatch_fails_before_linking() -> None:
 
     with pytest.raises(RuntimeModuleFactoryMismatch, match="declared=team"):
         await components.bootstrap.initialize()
+
+
+@pytest.mark.asyncio
+async def test_known_factories_follow_installed_application_snapshot_order() -> None:
+    calls: list[str] = []
+
+    def build(app_id: str):
+        def factory(event_publisher):
+            del event_publisher
+            calls.append(app_id)
+            return _empty_module(app_id)
+
+        return factory
+
+    components = create_application_runtime_components(
+        installed_applications=InMemoryInstalledApplicationCatalog(
+            (_app("team"), _app("contacts"))
+        ),
+        plugin_source=ProvidedPluginCatalogSource(
+            InMemoryInstalledPluginCatalog(())
+        ),
+        module_source=InstalledKnownRuntimeModuleFactories(
+            (
+                KnownRuntimeModuleFactory(
+                    app_id=AppId("contacts"),
+                    build=build("contacts"),
+                ),
+                KnownRuntimeModuleFactory(
+                    app_id=AppId("team"),
+                    build=build("team"),
+                ),
+            )
+        ),
+    )
+
+    ready = await components.bootstrap.initialize()
+
+    assert calls == ["team", "contacts"]
+    assert tuple(app_id.value for app_id in ready.linked.applications) == (
+        "team",
+        "contacts",
+    )

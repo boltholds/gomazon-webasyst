@@ -205,22 +205,19 @@ class ApplicationRuntimeBootstrap:
             self._module_source,
             InstalledKnownRuntimeModuleFactories,
         ):
-            installed_ids = {
-                application.app_id
-                for application in application_snapshot.applications
-            }
             modules: list[ApplicationRuntimeModule] = []
-            for known in self._module_source.factories:
-                if known.app_id not in installed_ids:
-                    continue
-                module = known.build(self._event_publisher)
-                if module.app_id != known.app_id:
-                    raise RuntimeModuleFactoryMismatch(
-                        "runtime module factory identity mismatch: "
-                        f"declared={known.app_id.value}, "
-                        f"built={module.app_id.value}"
-                    )
-                modules.append(module)
+            for application in application_snapshot.applications:
+                for known in self._module_source.factories:
+                    if known.app_id != application.app_id:
+                        continue
+                    module = known.build(self._event_publisher)
+                    if module.app_id != known.app_id:
+                        raise RuntimeModuleFactoryMismatch(
+                            "runtime module factory identity mismatch: "
+                            f"declared={known.app_id.value}, "
+                            f"built={module.app_id.value}"
+                        )
+                    modules.append(module)
             return tuple(modules)
 
         raise AssertionError("unsupported runtime module source")
