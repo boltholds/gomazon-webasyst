@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from gomazon_webasyst.contracts.enums import (
@@ -15,7 +15,6 @@ from gomazon_webasyst.contracts.team_invitation import (
 )
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.base import Base
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.models import (
-    WaAppTokenRow,
     WaContactEmailRow,
     WaContactRow,
 )
@@ -31,6 +30,12 @@ async def _store():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
+        await connection.exec_driver_sql(
+            "CREATE TABLE wa_app_tokens ("
+            "contact_id INTEGER, app_id TEXT NOT NULL, type TEXT NOT NULL, "
+            "create_datetime DATETIME NOT NULL, expire_datetime DATETIME, "
+            "token TEXT PRIMARY KEY NOT NULL, data TEXT)"
+        )
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     async with sessions() as session:
         session.add(
@@ -93,11 +98,19 @@ async def test_link_email_reuses_existing_non_user_and_creates_user_invite_token
     assert isinstance(result, TeamInvitationPrepared)
     assert result.contact_id == 7
     async with sessions() as session:
-        token = await session.get(WaAppTokenRow, result.token)
-        assert token.type == "user_invite"
-        assert token.contact_id == 7
-        assert token.expire_datetime == NOW + timedelta(days=3)
-        assert token.data == '{"full_access":false,"groups":[3]}'
+        token = (
+            await session.execute(
+                text(
+                    "SELECT contact_id, type, expire_datetime, data "
+                    "FROM wa_app_tokens WHERE token=:token"
+                ),
+                {"token": result.token},
+            )
+        ).mappings().one()
+        assert token["type"] == "user_invite"
+        assert token["contact_id"] == 7
+        assert datetime.fromisoformat(token["expire_datetime"]) == NOW + timedelta(days=3)
+        assert token["data"] == '{"full_access":false,"groups":[3]}'
     await engine.dispose()
 
 
@@ -191,8 +204,15 @@ async def test_code_flow_creates_new_contact_without_lookup_and_waid_token() -> 
     assert isinstance(result, TeamInvitationPrepared)
     assert result.contact_id != 7
     async with sessions() as session:
-        token = await session.get(WaAppTokenRow, result.token)
-        assert token.type == "waid_invite"
+        token = (
+            await session.execute(
+                text(
+                    "SELECT type FROM wa_app_tokens WHERE token=:token"
+                ),
+                {"token": result.token},
+            )
+        ).mappings().one()
+        assert token["type"] == "waid_invite"
         contacts = tuple(
             (
                 await session.execute(

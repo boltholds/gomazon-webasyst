@@ -3,7 +3,18 @@ import secrets
 from collections.abc import Callable
 from datetime import datetime, timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    Text,
+    delete,
+    insert,
+    select,
+)
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from gomazon_webasyst.application.ports.team_invitation import TeamInvitationStore
@@ -19,12 +30,24 @@ from gomazon_webasyst.contracts.team_invitation import (
     TeamInvitationStoreResult,
 )
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.models import (
-    WaAppTokenRow,
     WaContactDataRow,
     WaContactEmailRow,
     WaContactRow,
 )
 
+
+_METADATA = MetaData()
+_APP_TOKENS = Table(
+    "wa_app_tokens",
+    _METADATA,
+    Column("contact_id", Integer),
+    Column("app_id", String(32), nullable=False),
+    Column("type", String(32), nullable=False),
+    Column("create_datetime", DateTime, nullable=False),
+    Column("expire_datetime", DateTime),
+    Column("token", String(32), primary_key=True, nullable=False),
+    Column("data", Text),
+)
 
 _ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789(!-_~*)"
 _TTL = timedelta(days=3)
@@ -85,7 +108,7 @@ class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
                     if found:
                         conflict = self._conflict(found[0])
                         if conflict:
-                            return conflict
+                            return conflict[0]
                         contact = found[0]
                     else:
                         contact = await self._create_contact(
@@ -108,8 +131,8 @@ class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
                 token_data: dict[str, object] = {"full_access": False}
                 if request.group_ids:
                     token_data["groups"] = list(manageable_group_ids)
-                session.add(
-                    WaAppTokenRow(
+                await session.execute(
+                    insert(_APP_TOKENS).values(
                         token=token,
                         contact_id=contact.id,
                         app_id="team",
@@ -122,7 +145,6 @@ class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
                         ),
                     )
                 )
-                await session.flush()
                 await self._trim_tokens(
                     session,
                     contact_id=contact.id,
@@ -139,8 +161,8 @@ class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
         async with self._session_factory() as session:
             async with session.begin():
                 await session.execute(
-                    delete(WaAppTokenRow).where(
-                        WaAppTokenRow.token == token
+                    delete(_APP_TOKENS).where(
+                        _APP_TOKENS.c.token == token
                     )
                 )
 
@@ -245,8 +267,12 @@ class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
     async def _unique_token(self, session: AsyncSession) -> str:
         for _ in range(32):
             token = self._token_factory()
-            existing = await session.get(WaAppTokenRow, token)
-            if existing is None:
+            existing = await session.execute(
+                select(_APP_TOKENS.c.token).where(
+                    _APP_TOKENS.c.token == token
+                )
+            )
+            if existing.scalar_one_or_none() is None:
                 return token
         raise RuntimeError("unable to allocate unique team invitation token")
 
@@ -258,23 +284,23 @@ class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
         token_type: str,
     ) -> None:
         result = await session.execute(
-            select(WaAppTokenRow.token)
+            select(_APP_TOKENS.c.token)
             .where(
-                WaAppTokenRow.app_id == "team",
-                WaAppTokenRow.type == token_type,
-                WaAppTokenRow.contact_id == contact_id,
+                _APP_TOKENS.c.app_id == "team",
+                _APP_TOKENS.c.type == token_type,
+                _APP_TOKENS.c.contact_id == contact_id,
             )
-            .order_by(WaAppTokenRow.create_datetime.desc())
+            .order_by(_APP_TOKENS.c.create_datetime.desc())
             .limit(_TOKEN_LIMIT)
         )
         keep = tuple(result.scalars())
         if keep:
             await session.execute(
-                delete(WaAppTokenRow).where(
-                    WaAppTokenRow.app_id == "team",
-                    WaAppTokenRow.type == token_type,
-                    WaAppTokenRow.contact_id == contact_id,
-                    WaAppTokenRow.token.not_in(keep),
+                delete(_APP_TOKENS).where(
+                    _APP_TOKENS.c.app_id == "team",
+                    _APP_TOKENS.c.type == token_type,
+                    _APP_TOKENS.c.contact_id == contact_id,
+                    _APP_TOKENS.c.token.not_in(keep),
                 )
             )
 
