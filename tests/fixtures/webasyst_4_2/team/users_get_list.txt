@@ -1,0 +1,65 @@
+FIXTURE_KIND: source-characterized
+SOURCE_COMMIT: 39c267a2fabfb0cd6d94f4dd86b23b4750328dd5
+
+API:
+path = wa-apps/team/api/v1/team.users.getList.method.php
+method = team.users.getList
+http_method = GET
+fields = id,name,firstname,lastname,middlename,company,login,email,phone,locale,jobtitle,last_datetime,photo_url_16,photo_url_32,photo_url_96,photo_url_144,_event,birth_day,birth_month,create_datetime,_online_status
+
+BASE_COLLECTION:
+without_group_filter = users
+users_requires_login_not_null = true
+users_requires_is_user_equal_1 = true
+with_group_filter = group/comma_joined_positive_ids
+group_filter_drops_non_positive = true
+group_collection_deduplicates_group_ids = true
+group_collection_requires_is_user_gt_0 = true
+group_collection_joins_wa_user_groups = true
+
+FILTER_GROUP:
+parameter = filter[group_id]
+positive_ints_only = true
+empty_after_normalization_means_no_group_filter = true
+
+FILTER_ACCESS:
+scalar_or_list_app_id_defaults_to = limited
+associative_values = limited,full
+invalid_level_is_dropped = true
+requirements_are_AND = true
+limited_requires_backend_gte_1 = true
+full_requires_backend_gt_1 = true
+uninstalled_app_yields_no_matching_users = true
+candidate_access_principals = personal,groups
+candidate_access_includes_guest = false
+webasyst_backend_gt_0_grants_non_webasyst_full_access = true
+
+VISIBILITY:
+team_full_admin_sees_all_candidates = true
+actor_self_is_visible = true
+candidate_without_groups_is_visible = true
+candidate_with_any_non_hidden_group_is_visible = true
+candidate_with_only_hidden_groups_is_hidden = true
+hidden_group_right = manage_users_in_group.<id> < 0
+
+NAME:
+setting = webasyst/user_name_display
+allowed_parts = firstname,middlename,lastname,login
+fallback = contact_name_then_user_id
+final_sort = formatted_name_ASC
+
+ENRICHMENT:
+emails_order = wa_contact_emails.sort
+phones_source = wa_contact_data[field=phone]
+groups_source = wa_user_groups
+event_source = current_status_wa_contact_events_join_calendar
+no_current_event = empty_string
+online_timeout_seconds = 300
+recent_last_datetime = online
+idle_since_older_than_seconds = 60
+active_login_required_for_idle_lookup = true
+
+WORKUP:
+adds = userpic,userpic_original_crop,userpic_uploaded,userpic_thumbs,group_id
+removes = is_company,photo,photo_url_16,photo_url_32,photo_url_96,photo_url_144
+create_datetime_converted_to_utc = true
