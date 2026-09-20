@@ -88,11 +88,15 @@ async def test_team_contacts_delete_relay_performs_nested_dispatch_without_outer
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     nested_handler = RecordingNestedHandler()
+    installed = InMemoryInstalledApplicationCatalog(
+        (_app("team"), _app("audit"))
+    )
 
     def build_team(event_publisher):
         return create_team_runtime_module(
             sessions,
             event_publisher=event_publisher,
+            installed_applications=installed,
         )
 
     def build_audit(event_publisher):
@@ -116,9 +120,7 @@ async def test_team_contacts_delete_relay_performs_nested_dispatch_without_outer
         )
 
     components = create_application_runtime_components(
-        installed_applications=InMemoryInstalledApplicationCatalog(
-            (_app("team"), _app("audit"))
-        ),
+        installed_applications=installed,
         plugin_source=ProvidedPluginCatalogSource(
             InMemoryInstalledPluginCatalog(())
         ),

@@ -1,3 +1,5 @@
+from datetime import datetime, timezone, tzinfo
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from gomazon_webasyst.application.access_values import AppId
@@ -22,16 +24,30 @@ from gomazon_webasyst.application.events.vo.patterns import (
     ExactEventSource,
 )
 from gomazon_webasyst.application.ports.event_publisher import EventPublisher
+from gomazon_webasyst.application.ports.installed_application_catalog import (
+    InstalledApplicationCatalog,
+)
 from gomazon_webasyst.application.runtime.entities.application_module import (
     ApplicationRuntimeModule,
 )
 from gomazon_webasyst.application.team.groups import ListVisibleTeamGroups
-from gomazon_webasyst.compatibility.webasyst.team.api import TeamGroupsGetListApiMethod
+from gomazon_webasyst.application.team.users import ListVisibleTeamUsers
+from gomazon_webasyst.compatibility.webasyst.team.api import (
+    TeamGroupsGetListApiMethod,
+    TeamUsersGetListApiMethod,
+)
 from gomazon_webasyst.compatibility.webasyst.team.events import (
     TeamContactsDeleteRelayHandler,
 )
 from gomazon_webasyst.compatibility.webasyst.team.groups_filter import (
     LegacyTeamGroupFilterParser,
+)
+from gomazon_webasyst.compatibility.webasyst.team.users_filter import (
+    LegacyTeamUserFilterParser,
+)
+from gomazon_webasyst.compatibility.webasyst.team.users_media import (
+    LegacyTeamUserMediaProjector,
+    RootResourceUrlResolver,
 )
 from gomazon_webasyst.composition.access_control import create_webasyst_rights_evaluator
 from gomazon_webasyst.infrastructure.access_control.sqlalchemy.unit_of_work import (
@@ -39,6 +55,9 @@ from gomazon_webasyst.infrastructure.access_control.sqlalchemy.unit_of_work impo
 )
 from gomazon_webasyst.infrastructure.team.sqlalchemy.groups import (
     SQLAlchemyTeamGroupReader,
+)
+from gomazon_webasyst.infrastructure.team.sqlalchemy.users import (
+    SQLAlchemyTeamUserReader,
 )
 
 
@@ -49,6 +68,9 @@ def create_team_runtime_module(
     session_factory: async_sessionmaker[AsyncSession],
     *,
     event_publisher: EventPublisher,
+    installed_applications: InstalledApplicationCatalog,
+    public_root_url: str = "http://localhost/",
+    server_timezone: tzinfo = timezone.utc,
 ) -> ApplicationRuntimeModule:
     list_groups = ListVisibleTeamGroups(
         groups=SQLAlchemyTeamGroupReader(session_factory),
@@ -57,17 +79,44 @@ def create_team_runtime_module(
         ),
         rights_evaluator=create_webasyst_rights_evaluator(),
     )
-    handler = TeamGroupsGetListApiMethod(
+    groups_handler = TeamGroupsGetListApiMethod(
         list_groups=list_groups,
         filter_parser=LegacyTeamGroupFilterParser(),
     )
-    method = ApiMethodDefinition(
+    groups_method = ApiMethodDefinition(
         target=ApiMethodTarget(
             _TEAM_APP_ID,
             ApiMethodName("groups.getList"),
         ),
         allowed_methods=frozenset({ApiHttpMethod("GET")}),
-        handler=handler,
+        handler=groups_handler,
+    )
+    list_users = ListVisibleTeamUsers(
+        users=SQLAlchemyTeamUserReader(
+            session_factory,
+            server_timezone=server_timezone,
+            clock=lambda: datetime.now(timezone.utc),
+        ),
+        access_uow_factory=SQLAlchemyAccessControlUnitOfWorkFactory(
+            session_factory
+        ),
+        rights_evaluator=create_webasyst_rights_evaluator(),
+        installed_applications=installed_applications,
+    )
+    users_handler = TeamUsersGetListApiMethod(
+        list_users=list_users,
+        filter_parser=LegacyTeamUserFilterParser(),
+        media_projector=LegacyTeamUserMediaProjector(
+            RootResourceUrlResolver(public_root_url)
+        ),
+    )
+    users_method = ApiMethodDefinition(
+        target=ApiMethodTarget(
+            _TEAM_APP_ID,
+            ApiMethodName("users.getList"),
+        ),
+        allowed_methods=frozenset({ApiHttpMethod("GET")}),
+        handler=users_handler,
     )
     contacts_delete_relay = EventHandlerDefinition(
         handler_id=EventHandlerId("team-contacts-delete-relay"),
@@ -79,7 +128,7 @@ def create_team_runtime_module(
     return ApplicationRuntimeModule(
         app_id=_TEAM_APP_ID,
         dispatch_handlers=(),
-        api_methods=(method,),
+        api_methods=(groups_method, users_method),
         event_handlers=(contacts_delete_relay,),
         plugins=(),
     )

@@ -124,11 +124,15 @@ async def test_real_contact_delete_triggers_team_relay_before_sql_cleanup() -> N
         await session.commit()
 
     consumer = InspectingTeamDeleteConsumer(sessions)
+    installed = InMemoryInstalledApplicationCatalog(
+        (_app("team"), _app("audit"))
+    )
 
     def build_team(event_publisher):
         return create_team_runtime_module(
             sessions,
             event_publisher=event_publisher,
+            installed_applications=installed,
         )
 
     def build_audit(event_publisher):
@@ -150,9 +154,7 @@ async def test_real_contact_delete_triggers_team_relay_before_sql_cleanup() -> N
         )
 
     runtime = create_application_runtime_components(
-        installed_applications=InMemoryInstalledApplicationCatalog(
-            (_app("team"), _app("audit"))
-        ),
+        installed_applications=installed,
         plugin_source=ProvidedPluginCatalogSource(
             InMemoryInstalledPluginCatalog(())
         ),

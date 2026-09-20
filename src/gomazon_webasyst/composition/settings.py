@@ -20,3 +20,5 @@ class Settings(BaseSettings):
     api_enabled: bool = True
     api_disable_message: str = ""
     api_force_https: bool = False
+    webasyst_public_root_url: str = "http://localhost/"
+    webasyst_server_timezone: str = "UTC"

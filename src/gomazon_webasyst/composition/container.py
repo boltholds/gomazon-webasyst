@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -227,7 +228,10 @@ def create_container_with_registries(
     if isinstance(runtime_plan, DefaultRuntimeModulePlan):
         module_source = InstalledKnownRuntimeModuleFactories(
             create_default_application_runtime_module_factories(
-                session_factory
+                session_factory,
+                installed_applications=installed_application_catalog,
+                public_root_url=settings.webasyst_public_root_url,
+                server_timezone=ZoneInfo(settings.webasyst_server_timezone),
             )
         )
     else:

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import timezone
 from pathlib import Path
 from typing import Protocol, TypeAlias
 
@@ -268,6 +269,10 @@ def create_application_runtime_components(
 
 def create_default_application_runtime_module_factories(
     session_factory,
+    *,
+    installed_applications: InstalledApplicationCatalog,
+    public_root_url: str = "http://localhost/",
+    server_timezone=timezone.utc,
 ) -> tuple[KnownRuntimeModuleFactory, ...]:
     from gomazon_webasyst.composition.contacts import (
         create_contacts_runtime_module,
@@ -286,6 +291,9 @@ def create_default_application_runtime_module_factories(
             build=lambda event_publisher: create_team_runtime_module(
                 session_factory,
                 event_publisher=event_publisher,
+                installed_applications=installed_applications,
+                public_root_url=public_root_url,
+                server_timezone=server_timezone,
             ),
         ),
     )
