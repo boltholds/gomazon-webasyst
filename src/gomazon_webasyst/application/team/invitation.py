@@ -154,7 +154,11 @@ class InviteTeamUser:
                 invitation_expire=code.expires_at,
             )
 
-        if request.email and not request.phone and request.send:
+        if (
+            self._php_truthy_string(request.email)
+            and not self._php_truthy_string(request.phone)
+            and request.send
+        ):
             try:
                 await self._email_sender.send(
                     prepared,
@@ -198,13 +202,17 @@ class InviteTeamUser:
         self,
         request: TeamInvitationRequest,
     ) -> tuple[TeamInvitationRejectReason, ...]:
-        if request.phone:
+        if self._php_truthy_string(request.phone):
             errors = self._validator.phone_errors(request.phone)
         else:
             errors = self._validator.email_errors(request.email)
         if not errors:
             return ()
         return (TeamInvitationRejectReason(errors[0]),)
+
+    @staticmethod
+    def _php_truthy_string(value: str) -> bool:
+        return value not in {"", "0"}
 
     @staticmethod
     def _reject(reason: TeamInvitationRejectReason) -> TeamInvitationRejected:

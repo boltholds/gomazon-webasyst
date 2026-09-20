@@ -151,3 +151,20 @@ class WaApiTokenRow(Base):
     create_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     last_use_datetime: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     expires: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class WaAppTokenRow(Base):
+    __tablename__ = "wa_app_tokens"
+    __table_args__ = (
+        Index("wa_app_tokens_app", "app_id"),
+        Index("wa_app_tokens_contact", "contact_id"),
+        Index("wa_app_tokens_expire", "expire_datetime"),
+    )
+
+    token: Mapped[str] = mapped_column(String(32), primary_key=True, nullable=False)
+    contact_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    app_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    type: Mapped[str] = mapped_column(String(32), nullable=False)
+    create_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    expire_datetime: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    data: Mapped[str | None] = mapped_column(Text, nullable=True)
