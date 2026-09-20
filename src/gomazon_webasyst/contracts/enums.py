@@ -569,3 +569,19 @@ class RuntimeLinkRejectReason(EnumStr):
 class TeamGroupDescriptionKind(EnumStr):
     PRESENT = "present"
     MISSING = "missing"
+
+
+class TeamValuePresenceKind(EnumStr):
+    PRESENT = "present"
+    MISSING = "missing"
+
+
+class TeamUserAccessLevel(EnumStr):
+    LIMITED = "limited"
+    FULL = "full"
+
+
+class TeamUserOnlineStatus(EnumStr):
+    OFFLINE = "offline"
+    ONLINE = "online"
+    IDLE = "idle"
