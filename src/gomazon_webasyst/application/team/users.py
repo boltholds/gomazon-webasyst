@@ -71,6 +71,10 @@ class ListVisibleTeamUsers:
                 actor_snapshot,
                 _TEAM_APP_ID,
             )
+            actor_has_team_access = isinstance(
+                actor_access,
+                LimitedAppAccess | FullAppAccess | GlobalAdminAccess,
+            )
             actor_is_admin = isinstance(
                 actor_access,
                 FullAppAccess | GlobalAdminAccess,
@@ -78,7 +82,7 @@ class ListVisibleTeamUsers:
 
             hidden_group_ids = (
                 frozenset()
-                if actor_is_admin
+                if actor_is_admin or not actor_has_team_access
                 else self._hidden_group_ids(actor_snapshot, candidates)
             )
 

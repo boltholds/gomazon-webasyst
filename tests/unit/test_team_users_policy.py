@@ -364,3 +364,38 @@ async def test_uninstalled_access_filter_app_returns_empty_list() -> None:
 
     assert result == ()
     assert len(rights.calls) == 0
+
+
+@pytest.mark.asyncio
+async def test_visibility_wildcard_is_empty_without_team_backend_access() -> None:
+    actor_id = 100
+    reader = FakeReader((_user(1, (2,)),))
+    rights = FilteringRights(
+        (
+            NamedRightAssignment(
+                UserTarget(actor_id),
+                PermissionKey(
+                    AppId("team"),
+                    RightName("manage_users_in_group.2"),
+                ),
+                RightValue(-1),
+            ),
+        )
+    )
+    service = ListVisibleTeamUsers(
+        users=reader,
+        access_uow_factory=FakeUowFactory(
+            FakeUow(FakeMemberships(()), rights)
+        ),
+        rights_evaluator=_evaluator(),
+        installed_applications=InMemoryInstalledApplicationCatalog(
+            (_app("team"),)
+        ),
+    )
+
+    result = await service.execute(
+        contact_id=actor_id,
+        user_filter=TeamUserFilter(),
+    )
+
+    assert [user.id for user in result] == [1]
