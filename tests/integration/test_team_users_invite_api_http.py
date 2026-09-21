@@ -188,6 +188,28 @@ async def test_team_users_invite_runs_through_production_api_runtime(
                     "content-type": "application/x-www-form-urlencoded"
                 },
             )
+            associative_groups = await client.post(
+                f"/api.php/team.users.invite?access_token={TOKEN}",
+                content=(
+                    "email=assoc%40example.test"
+                    "&groups%5Balpha%5D=2"
+                    "&groups%5Bnested%5D%5Bchild%5D=7"
+                    "&groups%5B%5D=3"
+                ),
+                headers={
+                    "content-type": "application/x-www-form-urlencoded"
+                },
+            )
+            nested_only_groups = await client.post(
+                f"/api.php/team.users.invite?access_token={TOKEN}",
+                content=(
+                    "email=nested-only%40example.test"
+                    "&groups%5Bmeta%5D%5Bname%5D=engineering"
+                ),
+                headers={
+                    "content-type": "application/x-www-form-urlencoded"
+                },
+            )
             repeated = await client.post(
                 f"/api.php/team.users.invite?access_token={TOKEN}",
                 content="email=new%40example.test&send=false",
@@ -241,6 +263,17 @@ async def test_team_users_invite_runs_through_production_api_runtime(
     assert repeated.status_code == 200
     assert repeated.json()["contact_id"] == body["contact_id"]
 
+    assert associative_groups.status_code == 200
+    associative_contact_id = associative_groups.json()["contact_id"]
+    assert associative_contact_id != body["contact_id"]
+
+    assert nested_only_groups.status_code == 200
+    nested_only_contact_id = nested_only_groups.json()["contact_id"]
+    assert nested_only_contact_id not in {
+        body["contact_id"],
+        associative_contact_id,
+    }
+
     assert code.status_code == 200
     assert set(code.json()) == {"contact_id"}
     assert code.json()["contact_id"] != body["contact_id"]
@@ -285,6 +318,28 @@ async def test_team_users_invite_runs_through_production_api_runtime(
         assert {tuple(item.get("groups", [])) for item in (first_data, second_data)} == {
             (),
             (2,),
+        }
+
+        associative_row = next(
+            row
+            for row in rows
+            if row["contact_id"] == associative_contact_id
+            and row["type"] == "user_invite"
+        )
+        assert json.loads(associative_row["data"]) == {
+            "full_access": False,
+            "groups": [2],
+        }
+
+        nested_only_row = next(
+            row
+            for row in rows
+            if row["contact_id"] == nested_only_contact_id
+            and row["type"] == "user_invite"
+        )
+        assert json.loads(nested_only_row["data"]) == {
+            "full_access": False,
+            "groups": [],
         }
 
         mail_contact_id = send_unavailable.json()["contact_id"]
