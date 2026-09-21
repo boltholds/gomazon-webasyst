@@ -49,6 +49,25 @@ TeamInvitationRequestParseResult: TypeAlias = (
 )
 
 _PHONE = re.compile(r"^[0-9\-\(\)/\+\s]*$")
+_EMAIL = re.compile(
+    r"^(?!(?:(?:\x22?\x5C[\x00-\x7E]\x22?)|(?:\x22?[^\x5C\x22]\x22?)){255,})"
+    r"(?!(?:(?:\x22?\x5C[\x00-\x7E]\x22?)|(?:\x22?[^\x5C\x22]\x22?)){65,}@)"
+    r"(?:(?:[\x21\x23-\x27\x2A\x2B\x2D\x2F-\x39\x3D\x3F\x5E-\x7E]+)|"
+    r"(?:\x22(?:[\x01-\x08\x0B\x0C\x0E-\x1F\x21\x23-\x5B\x5D-\x7F]|(?:\x5C[\x00-\x7F]))*\x22))"
+    r"(?:\.(?:(?:[\x21\x23-\x27\x2A\x2B\x2D\x2F-\x39\x3D\x3F\x5E-\x7E]+)|"
+    r"(?:\x22(?:[\x01-\x08\x0B\x0C\x0E-\x1F\x21\x23-\x5B\x5D-\x7F]|(?:\x5C[\x00-\x7F]))*\x22)))*"
+    r"@(?:(?:(?!.*[^.]{64,})(?:(?:[a-z0-9](?:[\-a-z0-9]*[a-z0-9])*\.){1,126}){1,}"
+    r"(?:(?:[a-z][a-z0-9]*)|(?:(?:xn--)[a-z0-9]+))(?:-[a-z0-9]+)*)|"
+    r"(?:\[(?:(?:IPv6:(?:(?:[a-f0-9]{1,4}(?::[a-f0-9]{1,4}){7})|"
+    r"(?:(?!(?:.*[a-f0-9][:\]]){7,})(?:[a-f0-9]{1,4}(?::[a-f0-9]{1,4}){0,5})?::"
+    r"(?:[a-f0-9]{1,4}(?::[a-f0-9]{1,4}){0,5})?)))|"
+    r"(?:(?:IPv6:(?:(?:[a-f0-9]{1,4}(?::[a-f0-9]{1,4}){5}:)|"
+    r"(?:(?!(?:.*[a-f0-9]:){5,})(?:[a-f0-9]{1,4}(?::[a-f0-9]{1,4}){0,3})?::"
+    r"(?:[a-f0-9]{1,4}(?::[a-f0-9]{1,4}){0,3}:)?)))?"
+    r"(?:(?:25[0-5])|(?:2[0-4][0-9])|(?:1[0-9]{2})|(?:[1-9]?[0-9]))"
+    r"(?:\.(?:(?:25[0-5])|(?:2[0-4][0-9])|(?:1[0-9]{2})|(?:[1-9]?[0-9]))){3}))\]))$",
+    re.IGNORECASE,
+)
 
 
 class LegacyTeamInvitationRequestParser:
@@ -115,7 +134,13 @@ class LegacyTeamInvitationRequestParser:
                 continue
             value = form[key]
             if isinstance(value, tuple):
-                return tuple(cls._scalar(item).strip() for item in value)
+                if key == "groups[]":
+                    return tuple(
+                        cls._scalar(item).strip() for item in value
+                    )
+                if not value:
+                    return ()
+                return (cls._scalar(value[-1]).strip(),)
             if isinstance(value, Mapping):
                 return ()
             return (cls._scalar(value).strip(),)
@@ -135,7 +160,11 @@ class LegacyTeamInvitationRequestParser:
 
     @staticmethod
     def _scalar(value: ApiParameterValue) -> str:
-        if isinstance(value, tuple | Mapping):
+        if isinstance(value, tuple):
+            if not value:
+                return ""
+            return LegacyTeamInvitationRequestParser._scalar(value[-1])
+        if isinstance(value, Mapping):
             return "Array"
         if isinstance(value, bool):
             return "1" if value else ""
@@ -165,37 +194,25 @@ class LegacyTeamInvitationValidator(TeamInvitationValidator):
             return ("phone_invalid",)
         return ()
 
+    @classmethod
+    def _valid_email(cls, value: str) -> bool:
+        if "<script" in value.casefold():
+            return False
+        normalized = cls._idna_email(value)
+        return _EMAIL.fullmatch(normalized) is not None
+
     @staticmethod
-    def _valid_email(value: str) -> bool:
-        if len(value) > 255 or value.count("@") != 1:
-            return False
+    def _idna_email(value: str) -> str:
+        if "@" not in value:
+            return value
         local, domain = value.rsplit("@", 1)
-        if not local or len(local) > 64 or not domain:
-            return False
-        if local.startswith(".") or local.endswith(".") or ".." in local:
-            return False
-        if any(char.isspace() for char in value):
-            return False
+        if domain.startswith("[") and domain.endswith("]"):
+            return value
         try:
-            domain = domain.encode("idna").decode("ascii")
+            encoded_domain = domain.encode("idna").decode("ascii")
         except UnicodeError:
-            return False
-        labels = domain.split(".")
-        if len(labels) < 2:
-            return False
-        if any(
-            not label
-            or len(label) > 63
-            or label.startswith("-")
-            or label.endswith("-")
-            or re.fullmatch(r"[A-Za-z0-9-]+", label) is None
-            for label in labels
-        ):
-            return False
-        return re.fullmatch(
-            r"[A-Za-z0-9!#$%&'*+/=?^_\x60{|}~.-]+",
-            local,
-        ) is not None
+            return value
+        return f"{local}@{encoded_domain}"
 
 
 class LegacyTeamInvitationHook(TeamInvitationHook):
