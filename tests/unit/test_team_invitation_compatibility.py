@@ -74,3 +74,9 @@ def test_email_validator_preserves_legacy_rfc_and_idna_cases() -> None:
     assert validator.email_errors("user@пример.рф") == ()
     assert validator.email_errors("a..b@example.com") == ("email_invalid",)
     assert validator.email_errors("<script@example.com") == ("email_invalid",)
+
+
+def test_invitation_link_builder_decodes_idna_root_like_webasyst() -> None:
+    assert LegacyTeamInvitationLinkBuilder(
+        "https://xn--e1afmkfd.xn--p1ai/"
+    ).build("token") == "https://пример.рф/link.php/token/"
