@@ -15,6 +15,7 @@ Date: 2026-09-20
 - [x] Preserve link contact reuse, user/banned conflicts and code fresh-contact behavior.
 - [x] Keep `wa_app_tokens` in a Team-private Core mapping.
 - [x] Preserve token type, payload, three-day TTL, newest-five retention and non-atomic contact-before-token behavior.
+- [x] Preserve new-contact commit -> synchronous `contacts.save` -> token creation ordering.
 - [x] Keep persisted token expiry distinct from link API response-time `time()+3d` expiry.
 - [x] Preserve IDNA-decoded absolute root behavior in invitation links.
 - [x] Preserve send=false link and send=true no-link response shapes.
@@ -29,9 +30,9 @@ Date: 2026-09-20
 
 ## Verification
 
-Post-audit code verification head: `ee76902a0c7a048ed4ff5c9ba3599e947e3cb9b2`.
+Final verification head before documentation sync: `721331d179628a4d7a31951e140c86196ece9829`.
 
-That head passed full GitHub Actions CI with **885 tests and 11 warnings**. The audit added source-backed regressions for PHP scalar POST normalization, the exact Webasyst email validator surface, response-time invitation expiry, IDNA-decoded link roots, and ASCII-only `wa_is_int`.
+That head passed full GitHub Actions CI with **888 tests and 11 warnings**. The completed audit covers PHP scalar POST normalization, the exact Webasyst email validator surface, response-time invitation expiry, IDNA-decoded link roots, ASCII-only `wa_is_int`, typed contact resolution, and committed `contacts.save`-before-token ordering for newly created invite contacts.
 
 ## Deferred
 
