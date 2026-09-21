@@ -63,3 +63,14 @@ def test_invitation_validator_and_link_builder() -> None:
     assert LegacyTeamInvitationLinkBuilder(
         "https://example.test/"
     ).build("A(~*)") == "https://example.test/link.php/A%28%7E%2A%29/"
+
+
+def test_email_validator_preserves_legacy_rfc_and_idna_cases() -> None:
+    validator = LegacyTeamInvitationValidator()
+
+    assert validator.email_errors('"foo@bar"@example.com') == ()
+    assert validator.email_errors("user@[127.0.0.1]") == ()
+    assert validator.email_errors("user@[IPv6:2001:db8::1]") == ()
+    assert validator.email_errors("user@пример.рф") == ()
+    assert validator.email_errors("a..b@example.com") == ("email_invalid",)
+    assert validator.email_errors("<script@example.com") == ("email_invalid",)
