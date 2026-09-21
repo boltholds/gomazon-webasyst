@@ -4,6 +4,7 @@ from typing import Protocol, TypeAlias
 from gomazon_webasyst.contracts.team_invitation import (
     TeamInvitationContactReady,
     TeamInvitationContactResolution,
+    TeamInvitationGroupsPayload,
     TeamInvitationPrepared,
     TeamInvitationRequest,
 )
@@ -41,7 +42,7 @@ class TeamInvitationHook(Protocol):
         *,
         email: TeamTextValue,
         phone: TeamTextValue,
-        groups: tuple[str, ...],
+        groups: TeamInvitationGroupsPayload,
     ) -> tuple[str, ...]: ...
 
 

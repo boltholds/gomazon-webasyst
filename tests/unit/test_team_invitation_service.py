@@ -345,7 +345,7 @@ async def test_invite_user_hook_runs_before_channel_validation() -> None:
     assert isinstance(result, TeamInvitationRejected)
     assert result.reason is TeamInvitationRejectReason.GENERAL
     assert result.description == "blocked by plugin"
-    assert hook.calls[0][2] == ("bad", "7")
+    assert hook.calls[0][2] == ["bad", "7"]
     assert store.calls == []
 
 
@@ -515,3 +515,28 @@ async def test_existing_contact_does_not_publish_contacts_save() -> None:
 
     assert not isinstance(result, TeamInvitationRejected)
     assert publisher.requests == []
+
+
+@pytest.mark.asyncio
+async def test_invite_hook_receives_associative_group_payload() -> None:
+    hook = FakeHook(("blocked",))
+    request = TeamInvitationEmailLinkRequest(
+        email="a@example.test",
+        requested_groups=("2",),
+        integer_group_ids=(2,),
+        group_payload={
+            "alpha": "2",
+            "nested": {"child": "bad"},
+        },
+    )
+
+    result = await _service(hook=hook).execute(
+        actor_contact_id=ACTOR,
+        request=request,
+    )
+
+    assert isinstance(result, TeamInvitationRejected)
+    assert hook.calls[0][2] == {
+        "alpha": "2",
+        "nested": {"child": "bad"},
+    }

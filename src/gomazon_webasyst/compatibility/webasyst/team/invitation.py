@@ -1,5 +1,6 @@
 import re
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import TypeAlias
 from urllib.parse import quote_plus, urlsplit, urlunsplit
 
@@ -38,6 +39,7 @@ from gomazon_webasyst.contracts.team import (
 from gomazon_webasyst.contracts.team_invitation import (
     TeamInvitationCodeRequest,
     TeamInvitationEmailLinkRequest,
+    TeamInvitationGroupsPayload,
     TeamInvitationPhoneLinkRequest,
     TeamInvitationPrepared,
     TeamInvitationRequest,
@@ -47,6 +49,15 @@ from gomazon_webasyst.contracts.team_invitation import (
 TeamInvitationRequestParseResult: TypeAlias = (
     TeamInvitationRequest | ApiParameterRejected
 )
+
+_GROUP_KEY = re.compile(r"^groups((?:\[[^\]]*\])*)$")
+
+
+@dataclass(slots=True, frozen=True)
+class _ParsedInvitationGroups:
+    payload: TeamInvitationGroupsPayload
+    scalar_values: tuple[str, ...]
+
 
 _PHONE = re.compile(r"^[0-9\-\(\)/\+\s]*$")
 _EMAIL = re.compile(
@@ -82,7 +93,7 @@ class LegacyTeamInvitationRequestParser:
         groups = self._groups(form)
         integer_groups = tuple(
             int(item)
-            for item in groups
+            for item in groups.scalar_values
             if self._wa_is_int(item)
         )
         invitation_type = self._scalar(form.get("type", ""))
@@ -101,15 +112,17 @@ class LegacyTeamInvitationRequestParser:
                     if self._php_truthy(phone)
                     else TeamTextMissing()
                 ),
-                requested_groups=groups,
+                requested_groups=groups.scalar_values,
                 integer_group_ids=integer_groups,
+                group_payload=groups.payload,
             )
 
         if self._php_truthy(phone):
             return TeamInvitationPhoneLinkRequest(
                 phone=phone,
-                requested_groups=groups,
+                requested_groups=groups.scalar_values,
                 integer_group_ids=integer_groups,
+                group_payload=groups.payload,
             )
 
         read = self._reader.post(
@@ -123,28 +136,124 @@ class LegacyTeamInvitationRequestParser:
         return TeamInvitationEmailLinkRequest(
             email=self._scalar(read.value),
             send=self._send(form.get("send", "")),
-            requested_groups=groups,
+            requested_groups=groups.scalar_values,
             integer_group_ids=integer_groups,
+            group_payload=groups.payload,
         )
 
     @classmethod
-    def _groups(cls, form) -> tuple[str, ...]:
-        for key in ("groups[]", "groups"):
-            if key not in form:
+    def _groups(cls, form) -> _ParsedInvitationGroups:
+        root: dict[str, object] = {}
+        found = False
+
+        for key, raw_value in form.items():
+            match = _GROUP_KEY.fullmatch(str(key))
+            if match is None:
                 continue
-            value = form[key]
-            if isinstance(value, tuple):
-                if key == "groups[]":
-                    return tuple(
-                        cls._scalar(item).strip() for item in value
-                    )
-                if not value:
-                    return ()
-                return (cls._scalar(value[-1]).strip(),)
-            if isinstance(value, Mapping):
-                return ()
-            return (cls._scalar(value).strip(),)
-        return ()
+            found = True
+            suffix = match.group(1)
+            segments = tuple(re.findall(r"\[([^\]]*)\]", suffix))
+
+            if not segments:
+                root.clear()
+                scalar = cls._last_scalar(raw_value).strip()
+                root["0"] = scalar
+                continue
+
+            values = raw_value if isinstance(raw_value, tuple) else (raw_value,)
+            if segments[-1] != "" and values:
+                values = (values[-1],)
+            for value in values:
+                cls._insert_group_value(
+                    root,
+                    segments,
+                    cls._trim_group_value(value),
+                )
+
+        if not found:
+            return _ParsedInvitationGroups(payload=[], scalar_values=())
+
+        scalar_values = tuple(
+            value
+            for value in root.values()
+            if isinstance(value, str)
+        )
+        payload = cls._normalize_group_array(root)
+        assert isinstance(payload, list | dict)
+        return _ParsedInvitationGroups(
+            payload=payload,
+            scalar_values=scalar_values,
+        )
+
+    @classmethod
+    def _trim_group_value(cls, value: ApiParameterValue) -> object:
+        if isinstance(value, Mapping):
+            return {
+                str(key): cls._trim_group_value(item)
+                for key, item in value.items()
+            }
+        if isinstance(value, tuple):
+            return {
+                str(index): cls._trim_group_value(item)
+                for index, item in enumerate(value)
+            }
+        return cls._scalar(value).strip()
+
+    @classmethod
+    def _insert_group_value(
+        cls,
+        container: dict[str, object],
+        segments: tuple[str, ...],
+        value: object,
+    ) -> None:
+        current = container
+        for index, segment in enumerate(segments):
+            key = (
+                cls._next_numeric_key(current)
+                if segment == ""
+                else segment
+            )
+            is_last = index == len(segments) - 1
+            if is_last:
+                current[key] = value
+                return
+            child = current.get(key)
+            if not isinstance(child, dict):
+                child = {}
+                current[key] = child
+            current = child
+
+    @staticmethod
+    def _next_numeric_key(container: dict[str, object]) -> str:
+        numeric = tuple(
+            int(key)
+            for key in container
+            if key.isascii() and key.isdecimal()
+        )
+        return str(max(numeric, default=-1) + 1)
+
+    @classmethod
+    def _normalize_group_array(cls, value: object):
+        if not isinstance(value, dict):
+            assert isinstance(value, str)
+            return value
+
+        normalized = {
+            key: cls._normalize_group_array(item)
+            for key, item in value.items()
+        }
+        sequential = [str(index) for index in range(len(normalized))]
+        if list(normalized) == sequential:
+            return [normalized[key] for key in sequential]
+        return normalized
+
+    @classmethod
+    def _last_scalar(cls, value: ApiParameterValue) -> str:
+        if isinstance(value, tuple):
+            if not value:
+                return ""
+            return cls._last_scalar(value[-1])
+        return cls._scalar(value)
 
     @classmethod
     def _send(cls, value: ApiParameterValue) -> bool:
@@ -224,7 +333,7 @@ class LegacyTeamInvitationHook(TeamInvitationHook):
         *,
         email: TeamTextValue,
         phone: TeamTextValue,
-        groups: tuple[str, ...],
+        groups: TeamInvitationGroupsPayload,
     ) -> tuple[str, ...]:
         report = await self._publisher.publish(
             EventDispatchRequest(
@@ -236,7 +345,7 @@ class LegacyTeamInvitationHook(TeamInvitationHook):
                     value={
                         "email": self._text(email),
                         "phone": self._text(phone),
-                        "groups": list(groups),
+                        "groups": groups,
                     }
                 ),
             )

@@ -36,6 +36,7 @@ from gomazon_webasyst.contracts.team_invitation import (
     TeamInvitationPhoneLinkRequest,
     TeamInvitationPrepared,
     TeamInvitationRequest,
+    request_has_groups,
 )
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.models import (
     WaContactDataRow,
@@ -168,7 +169,7 @@ class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
             contact_id=contact.contact_id,
             token_type=token_type,
             manageable_group_ids=manageable_group_ids,
-            include_groups=bool(request.requested_groups),
+            include_groups=request_has_groups(request),
         )
         await self._trim_tokens_committed(
             contact_id=contact.contact_id,

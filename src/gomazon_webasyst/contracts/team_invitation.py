@@ -15,6 +15,9 @@ from gomazon_webasyst.contracts.team import (
 )
 
 
+TeamInvitationGroupsPayload: TypeAlias = list[JsonValue] | dict[str, JsonValue]
+
+
 class TeamInvitationCodeRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -25,6 +28,7 @@ class TeamInvitationCodeRequest(BaseModel):
     phone: TeamTextValue = Field(default_factory=TeamTextMissing)
     requested_groups: tuple[str, ...] = ()
     integer_group_ids: tuple[int, ...] = ()
+    group_payload: TeamInvitationGroupsPayload = Field(default_factory=list)
 
 
 class TeamInvitationEmailLinkRequest(BaseModel):
@@ -37,6 +41,7 @@ class TeamInvitationEmailLinkRequest(BaseModel):
     send: bool = False
     requested_groups: tuple[str, ...] = ()
     integer_group_ids: tuple[int, ...] = ()
+    group_payload: TeamInvitationGroupsPayload = Field(default_factory=list)
 
 
 class TeamInvitationPhoneLinkRequest(BaseModel):
@@ -48,6 +53,7 @@ class TeamInvitationPhoneLinkRequest(BaseModel):
     phone: str
     requested_groups: tuple[str, ...] = ()
     integer_group_ids: tuple[int, ...] = ()
+    group_payload: TeamInvitationGroupsPayload = Field(default_factory=list)
 
 
 TeamInvitationRequest: TypeAlias = Annotated[
@@ -179,8 +185,14 @@ def request_phone(request: TeamInvitationRequest) -> TeamTextValue:
 
 def request_groups(
     request: TeamInvitationRequest,
-) -> tuple[str, ...]:
-    return request.requested_groups
+) -> TeamInvitationGroupsPayload:
+    if request.group_payload:
+        return request.group_payload
+    return list(request.requested_groups)
+
+
+def request_has_groups(request: TeamInvitationRequest) -> bool:
+    return bool(request.group_payload) or bool(request.requested_groups)
 
 
 def request_integer_groups(

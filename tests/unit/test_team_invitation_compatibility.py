@@ -95,3 +95,47 @@ def test_wa_is_int_uses_ascii_digits_like_legacy() -> None:
     assert isinstance(parsed, TeamInvitationCodeRequest)
     assert parsed.requested_groups == ("2", "٢", "-٣", "-3")
     assert parsed.integer_group_ids == (2, -3)
+
+
+def test_invite_parser_reconstructs_associative_nested_php_groups() -> None:
+    parsed = LegacyTeamInvitationRequestParser().parse(
+        _params(
+            {
+                "email": "a@example.test",
+                "groups[alpha]": " 2 ",
+                "groups[nested][child]": " 7 ",
+                "groups[nested][list][]": (" 8 ", " bad "),
+                "groups[]": " 3 ",
+            }
+        )
+    )
+
+    assert isinstance(parsed, TeamInvitationEmailLinkRequest)
+    assert parsed.requested_groups == ("2", "3")
+    assert parsed.integer_group_ids == (2, 3)
+    assert parsed.group_payload == {
+        "alpha": "2",
+        "nested": {
+            "child": "7",
+            "list": ["8", "bad"],
+        },
+        "0": "3",
+    }
+
+
+def test_nonempty_nested_groups_are_preserved_even_without_integer_ids() -> None:
+    parsed = LegacyTeamInvitationRequestParser().parse(
+        _params(
+            {
+                "email": "a@example.test",
+                "groups[meta][name]": " engineering ",
+            }
+        )
+    )
+
+    assert isinstance(parsed, TeamInvitationEmailLinkRequest)
+    assert parsed.requested_groups == ()
+    assert parsed.integer_group_ids == ()
+    assert parsed.group_payload == {
+        "meta": {"name": "engineering"},
+    }
