@@ -132,6 +132,7 @@ def create_team_runtime_module(
         handler=users_handler,
     )
     invite_user = InviteTeamUser(
+        event_publisher=event_publisher,
         store=SQLAlchemyTeamInvitationStore(
             session_factory,
             clock=lambda: datetime.now(server_timezone).replace(tzinfo=None),

@@ -68,6 +68,25 @@ class TeamInvitationPrepared(BaseModel):
     recipient_locale: str
 
 
+class TeamInvitationNewContact(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    contact_id: Annotated[int, Field(gt=0)]
+    recipient_locale: str
+
+
+class TeamInvitationExistingContact(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    contact_id: Annotated[int, Field(gt=0)]
+    recipient_locale: str
+
+
+TeamInvitationContactReady: TypeAlias = (
+    TeamInvitationNewContact | TeamInvitationExistingContact
+)
+
+
 class TeamInvitationContactConflict(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -75,8 +94,8 @@ class TeamInvitationContactConflict(BaseModel):
     contact_id: Annotated[int, Field(gt=0)]
 
 
-TeamInvitationStoreResult: TypeAlias = (
-    TeamInvitationPrepared | TeamInvitationContactConflict
+TeamInvitationContactResolution: TypeAlias = (
+    TeamInvitationContactReady | TeamInvitationContactConflict
 )
 
 

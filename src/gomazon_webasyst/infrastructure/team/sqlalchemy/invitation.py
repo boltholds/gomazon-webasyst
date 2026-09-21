@@ -28,11 +28,13 @@ from gomazon_webasyst.contracts.team import TeamTextPresent
 from gomazon_webasyst.contracts.team_invitation import (
     TeamInvitationCodeRequest,
     TeamInvitationContactConflict,
+    TeamInvitationContactReady,
     TeamInvitationEmailLinkRequest,
+    TeamInvitationExistingContact,
+    TeamInvitationNewContact,
     TeamInvitationPhoneLinkRequest,
     TeamInvitationPrepared,
     TeamInvitationRequest,
-    TeamInvitationStoreResult,
 )
 from gomazon_webasyst.infrastructure.persistence.sqlalchemy.models import (
     WaContactDataRow,
@@ -79,13 +81,12 @@ class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
         self._clock = clock
         self._token_factory = token_factory
 
-    async def prepare(
+    async def resolve_contact(
         self,
         *,
         actor_contact_id: int,
         request: TeamInvitationRequest,
-        manageable_group_ids: tuple[int, ...],
-    ) -> TeamInvitationStoreResult:
+    ):
         actor_locale = await self._actor_locale(actor_contact_id)
 
         if isinstance(request, TeamInvitationCodeRequest):
@@ -105,56 +106,79 @@ class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
                 email=email,
                 phone=phone,
             )
+            return TeamInvitationNewContact(
+                contact_id=contact.id,
+                recipient_locale="",
+            )
+
+        assert isinstance(
+            request,
+            TeamInvitationEmailLinkRequest | TeamInvitationPhoneLinkRequest,
+        )
+        if isinstance(request, TeamInvitationPhoneLinkRequest):
+            found = await self._find_by_phone(request.phone)
+            email = ""
+            phone = request.phone
+        else:
+            found = await self._find_by_email(request.email)
+            email = request.email
+            phone = ""
+
+        if found:
+            conflict = self._conflict(found[0])
+            if conflict:
+                return conflict[0]
+            contact = found[0]
+            return TeamInvitationExistingContact(
+                contact_id=contact.id,
+                recipient_locale=contact.locale or actor_locale,
+            )
+
+        contact = await self._create_contact_committed(
+            actor_contact_id=actor_contact_id,
+            locale=actor_locale,
+            email=email,
+            phone=phone,
+        )
+        return TeamInvitationNewContact(
+            contact_id=contact.id,
+            recipient_locale=contact.locale or actor_locale,
+        )
+
+    async def prepare_token(
+        self,
+        *,
+        contact: TeamInvitationContactReady,
+        request: TeamInvitationRequest,
+        manageable_group_ids: tuple[int, ...],
+    ) -> TeamInvitationPrepared:
+        if isinstance(request, TeamInvitationCodeRequest):
             token_type = "waid_invite"
             channel = TeamInvitationChannel.CODE
-            recipient_locale = ""
-        else:
-            assert isinstance(
-                request,
-                TeamInvitationEmailLinkRequest | TeamInvitationPhoneLinkRequest,
-            )
-            if isinstance(request, TeamInvitationPhoneLinkRequest):
-                found = await self._find_by_phone(request.phone)
-                email = ""
-                phone = request.phone
-                channel = TeamInvitationChannel.PHONE
-            else:
-                found = await self._find_by_email(request.email)
-                email = request.email
-                phone = ""
-                channel = TeamInvitationChannel.EMAIL
-
-            if found:
-                conflict = self._conflict(found[0])
-                if conflict:
-                    return conflict[0]
-                contact = found[0]
-            else:
-                contact = await self._create_contact_committed(
-                    actor_contact_id=actor_contact_id,
-                    locale=actor_locale,
-                    email=email,
-                    phone=phone,
-                )
+        elif isinstance(request, TeamInvitationPhoneLinkRequest):
             token_type = "user_invite"
-            recipient_locale = contact.locale or actor_locale
+            channel = TeamInvitationChannel.PHONE
+        else:
+            assert isinstance(request, TeamInvitationEmailLinkRequest)
+            token_type = "user_invite"
+            channel = TeamInvitationChannel.EMAIL
 
         token = await self._create_token_committed(
-            contact_id=contact.id,
+            contact_id=contact.contact_id,
             token_type=token_type,
             manageable_group_ids=manageable_group_ids,
             include_groups=bool(request.requested_groups),
         )
         await self._trim_tokens_committed(
-            contact_id=contact.id,
+            contact_id=contact.contact_id,
             token_type=token_type,
         )
         return TeamInvitationPrepared(
-            contact_id=contact.id,
+            contact_id=contact.contact_id,
             token=token.token,
             expires_at=int(token.expire_datetime.timestamp()),
             channel=channel,
-            recipient_locale=recipient_locale,
+            recipient_locale=contact.recipient_locale,
         )
 
     async def delete_token(self, token: str) -> None:

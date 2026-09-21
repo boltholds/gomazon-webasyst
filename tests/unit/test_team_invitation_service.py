@@ -32,11 +32,19 @@ from gomazon_webasyst.contracts.enums import (
     TeamInvitationRejectReason,
 )
 from gomazon_webasyst.contracts.team import TeamTextMissing, TeamTextPresent
+from gomazon_webasyst.application.events.composites.contracts import (
+    EventDispatchReport,
+)
+from gomazon_webasyst.application.events.vo.contacts import (
+    ContactsSaveEventPayload,
+)
 from gomazon_webasyst.contracts.team_invitation import (
     TeamInvitationCodeRequest,
+    TeamInvitationExistingContact,
     TeamInvitationEmailAccepted,
     TeamInvitationEmailLinkRequest,
     TeamInvitationLocalCodeCreated,
+    TeamInvitationNewContact,
     TeamInvitationPrepared,
     TeamInvitationRejected,
 )
@@ -81,25 +89,58 @@ class FakeUowFactory:
 
 
 class FakeStore:
-    def __init__(self, result):
+    def __init__(self, result, *, contact=None, trace=None):
         self.result = result
+        self.contact = contact or TeamInvitationExistingContact(
+            contact_id=result.contact_id,
+            recipient_locale=result.recipient_locale,
+        )
+        self.trace = trace
+        self.resolve_calls = []
         self.calls = []
         self.deleted = []
 
-    async def prepare(
+    async def resolve_contact(
         self,
         *,
         actor_contact_id,
         request,
+    ):
+        self.resolve_calls.append((actor_contact_id, request))
+        if self.trace is not None:
+            self.trace.append("contact")
+        return self.contact
+
+    async def prepare_token(
+        self,
+        *,
+        contact,
+        request,
         manageable_group_ids,
     ):
-        self.calls.append(
-            (actor_contact_id, request, manageable_group_ids)
-        )
+        self.calls.append((contact, request, manageable_group_ids))
+        if self.trace is not None:
+            self.trace.append("token")
         return self.result
 
     async def delete_token(self, token):
         self.deleted.append(token)
+
+
+class FakePublisher:
+    def __init__(self, trace=None):
+        self.trace = trace
+        self.requests = []
+
+    async def publish(self, request):
+        self.requests.append(request)
+        if self.trace is not None:
+            self.trace.append("contacts.save")
+        return EventDispatchReport(
+            event=request.event,
+            results=(),
+            failures=(),
+        )
 
 
 class FakeValidator:
@@ -207,6 +248,7 @@ def _service(
     *,
     snapshot=None,
     store=None,
+    publisher=None,
     validator=None,
     hook=None,
     sender=None,
@@ -214,6 +256,7 @@ def _service(
 ):
     return InviteTeamUser(
         store=store or FakeStore(_prepared()),
+        event_publisher=publisher or FakePublisher(),
         access_uow_factory=FakeUowFactory(
             snapshot or _snapshot()
         ),
@@ -412,3 +455,63 @@ async def test_connected_waid_code_success_projects_remote_expiry() -> None:
 
     assert result.invitation_code == "12345678"
     assert result.invitation_expire == 1_900_000_000
+
+
+@pytest.mark.asyncio
+async def test_new_contact_publishes_contacts_save_before_token_creation() -> None:
+    trace = []
+    prepared = _prepared()
+    store = FakeStore(
+        prepared,
+        contact=TeamInvitationNewContact(
+            contact_id=prepared.contact_id,
+            recipient_locale=prepared.recipient_locale,
+        ),
+        trace=trace,
+    )
+    publisher = FakePublisher(trace)
+
+    result = await _service(
+        store=store,
+        publisher=publisher,
+    ).execute(
+        actor_contact_id=ACTOR,
+        request=TeamInvitationEmailLinkRequest(
+            email="new@example.test",
+        ),
+    )
+
+    assert not isinstance(result, TeamInvitationRejected)
+    assert trace == ["contact", "contacts.save", "token"]
+    assert len(publisher.requests) == 1
+    request = publisher.requests[0]
+    assert request.event.app_id == AppId("contacts")
+    assert request.event.name.value == "save"
+    assert isinstance(request.payload, ContactsSaveEventPayload)
+    assert request.payload.contact_id == prepared.contact_id
+
+
+@pytest.mark.asyncio
+async def test_existing_contact_does_not_publish_contacts_save() -> None:
+    prepared = _prepared()
+    publisher = FakePublisher()
+    store = FakeStore(
+        prepared,
+        contact=TeamInvitationExistingContact(
+            contact_id=prepared.contact_id,
+            recipient_locale=prepared.recipient_locale,
+        ),
+    )
+
+    result = await _service(
+        store=store,
+        publisher=publisher,
+    ).execute(
+        actor_contact_id=ACTOR,
+        request=TeamInvitationEmailLinkRequest(
+            email="existing@example.test",
+        ),
+    )
+
+    assert not isinstance(result, TeamInvitationRejected)
+    assert publisher.requests == []

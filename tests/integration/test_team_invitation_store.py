@@ -11,6 +11,8 @@ from gomazon_webasyst.contracts.team_invitation import (
     TeamInvitationCodeRequest,
     TeamInvitationContactConflict,
     TeamInvitationEmailLinkRequest,
+    TeamInvitationExistingContact,
+    TeamInvitationNewContact,
     TeamInvitationPhoneLinkRequest,
     TeamInvitationPrepared,
 )
@@ -81,13 +83,19 @@ async def test_link_reuses_non_user_and_persists_filtered_groups() -> None:
         )
         await session.commit()
 
-    result = await store.prepare(
+    request = TeamInvitationEmailLinkRequest(
+        email="person@example.test",
+        requested_groups=("2", "bad"),
+        integer_group_ids=(2,),
+    )
+    contact = await store.resolve_contact(
         actor_contact_id=42,
-        request=TeamInvitationEmailLinkRequest(
-            email="person@example.test",
-            requested_groups=("2", "bad"),
-            integer_group_ids=(2,),
-        ),
+        request=request,
+    )
+    assert isinstance(contact, TeamInvitationExistingContact)
+    result = await store.prepare_token(
+        contact=contact,
+        request=request,
         manageable_group_ids=(2,),
     )
     assert isinstance(result, TeamInvitationPrepared)
@@ -142,24 +150,29 @@ async def test_link_conflicts_and_code_does_not_reuse_existing_contact() -> None
         )
         await session.commit()
 
-    conflict = await store.prepare(
+    conflict = await store.resolve_contact(
         actor_contact_id=42,
         request=TeamInvitationEmailLinkRequest(email="user@example.test"),
-        manageable_group_ids=(),
     )
     assert isinstance(conflict, TeamInvitationContactConflict)
     assert conflict.reason is TeamInvitationRejectReason.USER_IN_TEAM
 
-    code = await store.prepare(
+    code_request = TeamInvitationCodeRequest(
+        email=TeamTextPresent(value="same@example.test"),
+        phone=TeamTextMissing(),
+    )
+    code_contact = await store.resolve_contact(
         actor_contact_id=42,
-        request=TeamInvitationCodeRequest(
-            email=TeamTextPresent(value="same@example.test"),
-            phone=TeamTextMissing(),
-        ),
+        request=code_request,
+    )
+    assert isinstance(code_contact, TeamInvitationNewContact)
+    assert code_contact.contact_id != 8
+    code = await store.prepare_token(
+        contact=code_contact,
+        request=code_request,
         manageable_group_ids=(),
     )
     assert isinstance(code, TeamInvitationPrepared)
-    assert code.contact_id != 8
 
     async with sessions() as session:
         token_type = (
@@ -195,14 +208,14 @@ async def test_phone_lookup_uses_legacy_one_pass_cleaning() -> None:
         )
         await session.commit()
 
-    result = await store.prepare(
+    request = TeamInvitationPhoneLinkRequest(phone="+1 2 3")
+    contact = await store.resolve_contact(
         actor_contact_id=42,
-        request=TeamInvitationPhoneLinkRequest(phone="+1 2 3"),
-        manageable_group_ids=(),
+        request=request,
     )
 
-    assert isinstance(result, TeamInvitationPrepared)
-    assert result.contact_id == 9
+    assert isinstance(contact, TeamInvitationExistingContact)
+    assert contact.contact_id == 9
     await engine.dispose()
 
 
@@ -228,12 +241,19 @@ async def test_token_collision_keeps_previously_committed_contact() -> None:
         )
         await session.commit()
 
+    request = TeamInvitationEmailLinkRequest(
+        email="new@example.test"
+    )
+    contact = await store.resolve_contact(
+        actor_contact_id=42,
+        request=request,
+    )
+    assert isinstance(contact, TeamInvitationNewContact)
+
     with pytest.raises(IntegrityError):
-        await store.prepare(
-            actor_contact_id=42,
-            request=TeamInvitationEmailLinkRequest(
-                email="new@example.test"
-            ),
+        await store.prepare_token(
+            contact=contact,
+            request=request,
             manageable_group_ids=(),
         )
 

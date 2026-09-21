@@ -2,21 +2,29 @@ from dataclasses import dataclass
 from typing import Protocol, TypeAlias
 
 from gomazon_webasyst.contracts.team_invitation import (
+    TeamInvitationContactReady,
+    TeamInvitationContactResolution,
     TeamInvitationPrepared,
     TeamInvitationRequest,
-    TeamInvitationStoreResult,
 )
 from gomazon_webasyst.contracts.team import TeamTextValue
 
 
 class TeamInvitationStore(Protocol):
-    async def prepare(
+    async def resolve_contact(
         self,
         *,
         actor_contact_id: int,
         request: TeamInvitationRequest,
+    ) -> TeamInvitationContactResolution: ...
+
+    async def prepare_token(
+        self,
+        *,
+        contact: TeamInvitationContactReady,
+        request: TeamInvitationRequest,
         manageable_group_ids: tuple[int, ...],
-    ) -> TeamInvitationStoreResult: ...
+    ) -> TeamInvitationPrepared: ...
 
     async def delete_token(self, token: str) -> None: ...
 

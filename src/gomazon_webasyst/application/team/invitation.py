@@ -9,6 +9,14 @@ from gomazon_webasyst.application.access_values import (
 from gomazon_webasyst.application.ports.access_control_uow import (
     AccessControlUnitOfWorkFactory,
 )
+from gomazon_webasyst.application.events.composites.contracts import (
+    EventDispatchRequest,
+)
+from gomazon_webasyst.application.events.vo.contacts import (
+    ContactsSaveEventPayload,
+)
+from gomazon_webasyst.application.events.vo.identity import EventKey, EventName
+from gomazon_webasyst.application.ports.event_publisher import EventPublisher
 from gomazon_webasyst.application.ports.team_invitation import (
     TeamInvitationEmailRejected,
     TeamInvitationEmailSender,
@@ -36,8 +44,10 @@ from gomazon_webasyst.contracts.team_invitation import (
     TeamInvitationContactConflict,
     TeamInvitationEmailAccepted,
     TeamInvitationEmailLinkRequest,
+    TeamInvitationExistingContact,
     TeamInvitationLinkCreated,
     TeamInvitationLocalCodeCreated,
+    TeamInvitationNewContact,
     TeamInvitationPhoneLinkRequest,
     TeamInvitationRejected,
     TeamInvitationRequest,
@@ -80,6 +90,7 @@ class InviteTeamUser:
         self,
         *,
         store: TeamInvitationStore,
+        event_publisher: EventPublisher,
         access_uow_factory: AccessControlUnitOfWorkFactory,
         rights_evaluator: RightsEvaluator,
         validator: TeamInvitationValidator,
@@ -89,6 +100,7 @@ class InviteTeamUser:
         waid: TeamWaidInvitationGateway,
     ) -> None:
         self._store = store
+        self._event_publisher = event_publisher
         self._access_uow_factory = access_uow_factory
         self._rights_evaluator = rights_evaluator
         self._validator = validator
@@ -132,17 +144,39 @@ class InviteTeamUser:
             if validation:
                 return self._reject(validation[0])
 
-        prepared = await self._store.prepare(
+        contact = await self._store.resolve_contact(
             actor_contact_id=actor_contact_id,
+            request=request,
+        )
+        if isinstance(contact, TeamInvitationContactConflict):
+            return TeamInvitationRejected(
+                reason=contact.reason,
+                description=_DESCRIPTIONS[contact.reason],
+                details={"contact_id": contact.contact_id},
+            )
+        assert isinstance(
+            contact,
+            TeamInvitationNewContact | TeamInvitationExistingContact,
+        )
+
+        if isinstance(contact, TeamInvitationNewContact):
+            await self._event_publisher.publish(
+                EventDispatchRequest(
+                    event=EventKey(
+                        app_id=AppId("contacts"),
+                        name=EventName("save"),
+                    ),
+                    payload=ContactsSaveEventPayload(
+                        contact_id=contact.contact_id,
+                    ),
+                )
+            )
+
+        prepared = await self._store.prepare_token(
+            contact=contact,
             request=request,
             manageable_group_ids=manageable_groups,
         )
-        if isinstance(prepared, TeamInvitationContactConflict):
-            return TeamInvitationRejected(
-                reason=prepared.reason,
-                description=_DESCRIPTIONS[prepared.reason],
-                details={"contact_id": prepared.contact_id},
-            )
 
         if isinstance(request, TeamInvitationCodeRequest):
             connection = self._waid.connection()
