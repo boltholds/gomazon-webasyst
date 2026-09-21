@@ -93,3 +93,48 @@ def test_send_conversion_matches_legacy_truth_rules() -> None:
         )
         assert isinstance(parsed, TeamInvitationEmailLinkRequest)
         assert parsed.send is expected
+
+
+def test_repeated_scalar_post_values_use_last_php_value() -> None:
+    parsed = LegacyTeamInvitationRequestParser().parse(
+        _params(
+            {
+                "type": ("link", "code"),
+                "email": ("first@example.test", "second@example.test"),
+                "phone": ("", "0"),
+            }
+        )
+    )
+
+    assert isinstance(parsed, TeamInvitationCodeRequest)
+    assert isinstance(parsed.email, TeamTextPresent)
+    assert parsed.email.value == "second@example.test"
+    assert isinstance(parsed.phone, TeamTextMissing)
+
+
+def test_unbracketed_repeated_groups_collapse_but_bracket_groups_remain_array() -> None:
+    parser = LegacyTeamInvitationRequestParser()
+
+    unbracketed = parser.parse(
+        _params(
+            {
+                "type": "code",
+                "groups": ("2", "3"),
+            }
+        )
+    )
+    bracketed = parser.parse(
+        _params(
+            {
+                "type": "code",
+                "groups[]": ("2", "3"),
+            }
+        )
+    )
+
+    assert isinstance(unbracketed, TeamInvitationCodeRequest)
+    assert unbracketed.requested_groups == ("3",)
+    assert unbracketed.integer_group_ids == (3,)
+    assert isinstance(bracketed, TeamInvitationCodeRequest)
+    assert bracketed.requested_groups == ("2", "3")
+    assert bracketed.integer_group_ids == (2, 3)
