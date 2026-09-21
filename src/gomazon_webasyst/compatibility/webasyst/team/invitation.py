@@ -1,7 +1,7 @@
 import re
 from collections.abc import Mapping
 from typing import TypeAlias
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlsplit, urlunsplit
 
 from gomazon_webasyst.application.access_values import AppId
 from gomazon_webasyst.application.api_execution.vo.parameters import (
@@ -281,11 +281,32 @@ class LegacyTeamInvitationHook(TeamInvitationHook):
 
 class LegacyTeamInvitationLinkBuilder(TeamInvitationLinkBuilder):
     def __init__(self, public_root_url: str) -> None:
-        self._root = public_root_url.rstrip("/") + "/"
+        self._root = self._decode_idna_root(public_root_url)
 
     def build(self, token: str) -> str:
         encoded = quote_plus(token, safe="").replace("~", "%7E")
         return f"{self._root}link.php/{encoded}/"
+
+    @staticmethod
+    def _decode_idna_root(public_root_url: str) -> str:
+        parts = urlsplit(public_root_url)
+        hostname = parts.hostname
+        if not hostname:
+            return public_root_url.rstrip("/") + "/"
+        try:
+            decoded_hostname = hostname.encode("ascii").decode("idna")
+        except UnicodeError:
+            decoded_hostname = hostname
+        netloc = parts.netloc.replace(hostname, decoded_hostname, 1)
+        return urlunsplit(
+            (
+                parts.scheme,
+                netloc,
+                parts.path.rstrip("/") + "/",
+                parts.query,
+                parts.fragment,
+            )
+        )
 
 
 class UnavailableTeamInvitationEmailSender(TeamInvitationEmailSender):
