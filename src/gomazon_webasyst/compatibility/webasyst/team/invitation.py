@@ -176,7 +176,7 @@ class LegacyTeamInvitationRequestParser:
 
     @staticmethod
     def _wa_is_int(value: str) -> bool:
-        return re.fullmatch(r"\d+|-\d+", value) is not None
+        return re.fullmatch(r"[0-9]+|-[0-9]+", value) is not None
 
 
 class LegacyTeamInvitationValidator(TeamInvitationValidator):

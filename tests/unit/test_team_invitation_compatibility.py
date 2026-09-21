@@ -80,3 +80,18 @@ def test_invitation_link_builder_decodes_idna_root_like_webasyst() -> None:
     assert LegacyTeamInvitationLinkBuilder(
         "https://xn--e1afmkfd.xn--p1ai/"
     ).build("token") == "https://пример.рф/link.php/token/"
+
+
+def test_wa_is_int_uses_ascii_digits_like_legacy() -> None:
+    parsed = LegacyTeamInvitationRequestParser().parse(
+        _params(
+            {
+                "type": "code",
+                "groups[]": ("2", "٢", "-٣", "-3"),
+            }
+        )
+    )
+
+    assert isinstance(parsed, TeamInvitationCodeRequest)
+    assert parsed.requested_groups == ("2", "٢", "-٣", "-3")
+    assert parsed.integer_group_ids == (2, -3)
