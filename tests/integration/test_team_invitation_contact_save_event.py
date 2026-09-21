@@ -118,12 +118,20 @@ async def test_new_invite_contact_is_committed_and_saved_event_runs_before_token
                 create_datetime=NOW,
             )
         )
-        session.add(
-            WaContactRightRow(
-                group_id=-ACTOR,
-                app_id="team",
-                name="add_users",
-                value=1,
+        session.add_all(
+            (
+                WaContactRightRow(
+                    group_id=-ACTOR,
+                    app_id="team",
+                    name="backend",
+                    value=1,
+                ),
+                WaContactRightRow(
+                    group_id=-ACTOR,
+                    app_id="team",
+                    name="add_users",
+                    value=1,
+                ),
             )
         )
         await session.commit()
