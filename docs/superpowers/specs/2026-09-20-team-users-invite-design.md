@@ -12,7 +12,7 @@ Migrate `team.users.invite` through the installed Team runtime while preserving 
 
 Compatibility parses POST into `TeamInvitationCodeRequest`, `TeamInvitationEmailLinkRequest`, or `TeamInvitationPhoneLinkRequest`. The exact value `type=code` selects code flow. In link mode a PHP-truthy phone has precedence over email/send; otherwise email is a required POST parameter and PHP-falsy absence is a framework `invalid_param` before application execution.
 
-Repeated form values are preserved by the common legacy API transport, so `groups[]` reaches Team as an immutable tuple. Raw trimmed group strings remain available to `team.invite_user`; integer-like ids are normalized separately for rights and token data.
+The common Python API transport preserves repeated form pairs, but the Team compatibility parser recreates the shapes PHP would expose in `$_POST`: repeated unbracketed scalar parameters resolve to the last value, while `groups[]` remains an array. Repeated unbracketed `groups` therefore collapses to its final scalar before `TYPE_ARRAY_TRIM`-style normalization. Raw trimmed group strings remain available to `team.invite_user`; integer ids are normalized separately for rights and token data using legacy `wa_is_int` semantics, including ASCII-only digit recognition.
 
 ## Authorization and hook ordering
 
@@ -21,6 +21,8 @@ The actor needs PHP-truthy Team `add_users`. Scalar dotted rights preserve ordin
 Requested integer groups enter token data only when `manage_group.<id>` is truthy. Group existence is not separately validated.
 
 Email/phone link flows publish `team.invite_user` before channel validation. Truthy handler results are stringified and newline-joined into a `general` error. Code flow skips both hook and channel validation.
+
+Channel validation is source-derived rather than approximated. Phone validation uses the exact simple Webasyst character class and rejects empty values. Email validation mirrors `waEmailValidator`: its RFC-oriented regex behavior, IDNA domain normalization and explicit `<script` malware-substring rejection are preserved, including domain-literal addresses accepted by the legacy validator.
 
 ## Contact lifecycle
 
@@ -34,18 +36,22 @@ Team invitation infrastructure owns a private SQLAlchemy Core mapping of legacy 
 
 - link token type: `user_invite`;
 - code token type: `waid_invite`;
-- lifetime: three days;
+- persisted token lifetime: three days from token creation;
 - payload always includes `full_access:false`;
 - `groups` is emitted only when the original group request was non-empty and contains only manageable integer ids;
 - newest five tokens are retained per contact/app/type.
 
 Contact creation and token creation remain separate committed operations, preserving the source-like non-atomic case where a token collision can leave the newly created contact.
 
+Invitation links reproduce `waAppTokensModel::getLink()` at the compatibility edge: the absolute public root hostname is IDNA-decoded before `link.php/<urlencoded-token>/` is constructed.
+
 ## Result shapes
 
 Link without mail sending returns `contact_id`, `invitation_link`, and `invitation_expire`.
 
 Email link with `send=true` returns `contact_id` and `invitation_expire` after an accepted delivery result; it intentionally omits the link.
+
+The link-flow response expiry is deliberately not copied from the persisted token row. Legacy `teamUsersInviteMethod::execute()` assigns `time() + 259200` only after create/send succeeds, so the compatibility API method owns an injected response clock and computes that value at projection time. The persisted token still expires three days from its own earlier creation time. Connected WAID code expiry remains the remote value returned by Webasyst ID.
 
 Disconnected code flow returns only `contact_id`.
 
@@ -65,4 +71,4 @@ Source HTTP statuses are preserved: access denied 403, contact conflicts 409, to
 
 ## Acceptance
 
-Local/disconnected production behavior is proven through `/api.php/team.users.invite` using the real API token pipeline, installed Team runtime, ACL tables and legacy persistence. Tests cover repeated groups, rights filtering, contact reuse, fresh code contact creation, token data, conflict mapping, unavailable send boundary and POST-only enforcement.
+Local/disconnected production behavior is proven through `/api.php/team.users.invite` using the real API token pipeline, installed Team runtime, ACL tables and legacy persistence. Tests cover PHP scalar-vs-array POST normalization, ASCII `wa_is_int`, source email/phone validation, rights filtering, contact reuse, fresh code contact creation, token data, response-time expiry, IDNA link roots, conflict mapping, unavailable send boundary and POST-only enforcement.

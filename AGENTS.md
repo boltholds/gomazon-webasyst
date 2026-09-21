@@ -445,7 +445,7 @@ Team application contracts store semantic user/photo/time state, not request obj
 Status: accepted
 Date: 2026-09-20
 
-`team.users.invite` preserves code, email-link, and phone-link flows as separate request variants instead of nullable control fields. Raw trimmed `groups[]` strings are retained for the `team.invite_user` event, while integer-like ids are normalized separately for `manage_group.<id>` evaluation and token data. Link flows publish the hook before channel validation; code flow skips hook and channel validation. Phone-link parsing has precedence over email, and missing/PHP-falsy link email remains a framework `invalid_param` boundary rejection before the invitation use case runs.
+`team.users.invite` preserves code, email-link, and phone-link flows as separate request variants instead of nullable control fields. The compatibility parser recreates PHP form shape on top of the pair-preserving HTTP transport: repeated unbracketed scalar values use the final value, while bracketed `groups[]` remains an array. Raw trimmed group strings are retained for the `team.invite_user` event, while integer ids are normalized separately for `manage_group.<id>` evaluation and token data using ASCII-only legacy `wa_is_int` semantics. Link flows publish the hook before source-derived channel validation; code flow skips hook and channel validation. Phone-link parsing has precedence over email, and missing/PHP-falsy link email remains a framework `invalid_param` boundary rejection before the invitation use case runs. Email validation must retain `waEmailValidator` behavior, including IDNA conversion, domain literals and the explicit malware-substring rejection, rather than substitute a narrower convenience validator.
 
 ### ADR-059 — Team invitation wa_app_tokens persistence is runtime-private
 Status: accepted
@@ -458,6 +458,13 @@ Status: accepted
 Date: 2026-09-20
 
 Email delivery and connected Webasyst ID code issuance are application-owned ports. The Composite owns their source semantics: a configured mail adapter may report sent, soft failure, or hard rejection; sent and soft-failure are accepted because legacy treats a false mailer send result as success, while hard/template failure becomes `email_send_fail`. Disconnected WAID code flow succeeds locally with only `contact_id`; connected success projects remote code/expiry; connected failure removes the new local token and returns `token_not_created` with remote details. Production currently has no outbound mail provider and wires that absence as an explicit hard-unavailable adapter; WAID is wired disconnected. Real mail and connected WAID clients are deferred and are not claimed as production integrations.
+
+
+### ADR-061 — Invitation token expiry and link response expiry are separate clocks
+Status: accepted
+Date: 2026-09-22
+
+A persisted Team invitation token expires three days from token creation, but successful non-code `team.users.invite` responses compute `invitation_expire` separately as `time() + 259200` after create/send has completed. These timestamps MUST NOT be represented by one shared result field merely because they use the same duration. The SQL invitation store owns persisted token expiry; the Webasyst Team API compatibility method owns an injected response clock for link response expiry. Connected WAID code expiry remains the external value returned by the WAID capability. Invitation link rendering also remains compatibility-owned and IDNA-decodes the configured absolute root hostname before appending the URL-encoded token path.
 
 ---
 
@@ -858,6 +865,7 @@ Cover DB wiring, ASGI compatibility flow, auth/session composition, persistent-l
 42. Model branch-dependent legacy requests as discriminated variants instead of nullable control fields; preserve raw transport values separately when hooks observe them before normalization.
 43. Keep bundled-app token tables out of generic contact ORM metadata when they are application-owned side effects; use narrow runtime-specific persistence adapters.
 44. Treat external delivery/identity integrations as explicit capabilities with typed sent/soft-failure/hard-failure or connected/disconnected results; never fake production integration parity.
+45. Do not collapse persisted expiry timestamps and response-time compatibility timestamps merely because they share a duration; preserve the source operation that owns each clock.
 
 ---
 
@@ -884,5 +892,5 @@ The foundation is considered proven when CI confirms:
 - contact delete event-flow slice is verified complete: `DeleteContacts` publishes `contacts.delete` before destructive cleanup, drives the migrated Team relay, preserves immutable deletion scope, executes source-characterized legacy contact cleanup in one UoW, exposes a native DELETE architecture-proof route, and the verification head passed full CI with 820 tests;
 - Contacts private-rights event slice is verified complete: installed Contacts owns app-private `contacts_rights` cleanup, negative personal-principal encoding stays infrastructure-private, bundled runtime order follows the canonical installed-app snapshot, and the verification head passed full CI with 831 tests;
 - second Team API vertical slice is verified complete: `team.users.getList` preserves source-characterized users/group selection, wildcard visibility, candidate access filters, enrichment, naming, UTC/online/event projection and GET-only production API execution; direct-root media projection is implemented while CDN/non-mod-rewrite resource variants remain explicitly deferred, and the verification code head passed full CI with 848 tests;
-- Team invitation local/disconnected vertical slice is verified complete: `team.users.invite` preserves POST/request branching, PHP-truthy rights, raw-vs-normalized groups, hook ordering, contact reuse/create behavior, private `wa_app_tokens` lifecycle, link/local-code responses and application-specific API errors through production API execution; outbound email and connected WAID remain explicit deferred adapters, and the verification code head passed full CI with 876 tests;
+- Team invitation local/disconnected vertical slice is verified complete: `team.users.invite` preserves PHP scalar/array POST shapes, ASCII `wa_is_int`, source email/phone validation, PHP-truthy rights, raw-vs-normalized groups, hook ordering, contact reuse/create behavior, private `wa_app_tokens` lifecycle, separate token/response expiry clocks, IDNA invite links, link/local-code responses and application-specific API errors through production API execution; outbound email and connected WAID remain explicit deferred adapters, and the post-audit code head passed full CI with 885 tests;
 - every new architectural decision is reflected here.
