@@ -149,6 +149,7 @@ def create_team_runtime_module(
     invite_handler = TeamUsersInviteApiMethod(
         invite_user=invite_user,
         request_parser=LegacyTeamInvitationRequestParser(),
+        clock=lambda: int(datetime.now(timezone.utc).timestamp()),
     )
     invite_method = ApiMethodDefinition(
         target=ApiMethodTarget(

@@ -192,13 +192,11 @@ class InviteTeamUser:
             )
             return TeamInvitationEmailAccepted(
                 contact_id=prepared.contact_id,
-                invitation_expire=prepared.expires_at,
             )
 
         return TeamInvitationLinkCreated(
             contact_id=prepared.contact_id,
             invitation_link=self._link_builder.build(prepared.token),
-            invitation_expire=prepared.expires_at,
         )
 
     async def _actor_snapshot(self, actor_contact_id: int):

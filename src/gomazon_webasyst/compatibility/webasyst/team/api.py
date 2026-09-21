@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from gomazon_webasyst.application.api_execution.composites.invocation import (
     ApiInvocationContext,
 )
@@ -193,9 +195,11 @@ class TeamUsersInviteApiMethod:
         *,
         invite_user: InviteTeamUser,
         request_parser: LegacyTeamInvitationRequestParser,
+        clock: Callable[[], int],
     ) -> None:
         self._invite_user = invite_user
         self._request_parser = request_parser
+        self._clock = clock
 
     async def execute(
         self,
@@ -230,14 +234,14 @@ class TeamUsersInviteApiMethod:
                 payload={
                     "contact_id": result.contact_id,
                     "invitation_link": result.invitation_link,
-                    "invitation_expire": result.invitation_expire,
+                    "invitation_expire": self._clock() + 259200,
                 }
             )
         if isinstance(result, TeamInvitationEmailAccepted):
             return ApiMethodSucceeded(
                 payload={
                     "contact_id": result.contact_id,
-                    "invitation_expire": result.invitation_expire,
+                    "invitation_expire": self._clock() + 259200,
                 }
             )
         if isinstance(result, TeamInvitationLocalCodeCreated):

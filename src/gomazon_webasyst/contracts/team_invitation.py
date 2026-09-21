@@ -88,7 +88,6 @@ class TeamInvitationLinkCreated(BaseModel):
     )
     contact_id: Annotated[int, Field(gt=0)]
     invitation_link: str
-    invitation_expire: Annotated[int, Field(gt=0)]
 
 
 class TeamInvitationEmailAccepted(BaseModel):
@@ -98,7 +97,6 @@ class TeamInvitationEmailAccepted(BaseModel):
         TeamInvitationResultKind.EMAIL_ACCEPTED
     )
     contact_id: Annotated[int, Field(gt=0)]
-    invitation_expire: Annotated[int, Field(gt=0)]
 
 
 class TeamInvitationLocalCodeCreated(BaseModel):

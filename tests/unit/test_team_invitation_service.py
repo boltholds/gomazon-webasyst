@@ -342,7 +342,6 @@ async def test_send_true_soft_mail_failure_is_still_success_without_link() -> No
 
     assert isinstance(result, TeamInvitationEmailAccepted)
     assert result.contact_id == 7
-    assert result.invitation_expire == 1_800_000_000
     assert len(sender.calls) == 1
 
 
