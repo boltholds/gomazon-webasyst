@@ -29,6 +29,7 @@ from gomazon_webasyst.contracts.team_invitation import (
     TeamInvitationCodeRequest,
     TeamInvitationContactConflict,
     TeamInvitationContactReady,
+    TeamInvitationContactResolution,
     TeamInvitationEmailLinkRequest,
     TeamInvitationExistingContact,
     TeamInvitationNewContact,
@@ -86,7 +87,7 @@ class SQLAlchemyTeamInvitationStore(TeamInvitationStore):
         *,
         actor_contact_id: int,
         request: TeamInvitationRequest,
-    ):
+    ) -> TeamInvitationContactResolution:
         actor_locale = await self._actor_locale(actor_contact_id)
 
         if isinstance(request, TeamInvitationCodeRequest):
