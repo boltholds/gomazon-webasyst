@@ -30,6 +30,9 @@ Email/phone link flows reuse an existing `is_user=0` contact by exact legacy cha
 
 Code flow does not reuse an existing contact by email/phone; it creates a fresh contact.
 
+
+For any freshly created invite contact, persistence and event ordering are explicit: the contact plus email/phone channel data are committed first, then synchronous `contacts.save` is published, and only after the event returns may invitation-token creation begin. Event handlers therefore observe the persisted contact/channel state and no invitation token yet. Reused existing contacts do not publish this save event.
+
 ## Token lifecycle
 
 Team invitation infrastructure owns a private SQLAlchemy Core mapping of legacy `wa_app_tokens`; the table is intentionally absent from shared ORM metadata.
@@ -71,4 +74,4 @@ Source HTTP statuses are preserved: access denied 403, contact conflicts 409, to
 
 ## Acceptance
 
-Local/disconnected production behavior is proven through `/api.php/team.users.invite` using the real API token pipeline, installed Team runtime, ACL tables and legacy persistence. Tests cover PHP scalar-vs-array POST normalization, ASCII `wa_is_int`, source email/phone validation, rights filtering, contact reuse, fresh code contact creation, token data, response-time expiry, IDNA link roots, conflict mapping, unavailable send boundary and POST-only enforcement.
+Local/disconnected production behavior is proven through `/api.php/team.users.invite` using the real API token pipeline, installed Team runtime, ACL tables and legacy persistence. Tests cover PHP scalar-vs-array POST normalization, ASCII `wa_is_int`, source email/phone validation, rights filtering, contact reuse, fresh code contact creation, committed `contacts.save`-before-token ordering, token data, response-time expiry, IDNA link roots, conflict mapping, unavailable send boundary and POST-only enforcement.
