@@ -480,6 +480,17 @@ Date: 2026-09-22
 
 When a legacy handler returns the boolean coercion of a nested Webasyst event result array, Python MUST derive that boolean from whether the nested dispatch produced any non-null owner result. It MUST NOT coerce returned payload values themselves. In legacy `waEvent`, a handler returning `false` is still a non-null result and creates an entry in the event result array; therefore `!!event(...)` is true in that case. A nested dispatch with failures but no returned results remains false. Such outer relays MUST return `EventHandlerReturned(LegacyEventPayload(value=<bool>))` even when the boolean is false, because PHP false is observable and is not equivalent to a null/no-result handler outcome.
 
+
+### ADR-064 — Backend route configuration is declarative compatibility metadata, not executable runtime registration
+Status: accepted
+Date: 2026-09-22
+
+Legacy `lib/config/routing.backend.php` files are loaded only through the restricted declarative PHP return-value parser and normalized into ordered typed `AppDispatchRule` values. A backend route catalog MUST NOT register Python controller/action handlers or imply that a matched target is executable. Executable availability remains owned by the explicit dispatch registry.
+
+Backend routing is a two-stage compatibility pipeline: when a route table exists and query `module`/ `plugin` are PHP-empty, `BackendAppRouteResolver` matches the backend path and produces a route seed/data; the existing `BackendRouteResolver` then applies Webasyst query-vs-routing precedence and dispatch-identifier validation. A non-empty query module or plugin skips the backend app route table. If an active backend route table produces no match, Python raises typed `RouteNotFound` rather than falling back to the ordinary `backend` module. If no route file exists, ordinary backend default normalization remains valid.
+
+Filesystem discovery uses the existing `LegacyApplicationPathPolicy`; startup composition can build an immutable route table from the canonical installed-application snapshot. The production legacy catch-all remains unmounted until executable backend handlers, authentication/rights checks and rendering are deliberately activated.
+
 ---
 
 ## Target dependency direction
@@ -604,6 +615,9 @@ Compatibility may depend on contracts/application-owned ports. Application code 
 - valid UTF-8 percent-decoding happens before matching;
 - app-route miss falls through to frontend defaults;
 - backend query/route precedence characterizes `waFrontController::getDispatchParams()`;
+- `routing.backend.php` is loaded through restricted declarative PHP parsing into an ordered compatibility-owned catalog; loading routes never registers executable handlers;
+- backend app path routing runs only when query `module` and `plugin` are PHP-empty; matched route params feed the existing backend query normalizer;
+- an active backend route table with no matching path raises typed route miss instead of falling back to the ordinary `backend` module, while absence of a route file keeps the ordinary backend default;
 - dispatch identifiers are validated;
 - `waActions::run(null)` maps to concrete default action behavior;
 - production `main.py` must not mount the legacy catch-all until parity is deliberately activated.
@@ -910,4 +924,5 @@ The foundation is considered proven when CI confirms:
 - second Team API vertical slice is verified complete: `team.users.getList` preserves source-characterized users/group selection, wildcard visibility, candidate access filters, enrichment, naming, UTC/online/event projection and GET-only production API execution; direct-root media projection is implemented while CDN/non-mod-rewrite resource variants remain explicitly deferred, and the verification code head passed full CI with 848 tests;
 - Team invitation local/disconnected vertical slice is verified complete: `team.users.invite` preserves PHP scalar/array POST shapes, ASCII `wa_is_int`, source email/phone validation, PHP-truthy rights, raw-vs-normalized groups, hook ordering, contact reuse/create behavior, private `wa_app_tokens` lifecycle, separate token/response expiry clocks, IDNA invite links, link/local-code responses and application-specific API errors through production API execution; outbound email and connected WAID remain explicit deferred adapters, publishes `contacts.save` after new-contact commit and before token creation, and the final code head passed full CI with 888 tests;
 - Team contacts-collection relay slice is verified complete: `contacts.contacts_collection` republishes the exact payload as `team.contacts_collection`, maps nested result presence to an outer boolean result rather than payload truthiness, preserves false as an observable outer result, and the initial implementation head passed full CI with 894 tests;
+- backend route-catalog foundation is verified complete: restricted filesystem loading, canonical installed-app composition, typed backend path matching, query-control bypass, route-miss semantics and ASGI path dispatch are implemented without registering fake handlers or mounting the legacy catch-all; the final code head passed full CI with 911 tests;
 - every new architectural decision is reflected here.
