@@ -56,6 +56,14 @@ def build_app() -> FastAPI:
         backend_resolver=BackendRouteResolver(),
         app_routes=app_routes,
         strategies=strategies,
+        backend_routes={
+            "team": parse_app_routes(
+                "team",
+                {
+                    "users/list/": "users/list",
+                },
+            )
+        },
     )
 
     async def blog_post(outcome):
@@ -106,6 +114,16 @@ async def test_frontend_route_resolves_handler_and_route_data() -> None:
         "id": "42",
         "target_kind": "single_action",
     }
+
+
+async def test_backend_path_route_resolves_handler() -> None:
+    app = build_app()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://example.com"
+    ) as client:
+        response = await client.get("/webasyst/team/users/list/")
+    assert response.status_code == 200
+    assert response.json()["handler"] == "team-users-list"
 
 
 async def test_backend_query_normalization_resolves_handler() -> None:
