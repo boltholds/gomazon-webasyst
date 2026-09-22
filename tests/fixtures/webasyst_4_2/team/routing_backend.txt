@@ -1,0 +1,40 @@
+FIXTURE_KIND: source-characterized
+SOURCE_COMMIT: 39c267a2fabfb0cd6d94f4dd86b23b4750328dd5
+SOURCE_PATH: wa-apps/team/lib/config/routing.backend.php
+
+ROUTE_ORDER:
+1 = u/<login>/<tab>/? -> profile/
+2 = u/<login>/? -> profile/
+3 = id/<id>/<tab>/? -> profile/
+4 = id/<id>/? -> profile/
+5 = calendar/ -> schedule/
+6 = calendar/external/ -> calendar/external
+7 = access/ -> access/
+8 = api-tokens/ -> apitokens/
+9 = group/<id>/manage/ -> group/manage
+10 = group/<id>/access/ -> group/access
+11 = group/<id>/ -> group/
+12 = online/ -> users/online
+13 = settings/ -> settings/
+14 = plugins/ -> plugins/
+15 = welcome/ -> welcome/
+16 = invited/ -> users/invited
+17 = inactive/ -> users/inactive
+18 = no-access/ -> users/noaccess
+19 = search/<search>/ -> users/search
+20 = calendar/external/authorize/ -> explicit route mapping
+21 = empty -> users/
+
+EXPLICIT_AUTHORIZE_ROUTE:
+url = calendar/external/authorize/<id>
+module = calendarExternal
+action = authorize
+route_data.authorize_end = 1
+
+FRONT_CONTROLLER:
+routing_backend_runs_only_when_query_module_is_php_empty = true
+routing_backend_runs_only_when_query_plugin_is_php_empty = true
+matched_route_params_override_backend_query_params = true
+route_module_without_action_keeps_query_action = true
+route_miss_without_module_raises_dispatch_miss = true
+missing_routing_backend_file_uses_normal_backend_defaults = true
