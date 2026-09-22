@@ -1,0 +1,26 @@
+FIXTURE_KIND: source-characterized
+SOURCE_COMMIT: 39c267a2fabfb0cd6d94f4dd86b23b4750328dd5
+
+OUTER_HANDLER:
+path = wa-apps/team/lib/handlers/contacts.contacts_collection.handler.php
+source_app_id = contacts
+source_event = contacts_collection
+nested_app_id = team
+nested_event = contacts_collection
+payload_by_reference = true
+return_expression = !!wa('team')->event('contacts_collection', $params)
+
+WA_EVENT:
+event_return = array_of_non_null_owner_results
+empty_array_is_false = true
+non_empty_array_is_true = true
+false_handler_value_is_still_non_null_result = true
+null_handler_value_is_omitted = true
+
+EXPECTED_PYTHON:
+nested_payload_identity_preserved = true
+outer_handler_always_returns_result = true
+outer_result_payload_type = LegacyEventPayload
+outer_false_when_nested_results_empty = true
+outer_true_when_nested_results_non_empty = true
+nested_failures_without_results_do_not_make_true = true
