@@ -55,6 +55,28 @@ class LegacyApplicationPathPolicy:
             )
         return self._contained(candidate)
 
+    def backend_routing_path(self, app_id: AppId) -> Path:
+        self._validate_app_id(app_id)
+        if app_id.value == "webasyst":
+            candidate = (
+                self._root
+                / "wa-system"
+                / "webasyst"
+                / "lib"
+                / "config"
+                / "routing.backend.php"
+            )
+        else:
+            candidate = (
+                self._root
+                / "wa-apps"
+                / app_id.value
+                / "lib"
+                / "config"
+                / "routing.backend.php"
+            )
+        return self._contained(candidate)
+
     @staticmethod
     def _validate_app_id(app_id: AppId) -> None:
         if _SAFE_LEGACY_APP_ID.fullmatch(app_id.value) is None:

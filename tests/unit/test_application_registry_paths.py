@@ -120,3 +120,19 @@ def test_constructor_canonicalizes_root_and_requires_existing_directory(
     policy = LegacyApplicationPathPolicy(root / ".")
 
     assert policy.root == root.resolve()
+
+
+
+def test_backend_routing_path_uses_same_containment_policy(tmp_path: Path) -> None:
+    root = tmp_path / "webasyst"
+    root.mkdir()
+    policy = LegacyApplicationPathPolicy(root)
+
+    assert policy.backend_routing_path(AppId("team")) == (
+        root
+        / "wa-apps"
+        / "team"
+        / "lib"
+        / "config"
+        / "routing.backend.php"
+    ).resolve()
