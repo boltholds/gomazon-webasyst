@@ -39,6 +39,7 @@ from gomazon_webasyst.compatibility.webasyst.team.api import (
     TeamUsersInviteApiMethod,
 )
 from gomazon_webasyst.compatibility.webasyst.team.events import (
+    TeamContactsCollectionRelayHandler,
     TeamContactsDeleteRelayHandler,
 )
 from gomazon_webasyst.compatibility.webasyst.team.groups_filter import (
@@ -167,10 +168,20 @@ def create_team_runtime_module(
         pattern=ExactEventPattern(EventName("delete")),
         handler=TeamContactsDeleteRelayHandler(event_publisher),
     )
+    contacts_collection_relay = EventHandlerDefinition(
+        handler_id=EventHandlerId("team-contacts-collection-relay"),
+        owner=ApplicationEventOwner(_TEAM_APP_ID),
+        source=ExactEventSource(AppId("contacts")),
+        pattern=ExactEventPattern(EventName("contacts_collection")),
+        handler=TeamContactsCollectionRelayHandler(event_publisher),
+    )
     return ApplicationRuntimeModule(
         app_id=_TEAM_APP_ID,
         dispatch_handlers=(),
         api_methods=(groups_method, users_method, invite_method),
-        event_handlers=(contacts_delete_relay,),
+        event_handlers=(
+            contacts_delete_relay,
+            contacts_collection_relay,
+        ),
         plugins=(),
     )

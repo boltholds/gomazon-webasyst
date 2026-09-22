@@ -5,7 +5,9 @@ from gomazon_webasyst.application.events.composites.contracts import (
 from gomazon_webasyst.application.events.vo.identity import EventKey, EventName
 from gomazon_webasyst.application.events.vo.payload import (
     EventHandlerNoResult,
+    EventHandlerReturned,
     EventPayload,
+    LegacyEventPayload,
 )
 from gomazon_webasyst.application.ports.event_handlers import EventHandlerContext
 from gomazon_webasyst.application.ports.event_publisher import EventPublisher
@@ -14,6 +16,10 @@ from gomazon_webasyst.application.ports.event_publisher import EventPublisher
 _TEAM_CONTACTS_DELETE = EventKey(
     app_id=AppId("team"),
     name=EventName("contacts_delete"),
+)
+_TEAM_CONTACTS_COLLECTION = EventKey(
+    app_id=AppId("team"),
+    name=EventName("contacts_collection"),
 )
 
 
@@ -33,3 +39,25 @@ class TeamContactsDeleteRelayHandler:
             )
         )
         return EventHandlerNoResult()
+
+
+
+class TeamContactsCollectionRelayHandler:
+    def __init__(self, event_publisher: EventPublisher) -> None:
+        self._event_publisher = event_publisher
+
+    async def handle(
+        self,
+        context: EventHandlerContext,
+        payload: EventPayload,
+    ) -> EventHandlerReturned:
+        del context
+        report = await self._event_publisher.publish(
+            EventDispatchRequest(
+                event=_TEAM_CONTACTS_COLLECTION,
+                payload=payload,
+            )
+        )
+        return EventHandlerReturned(
+            value=LegacyEventPayload(value=bool(report.results))
+        )
