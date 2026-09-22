@@ -473,6 +473,13 @@ Date: 2026-09-22
 
 When an invitation flow creates a new contact, the contact and its channel data MUST be committed before the synchronous `contacts.save` publication. The event therefore observes the persisted new contact and channel values. Invitation-token creation happens only after that event returns, so handlers observe zero invite tokens for the fresh contact. Existing contacts reused by link flows do not emit this save event. This ordering is explicit in the Team invitation application flow and must not be hidden inside the SQL invitation store.
 
+
+### ADR-063 — Boolean legacy event relays use nested result presence, not payload truthiness
+Status: accepted
+Date: 2026-09-22
+
+When a legacy handler returns the boolean coercion of a nested Webasyst event result array, Python MUST derive that boolean from whether the nested dispatch produced any non-null owner result. It MUST NOT coerce returned payload values themselves. In legacy `waEvent`, a handler returning `false` is still a non-null result and creates an entry in the event result array; therefore `!!event(...)` is true in that case. A nested dispatch with failures but no returned results remains false. Such outer relays MUST return `EventHandlerReturned(LegacyEventPayload(value=<bool>))` even when the boolean is false, because PHP false is observable and is not equivalent to a null/no-result handler outcome.
+
 ---
 
 ## Target dependency direction
@@ -733,7 +740,9 @@ The first auth slice is backend password authentication plus session create/reso
 - legacy API query transport preserves repeated keys as immutable tuples so PHP-style `filter[type][]` arrays are not collapsed;
 - `contacts.delete -> team.contacts_delete` is now source-characterized and implemented as a synchronous Team relay that republishes the exact same payload object and returns no outer result;
 - nested Team event results are intentionally ignored by the relay, matching the missing PHP `return` in `teamContactsDeleteHandler::execute()`;
-- `team.groups.getList`, `team.users.getList`, and the local/disconnected `team.users.invite` slice are migrated; Team UI/Smarty, real outbound invitation delivery, connected Webasyst ID, calendars, schedules, remaining mutations, plugins, and other Team event handlers remain later slices.
+- `team.groups.getList`, `team.users.getList`, and the local/disconnected `team.users.invite` slice are migrated;
+- `contacts.contacts_collection` is migrated as a synchronous Team relay to `team.contacts_collection`; it preserves exact payload identity and returns boolean result-presence semantics, where a nested false payload still makes the outer result true;
+- Team UI/Smarty, real outbound invitation delivery, connected Webasyst ID, calendars, schedules, remaining mutations, plugins, and other Team event handlers remain later slices.
 
 ---
 
@@ -900,4 +909,5 @@ The foundation is considered proven when CI confirms:
 - Contacts private-rights event slice is verified complete: installed Contacts owns app-private `contacts_rights` cleanup, negative personal-principal encoding stays infrastructure-private, bundled runtime order follows the canonical installed-app snapshot, and the verification head passed full CI with 831 tests;
 - second Team API vertical slice is verified complete: `team.users.getList` preserves source-characterized users/group selection, wildcard visibility, candidate access filters, enrichment, naming, UTC/online/event projection and GET-only production API execution; direct-root media projection is implemented while CDN/non-mod-rewrite resource variants remain explicitly deferred, and the verification code head passed full CI with 848 tests;
 - Team invitation local/disconnected vertical slice is verified complete: `team.users.invite` preserves PHP scalar/array POST shapes, ASCII `wa_is_int`, source email/phone validation, PHP-truthy rights, raw-vs-normalized groups, hook ordering, contact reuse/create behavior, private `wa_app_tokens` lifecycle, separate token/response expiry clocks, IDNA invite links, link/local-code responses and application-specific API errors through production API execution; outbound email and connected WAID remain explicit deferred adapters, publishes `contacts.save` after new-contact commit and before token creation, and the final code head passed full CI with 888 tests;
+- Team contacts-collection relay slice is verified complete: `contacts.contacts_collection` republishes the exact payload as `team.contacts_collection`, maps nested result presence to an outer boolean result rather than payload truthiness, preserves false as an observable outer result, and the initial implementation head passed full CI with 894 tests;
 - every new architectural decision is reflected here.
